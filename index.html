@@ -553,6 +553,24 @@
   function tentorName(id){ const t=tentorById(id); return t? t.nama : '(tentor dihapus)'; }
   function familyName(id){ const f=familyById(id); return f? (f.alamat||'(tanpa alamat)') : '(alamat dihapus)'; }
   function childKey(a){ return (a.familyId||'')+'|'+(a.namaSiswa||'').trim().toLowerCase(); }
+  function childLabel(a){
+    const nama = (a.namaSiswa||'').trim();
+    const ket = (a.keterangan||'').trim();
+    return ket ? `${nama} (${ket})` : nama;
+  }
+  // Cek apakah nama siswa ini "kembar" dengan siswa lain (nama sama persis,
+  // di alamat yang sama ATAU diajar tentor yang sama) — dipakai untuk
+  // mengingatkan admin supaya mengisi Keterangan Pembeda.
+  function findNameClash(namaSiswa, familyId, tentorId, excludeId){
+    const nm = (namaSiswa||'').trim().toLowerCase();
+    if(!nm) return null;
+    return assignments.find(x=>
+      x.id!==excludeId &&
+      x.status!=='nonaktif' &&
+      (x.namaSiswa||'').trim().toLowerCase()===nm &&
+      (x.familyId===familyId || x.tentorId===tentorId)
+    ) || null;
+  }
 
   function calcRow(a){
     const jumlah = sessions[a.id] || 0;
@@ -688,7 +706,7 @@
     const totFee = rows.reduce((s,r)=>s+r.c.totalFee,0);
     const filtered = rows.filter(({a})=>{
       if(!q) return true;
-      const hay = (tentorName(a.tentorId)+' '+familyName(a.familyId)+' '+a.namaSiswa).toLowerCase();
+      const hay = (tentorName(a.tentorId)+' '+familyName(a.familyId)+' '+a.namaSiswa+' '+(a.keterangan||'')).toLowerCase();
       return hay.includes(q);
     });
 
@@ -737,7 +755,7 @@
                 <td>${esc(tentorName(a.tentorId))} <span class="kode-tag">${tentorById(a.tentorId)?tentorById(a.tentorId).kode:''}</span></td>
                 <td>${esc(familyName(a.familyId))}</td>
                 <td>${esc(a.tingkatan)}</td>
-                <td>${esc(a.namaSiswa)}</td>
+                <td>${esc(childLabel(a))}</td>
                 <td class="num">${rupiah(a.biayaLes)}</td>
                 <td class="num">${rupiah(a.honorTentor)}</td>
                 <td><input type="number" min="0" class="pill-input sesi-input num" data-id="${a.id}" value="${c.jumlah}"></td>
@@ -779,12 +797,12 @@
   }
 
   function exportCsv(rows){
-    const header = ['Kode Tentor','Tentor','Alamat','Tingkatan','Siswa','Biaya/Pertemuan','Honor/Pertemuan','Jumlah Pertemuan','Fee/Pertemuan','Total Biaya','Total Honor','Total Fee'];
+    const header = ['Kode Tentor','Tentor','Alamat','Tingkatan','Siswa','Keterangan Pembeda','Biaya/Pertemuan','Honor/Pertemuan','Jumlah Pertemuan','Fee/Pertemuan','Total Biaya','Total Honor','Total Fee'];
     const lines = [header.join(',')];
     rows.forEach(({a,c})=>{
       const t = tentorById(a.tentorId);
       lines.push([
-        t?t.kode:'', t?t.nama:'', familyName(a.familyId), a.tingkatan||'', a.namaSiswa||'',
+        t?t.kode:'', t?t.nama:'', familyName(a.familyId), a.tingkatan||'', a.namaSiswa||'', a.keterangan||'',
         a.biayaLes||0, a.honorTentor||0, c.jumlah, c.feePertemuan, c.totalBiaya, c.totalHonor, c.totalFee
       ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     });
@@ -804,7 +822,7 @@
     const filtered = sorted.filter(r=>{
       if(!q) return true;
       const a = assignments.find(x=>x.id===r.assignmentId);
-      const hay = (a ? (tentorName(a.tentorId)+' '+a.namaSiswa+' '+familyName(a.familyId)) : '').toLowerCase();
+      const hay = (a ? (tentorName(a.tentorId)+' '+a.namaSiswa+' '+(a.keterangan||'')+' '+familyName(a.familyId)) : '').toLowerCase();
       return hay.includes(q);
     });
     const tentorOptions = tentors.filter(t=>t.status!=='nonaktif');
@@ -858,7 +876,7 @@
               return `<tr data-id="${r.id}">
                 <td>${esc(r.tanggal)}</td>
                 <td>${esc(a?tentorName(a.tentorId):'(kelas dihapus)')}</td>
-                <td>${esc(a?a.namaSiswa:'-')}</td>
+                <td>${esc(a?childLabel(a):'-')}</td>
                 <td>${esc(a?familyName(a.familyId):'-')}</td>
                 <td>${r.dicatatOleh==='tentor' ? 'Tentor (mandiri)' : 'Admin'}</td>
                 <td><button class="icon-btn del-absensi" data-id="${r.id}">Hapus</button></td>
@@ -878,7 +896,7 @@
       const tid = manTentorSel.value;
       const opts = assignments.filter(a=>a.tentorId===tid && a.status!=='nonaktif');
       manKelasSel.innerHTML = !tid ? `<option value="">Pilih tentor dahulu…</option>` :
-        opts.length ? `<option value="">Pilih kelas…</option>`+opts.map(a=>`<option value="${a.id}">${esc(a.namaSiswa)} — ${esc(familyName(a.familyId))}</option>`).join('')
+        opts.length ? `<option value="">Pilih kelas…</option>`+opts.map(a=>`<option value="${a.id}">${esc(childLabel(a))} — ${esc(familyName(a.familyId))}</option>`).join('')
         : `<option value="">(tentor ini belum punya kelas aktif)</option>`;
     });
     document.getElementById('manAddBtn').addEventListener('click', async ()=>{
@@ -1127,14 +1145,14 @@
       if(statusFilter==='aktif' && a.status==='nonaktif') return false;
       if(statusFilter==='nonaktif' && a.status!=='nonaktif') return false;
       if(!q) return true;
-      const hay = (tentorName(a.tentorId)+' '+familyName(a.familyId)+' '+a.namaSiswa).toLowerCase();
+      const hay = (tentorName(a.tentorId)+' '+familyName(a.familyId)+' '+a.namaSiswa+' '+(a.keterangan||'')).toLowerCase();
       return hay.includes(q);
     });
 
     view.appendChild(el(`
       <div>
         <h2 style="margin-bottom:16px;">Siswa &amp; Kelas</h2>
-        <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang.</div>
+        <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang. Kalau ada 2 siswa dengan nama sama persis (satu tentor atau satu alamat), isi kolom "Keterangan Pembeda" — sistem akan otomatis mengingatkan Anda saat ini terjadi.</div>
         ${tentors.length===0 ? `<div class="banner">Tambahkan tentor terlebih dahulu di tab "Tentor".</div>` : ''}
         ${families.length===0 ? `<div class="banner">Tambahkan data alamat terlebih dahulu di tab "Orang Tua".</div>` : ''}
         <div class="form-grid" id="newAssignForm">
@@ -1149,6 +1167,10 @@
           <div>
             <label class="field-label">Nama Siswa</label>
             <input type="text" id="a_siswa" placeholder="mis. Rafar" value="${editing?esc(editing.namaSiswa):''}">
+          </div>
+          <div>
+            <label class="field-label">Keterangan Pembeda <span style="font-weight:400;color:var(--ink-soft);">(opsional)</span></label>
+            <input type="text" id="a_keterangan" placeholder="mis. anak sulung, kelas Matematika" value="${editing?esc(editing.keterangan||''):''}">
           </div>
           <div>
             <label class="field-label">Tingkatan Sekolah</label>
@@ -1202,11 +1224,14 @@
         <table>
           <thead><tr><th>Status</th><th>Tentor</th><th>Siswa</th><th>Alamat</th><th>Tingkatan</th><th>Biaya/Pertemuan</th><th>Honor/Pertemuan</th><th>Fee/Pertemuan</th><th></th></tr></thead>
           <tbody>
-            ${filteredList.map(a=>`
+            ${filteredList.map(a=>{
+              const clash = findNameClash(a.namaSiswa, a.familyId, a.tentorId, a.id);
+              const needsWarning = clash && !(a.keterangan||'').trim() && !(clash.keterangan||'').trim();
+              return `
               <tr data-id="${a.id}">
                 <td><span class="kode-tag" style="${a.status==='nonaktif'?'background:var(--danger-soft);color:var(--danger);':'background:#DFF5E8;color:var(--success);'}">${a.status==='nonaktif'?'Nonaktif':'Aktif'}</span></td>
                 <td>${esc(tentorName(a.tentorId))} <span class="kode-tag">${tentorById(a.tentorId)?tentorById(a.tentorId).kode:''}</span></td>
-                <td>${esc(a.namaSiswa)}</td>
+                <td>${esc(childLabel(a))}${needsWarning?` <span class="kode-tag" style="background:var(--danger-soft);color:var(--danger);" title="Ada siswa lain dengan nama sama di tentor/alamat ini — isi Keterangan Pembeda">⚠ nama sama</span>`:''}</td>
                 <td>${esc(familyName(a.familyId))}</td>
                 <td>${esc(a.tingkatan)}</td>
                 <td class="num">${rupiah(a.biayaLes)}</td>
@@ -1217,7 +1242,7 @@
                   <button class="icon-btn edit-btn edit-assign" data-id="${a.id}">Ubah</button>
                   <button class="icon-btn del-assign" data-id="${a.id}">Hapus</button>
                 </td>
-              </tr>`).join('')}
+              </tr>`;}).join('')}
           </tbody>
         </table>
         </div>`}
@@ -1246,6 +1271,7 @@
       const tentorId = document.getElementById('a_tentor').value;
       const familyId = document.getElementById('a_family').value;
       const namaSiswa = document.getElementById('a_siswa').value.trim();
+      const keterangan = document.getElementById('a_keterangan').value.trim();
       const tingkatSelVal = document.getElementById('a_tingkat').value;
       const tingkatan = tingkatSelVal==='__manual' ? document.getElementById('a_tingkat_manual').value.trim() : tingkatSelVal;
       const biayaSelVal = document.getElementById('a_biaya_select').value;
@@ -1257,12 +1283,17 @@
         alert('Lengkapi tentor, alamat, nama siswa, tingkatan, biaya les, dan honor tentor terlebih dahulu.');
         return;
       }
+      const clash = findNameClash(namaSiswa, familyId, tentorId, editingAssignmentId);
+      if(clash && !keterangan && !(clash.keterangan||'').trim()){
+        const lanjut = confirm(`Ada siswa lain bernama "${namaSiswa}" juga (di alamat/tentor yang sama). Supaya tidak tertukar saat absen dan di rekap, sebaiknya isi "Keterangan Pembeda" dulu (mis. "anak sulung" / "kelas Matematika").\n\nTetap simpan tanpa keterangan?`);
+        if(!lanjut) return;
+      }
       if(editingAssignmentId){
         const a = assignments.find(x=>x.id===editingAssignmentId);
-        Object.assign(a, {tentorId, familyId, namaSiswa, tingkatan, biayaLes, honorTentor, mulaiBulan});
+        Object.assign(a, {tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan});
         editingAssignmentId = null;
       } else {
-        assignments.push({id:uid(), tentorId, familyId, namaSiswa, tingkatan, biayaLes, honorTentor, mulaiBulan, status:'aktif'});
+        assignments.push({id:uid(), tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan, status:'aktif'});
       }
       render();
       storeSet('assignments', assignments);
@@ -1342,7 +1373,7 @@
     const rows = list.map(a=>{
       const c = calcRow(a);
       total += c.totalHonor;
-      return `<tr><td style="padding:6px 4px;">${esc(a.namaSiswa)}</td><td style="padding:6px 4px;">${esc(familyName(a.familyId))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlah}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.honorTentor)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalHonor)}</td></tr>`;
+      return `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(familyName(a.familyId))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlah}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.honorTentor)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalHonor)}</td></tr>`;
     }).join('');
     const t = tentorById(tid);
     return `
@@ -1370,10 +1401,10 @@
     const rows = list.map(a=>{
       const c = calcRow(a);
       total += c.totalBiaya;
-      return `<tr><td style="padding:6px 4px;">${esc(a.namaSiswa)}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlah}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.biayaLes)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalBiaya)}</td></tr>`;
+      return `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlah}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.biayaLes)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalBiaya)}</td></tr>`;
     }).join('');
     const f = familyById(fid);
-    const childNames = list.map(a=>a.namaSiswa).join(', ') || (f?f.alamat:'');
+    const childNames = list.map(a=>childLabel(a)).join(', ') || (f?f.alamat:'');
     return `
       ${invoiceHeader('Invoice Biaya Les')}
       <div style="margin-bottom:16px;">
@@ -1402,7 +1433,7 @@
       const body = groups[tid].map(({a,c})=>`
         <tr>
           <td>${esc(familyName(a.familyId))}</td>
-          <td>${esc(a.namaSiswa)}</td>
+          <td>${esc(childLabel(a))}</td>
           <td>${esc(a.tingkatan)}</td>
           <td class="num" style="text-align:right;">${c.jumlah}x</td>
         </tr>`).join('');
@@ -1461,7 +1492,7 @@
       let total = 0;
       const rowsHtml = list.map(a=>{
         const c = calcRow(a); total += c.totalHonor;
-        return `<tr><td>${esc(a.namaSiswa)}</td><td>${esc(familyName(a.familyId))}</td><td class="num">${c.jumlah}x</td><td class="num">${rupiah(a.honorTentor)}</td><td class="num money">${rupiah(c.totalHonor)}</td></tr>`;
+        return `<tr><td>${esc(childLabel(a))}</td><td>${esc(familyName(a.familyId))}</td><td class="num">${c.jumlah}x</td><td class="num">${rupiah(a.honorTentor)}</td><td class="num money">${rupiah(c.totalHonor)}</td></tr>`;
       }).join('');
       const t = tentorById(tid);
       const isOpen = expandedTentors.has(tid);
@@ -1530,7 +1561,7 @@
       let total = 0;
       const rowsHtml = list.map(a=>{
         const c = calcRow(a); total += c.totalBiaya;
-        return `<tr><td>${esc(a.namaSiswa)}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))}</td><td class="num">${c.jumlah}x</td><td class="num">${rupiah(a.biayaLes)}</td><td class="num money">${rupiah(c.totalBiaya)}</td></tr>`;
+        return `<tr><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))}</td><td class="num">${c.jumlah}x</td><td class="num">${rupiah(a.biayaLes)}</td><td class="num money">${rupiah(c.totalBiaya)}</td></tr>`;
       }).join('');
       const f = familyById(fid);
       const isOpen = expandedFamilies.has(fid);
@@ -1630,19 +1661,22 @@
 service cloud.firestore {
   match /databases/{database}/documents {
     match /kv/{docId} {
-      // Data tentor, orang tua/anak, dan pembayaran: HANYA admin yang
-      // sudah login (Firebase Authentication) boleh baca/tulis.
-      allow read, write: if request.auth != null
-        && !docId.matches('^(kehadiran|sessions):.*');
+      // Baca (read): data tentor/keluarga/kelas & absensi dibuka untuk
+      // siapa saja SUPAYA halaman absen (tanpa login) tetap bisa
+      // menampilkan nama tentor & daftar kelasnya. Data pembayaran
+      // (payments:*) tetap butuh login admin untuk dibaca.
+      allow read: if docId == 'tentors' || docId == 'families' || docId == 'assignments'
+        || docId.matches('^(kehadiran|sessions):.*')
+        || request.auth != null;
 
-      // Absensi & jumlah pertemuan: dibuka supaya tentor bisa absen dari
-      // link pribadinya tanpa login. Dokumen ini TIDAK berisi nama/alamat/
-      // uang, hanya tanggal + id kelas + id tentor.
-      allow read, write: if docId.matches('^(kehadiran|sessions):.*');
+      // Tulis (ubah/hapus): HANYA admin yang login, kecuali dokumen
+      // absensi & jumlah pertemuan (supaya tentor bisa absen tanpa login).
+      allow write: if request.auth != null
+        || docId.matches('^(kehadiran|sessions):.*');
     }
   }
 }</textarea>
-                <span style="color:var(--ink-soft);font-size:12px;">Setelah rules ini aktif, siapa pun yang tidak login TIDAK BISA lagi membaca daftar tentor, alamat orang tua, nama anak, atau data honor/tagihan — walau tahu config Firebase di atas.</span>
+                <span style="color:var(--ink-soft);font-size:12px;">Catatan: nama tentor/alamat/nama anak (bukan data uang) tetap bisa DIBACA lewat API oleh orang yang tahu config Firebase ini — batasan bawaan aplikasi tanpa server. Yang pasti terkunci penuh: data pembayaran/honor, dan TIDAK ADA yang bisa mengubah/menghapus data tanpa login admin.</span>
               </li>
               <li>Aktifkan login admin: di menu kiri klik <b>Build → Authentication → Get started</b>, pilih provider <b>Email/Password</b> lalu <b>Enable</b>. Setelah itu buka tab <b>Users</b> → <b>Add user</b>, isi email &amp; password untuk tiap admin (misalnya diri Anda). Inilah yang nanti dipakai untuk login ke aplikasi ini, menggantikan password lama.</li>
               <li>Klik ikon gerigi ⚙️ di pojok kiri atas → <b>Project settings</b>. Di tab <b>General</b>, scroll ke bawah ke bagian "Your apps", klik ikon <b>&lt;/&gt; (Web)</b> untuk daftarkan app baru, beri nama bebas, klik <b>Register app</b>.</li>
@@ -1876,7 +1910,7 @@ service cloud.firestore {
           return `
           <div class="group-card">
             <div class="group-head">
-              <span class="name">${esc(a.namaSiswa)}<span class="sub"><br>${esc(familyName(a.familyId))} · ${esc(a.tingkatan)}</span></span>
+              <span class="name">${esc(childLabel(a))}<span class="sub"><br>${esc(familyName(a.familyId))} · ${esc(a.tingkatan)}</span></span>
               <div class="right"><span class="kode-tag">${bulanIni}x bulan ini</span></div>
             </div>
             <div class="group-body" style="padding-top:12px;">
