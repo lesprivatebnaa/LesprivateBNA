@@ -241,6 +241,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script>
 (function(){
   "use strict";
@@ -274,6 +275,17 @@
   // Mode online: data dibaca/ditulis langsung ke Firebase Firestore
   // (jauh lebih cepat dibanding Google Apps Script + Google Sheets).
   let db = null;
+  let auth = null;
+  function initAuth(){
+    if(auth) return auth;
+    const cfg = activeFirebaseConfig();
+    if(!cfg) return null;
+    try{
+      if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(cfg);
+      auth = firebase.auth();
+    }catch(e){ auth = null; }
+    return auth;
+  }
   function activeFirebaseConfig(){
     try{
       const override = localStorage.getItem('firebaseConfigJson');
@@ -301,7 +313,37 @@
     } else {
       localStorage.removeItem('firebaseConfigJson');
     }
-    db = null; // paksa init ulang pakai config terbaru
+    db = null; auth = null; // paksa init ulang pakai config terbaru
+  }
+
+  // ---------- transaksi anti-tabrakan (banyak tentor absen bersamaan) ----------
+  // Dipakai khusus untuk key kehadiran/sessions/payments yang bisa ditulis
+  // oleh banyak orang (tentor) di waktu hampir sama. Alih-alih baca-lalu-
+  // timpa (rawan menghapus perubahan orang lain), ini pakai Firestore
+  // transaction yang otomatis mengulang baca+tulis jika ada tabrakan.
+  async function storeTransactionUpdate(key, mutatorFn){
+    const d = initFirebase();
+    if(!d){
+      // Mode offline (localStorage): satu perangkat saja, tak ada tabrakan nyata.
+      let val = null;
+      try{ const raw = localStorage.getItem(key); val = raw ? JSON.parse(raw) : null; }catch(e){}
+      val = mutatorFn(val);
+      try{ localStorage.setItem(key, JSON.stringify(val)); flashSaved(); }catch(e){ flashError(); }
+      return val;
+    }
+    try{
+      const ref = d.collection('kv').doc(key);
+      const result = await d.runTransaction(async (tx)=>{
+        const doc = await tx.get(ref);
+        const raw = doc.exists ? doc.data().value : null;
+        let val = (raw!==undefined && raw!==null) ? JSON.parse(raw) : null;
+        val = mutatorFn(val);
+        tx.set(ref, { value: JSON.stringify(val) });
+        return val;
+      });
+      flashSaved();
+      return result;
+    }catch(e){ flashError(); return null; }
   }
 
   async function storeGet(key){
@@ -469,6 +511,7 @@
     let changed = false;
     tentors.forEach(t=>{
       if(!t.status){ t.status='aktif'; changed=true; }
+      if(!t.secretToken){ t.secretToken = uid()+uid(); changed=true; }
     });
     if(tentors.some(t=>!t.kode)){ renumberTentors(); changed=true; }
     const legacy = assignments.some(a=>a.alamat!==undefined && !a.familyId);
@@ -715,7 +758,7 @@
     bindLiveSearch('searchKelas','kelas');
 
     view.querySelectorAll('.sesi-input').forEach(inp=>{
-      inp.addEventListener('change', ()=>{
+      inp.addEventListener('change', async ()=>{
         const id = inp.dataset.id;
         const val = Math.max(0, parseInt(inp.value,10)||0);
         sessions[id] = val;
@@ -723,7 +766,9 @@
           availableMonths = [currentMonth, ...availableMonths].sort().reverse();
         }
         render();
-        saveSessions();
+        // Update hanya field ini secara atomik — tidak menimpa perubahan
+        // tentor lain yang mungkin baru saja absen di kelas berbeda.
+        await storeTransactionUpdate('sessions:'+currentMonth, (v)=>{ v=v||{}; v[id]=val; return v; });
       });
     });
 
@@ -842,19 +887,14 @@
       if(!aid || !tanggal){ alert('Pilih tentor, kelas, dan tanggal terlebih dahulu.'); return; }
       const a = assignments.find(x=>x.id===aid);
       const m = tanggal.slice(0,7);
+      const rec = {id:uid(), assignmentId:aid, tentorId:a.tentorId, tanggal, dicatatOleh:'admin', waktu:new Date().toISOString()};
+      await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val=val||[]; val.push(rec); return val; });
+      await storeTransactionUpdate('sessions:'+m, (val)=>{ val=val||{}; val[aid]=(val[aid]||0)+1; return val; });
       if(m===currentMonth){
-        kehadiran.push({id:uid(), assignmentId:aid, tentorId:a.tentorId, tanggal, dicatatOleh:'admin', waktu:new Date().toISOString()});
-        sessions[aid] = (sessions[aid]||0) + 1;
+        kehadiran = (await storeGet('kehadiran:'+m)) || [];
+        sessions = (await storeGet('sessions:'+m)) || {};
         render();
-        await saveKehadiran();
-        await saveSessions();
       } else {
-        const kOther = (await storeGet('kehadiran:'+m)) || [];
-        const sOther = (await storeGet('sessions:'+m)) || {};
-        kOther.push({id:uid(), assignmentId:aid, tentorId:a.tentorId, tanggal, dicatatOleh:'admin', waktu:new Date().toISOString()});
-        sOther[aid] = (sOther[aid]||0) + 1;
-        await storeSet('kehadiran:'+m, kOther);
-        await storeSet('sessions:'+m, sOther);
         if(!availableMonths.includes(m)){ availableMonths=[m,...availableMonths].sort().reverse(); }
         alert('Catatan disimpan pada bulan '+monthLabel(m)+'. Pindah ke bulan tersebut untuk melihatnya.');
         render();
@@ -866,11 +906,17 @@
         if(!confirm('Hapus catatan absen ini? Jumlah pertemuan bulan ini akan berkurang 1.')) return;
         const id = btn.dataset.id;
         const rec = kehadiran.find(r=>r.id===id);
-        kehadiran = kehadiran.filter(r=>r.id!==id);
-        if(rec) sessions[rec.assignmentId] = Math.max(0, (sessions[rec.assignmentId]||0) - 1);
+        await storeTransactionUpdate('kehadiran:'+currentMonth, (val)=>{ val=val||[]; return val.filter(r=>r.id!==id); });
+        if(rec){
+          await storeTransactionUpdate('sessions:'+currentMonth, (val)=>{
+            val=val||{};
+            val[rec.assignmentId] = Math.max(0, (val[rec.assignmentId]||0) - 1);
+            return val;
+          });
+        }
+        kehadiran = (await storeGet('kehadiran:'+currentMonth)) || [];
+        sessions = (await storeGet('sessions:'+currentMonth)) || {};
         render();
-        await saveKehadiran();
-        await saveSessions();
       });
     });
   }
@@ -902,6 +948,7 @@
                 <td class="num">${jml} kelas</td>
                 <td>
                   <button class="icon-btn edit-btn copy-absen-link" data-id="${t.id}">Link Absen</button>
+                  <button class="icon-btn edit-btn reset-absen-link" data-id="${t.id}">Reset Link</button>
                   <button class="icon-btn edit-btn toggle-tentor-status" data-id="${t.id}">${t.status==='nonaktif'?'Aktifkan':'Nonaktifkan'}</button>
                   <button class="icon-btn edit-btn rename-tentor" data-id="${t.id}">Ubah</button>
                   <button class="icon-btn del-tentor" data-id="${t.id}">Hapus</button>
@@ -918,7 +965,7 @@
       const inp = document.getElementById('newTentorName');
       const nama = inp.value.trim();
       if(!nama) return;
-      tentors.push({id:uid(), kode:'', nama, status:'aktif'});
+      tentors.push({id:uid(), kode:'', nama, status:'aktif', secretToken: uid()+uid()});
       renumberTentors();
       render();
       storeSet('tentors', tentors);
@@ -934,8 +981,19 @@
           setActiveTab('cadangan');
           return;
         }
-        const link = location.origin + location.pathname + '?t=' + encodeURIComponent(t.kode);
-        prompt('Link absen untuk '+t.nama+' — tinggal disimpan/di-pin di WhatsApp, sekali tekan langsung absen, tidak perlu PIN:', link);
+        if(!t.secretToken){ t.secretToken = uid()+uid(); storeSet('tentors', tentors); }
+        const link = location.origin + location.pathname + '?t=' + encodeURIComponent(t.id) + '&k=' + encodeURIComponent(t.secretToken);
+        prompt('Link absen untuk '+t.nama+' — tinggal disimpan/di-pin di WhatsApp, sekali tekan langsung absen, tidak perlu PIN. Link ini khusus untuk '+t.nama+' dan tidak berubah walau ada tentor lain ditambah/dihapus:', link);
+      });
+    });
+    view.querySelectorAll('.reset-absen-link').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const t = tentorById(btn.dataset.id);
+        if(!confirm('Buat link absen baru untuk '+t.nama+'? Link lama akan langsung berhenti berfungsi — gunakan ini kalau link lama pernah tidak sengaja tersebar.')) return;
+        t.secretToken = uid()+uid();
+        storeSet('tentors', tentors);
+        const link = location.origin + location.pathname + '?t=' + encodeURIComponent(t.id) + '&k=' + encodeURIComponent(t.secretToken);
+        prompt('Link absen BARU untuk '+t.nama+' (link lama sudah tidak berlaku):', link);
       });
     });
     view.querySelectorAll('.rename-tentor').forEach(btn=>{
@@ -1567,21 +1625,31 @@
             <ol style="padding-left:20px; margin:0 0 14px;">
               <li>Buka <b>console.firebase.google.com</b>, login pakai akun Google, klik <b>Add project / Tambah project</b>. Beri nama misalnya "Les Private BNA", lanjutkan sampai selesai (Google Analytics boleh dimatikan).</li>
               <li>Di menu kiri, klik <b>Build → Firestore Database</b>, lalu klik <b>Create database</b>. Pilih lokasi server (misal <code>asia-southeast2</code> Jakarta), lalu pilih mode <b>Start in production mode</b>.</li>
-              <li>Buka tab <b>Rules</b> di Firestore, ganti isinya dengan kode berikut, lalu klik <b>Publish</b>:
-                <textarea readonly style="width:100%; height:90px; font-family:'JetBrains Mono',monospace; font-size:11.5px; padding:8px; border:1px solid var(--line); border-radius:8px; background:#fff; margin-top:6px;">rules_version = '2';
+              <li>Buka tab <b>Rules</b> di Firestore, ganti isinya dengan kode berikut, lalu klik <b>Publish</b>. Aturan ini mengunci data nama/alamat/keuangan hanya untuk admin yang login — tentor tetap bisa absen tanpa login karena hanya dokumen <code>kehadiran:*</code> &amp; <code>sessions:*</code> yang dibuka:
+                <textarea readonly style="width:100%; height:190px; font-family:'JetBrains Mono',monospace; font-size:11.5px; padding:8px; border:1px solid var(--line); border-radius:8px; background:#fff; margin-top:6px;">rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /kv/{docId} {
-      allow read, write: if true;
+      // Data tentor, orang tua/anak, dan pembayaran: HANYA admin yang
+      // sudah login (Firebase Authentication) boleh baca/tulis.
+      allow read, write: if request.auth != null
+        && !docId.matches('^(kehadiran|sessions):.*');
+
+      // Absensi & jumlah pertemuan: dibuka supaya tentor bisa absen dari
+      // link pribadinya tanpa login. Dokumen ini TIDAK berisi nama/alamat/
+      // uang, hanya tanggal + id kelas + id tentor.
+      allow read, write: if docId.matches('^(kehadiran|sessions):.*');
     }
   }
 }</textarea>
-                <span style="color:var(--ink-soft);font-size:12px;">(Aturan ini membuka akses baca/tulis ke koleksi "kv" saja — cukup aman untuk aplikasi internal kecil seperti ini, karena nama database Anda tidak diketahui orang lain.)</span>
+                <span style="color:var(--ink-soft);font-size:12px;">Setelah rules ini aktif, siapa pun yang tidak login TIDAK BISA lagi membaca daftar tentor, alamat orang tua, nama anak, atau data honor/tagihan — walau tahu config Firebase di atas.</span>
               </li>
+              <li>Aktifkan login admin: di menu kiri klik <b>Build → Authentication → Get started</b>, pilih provider <b>Email/Password</b> lalu <b>Enable</b>. Setelah itu buka tab <b>Users</b> → <b>Add user</b>, isi email &amp; password untuk tiap admin (misalnya diri Anda). Inilah yang nanti dipakai untuk login ke aplikasi ini, menggantikan password lama.</li>
               <li>Klik ikon gerigi ⚙️ di pojok kiri atas → <b>Project settings</b>. Di tab <b>General</b>, scroll ke bawah ke bagian "Your apps", klik ikon <b>&lt;/&gt; (Web)</b> untuk daftarkan app baru, beri nama bebas, klik <b>Register app</b>.</li>
               <li>Firebase akan menampilkan sebuah kode berisi <code>firebaseConfig = {'{'} apiKey: "...", ... {'}'}</code>. Salin bagian di dalam kurung kurawal itu saja.</li>
               <li>Tempel di kolom "Tempel Config Firebase" di atas (pastikan formatnya JSON — ganti tanda kutip tunggal jadi ganda dan tambahkan tanda kutip di nama field jika perlu), lalu klik <b>Simpan &amp; Sambungkan</b>.</li>
               <li><b>Opsional (disarankan):</b> supaya tidak perlu setup ulang tiap ganti perangkat/browser, salin juga config yang sama ke bagian <code>firebaseConfig</code> paling atas file HTML ini (cari komentar "SEKALI SAJA" di dekat awal kode), lalu simpan ulang file-nya.</li>
+              <li>Setelah tersambung, buka tab <b>Tentor</b> dan klik <b>Link Absen</b> pada tiap tentor untuk membagikan ulang link barunya — format link berubah supaya lebih aman (lihat penjelasan di tab Tentor).</li>
             </ol>
           </div>
         </div>
@@ -1597,19 +1665,31 @@ service cloud.firestore {
         </div>
         ` : ''}
 
+        ${api ? `
         <div class="group-card">
           <div class="group-head">
             <span class="name">Akses Admin</span>
             <span class="kode-tag">Peran Anda: Admin</span>
           </div>
           <div class="group-body" style="padding-top:12px;">
-            <div class="banner">Password ini digunakan untuk masuk ke aplikasi. Ganti sesuai kebutuhan lalu simpan.</div>
+            <div class="banner">Login admin sekarang pakai <b>Firebase Authentication</b> (email &amp; password), bukan lagi password tunggal di aplikasi ini. Untuk menambah/menghapus admin atau mengganti password, buka <b>console.firebase.google.com</b> → project Anda → menu <b>Build → Authentication → Users</b>. Setiap admin sebaiknya punya akun emailnya sendiri.</div>
+          </div>
+        </div>
+        ` : `
+        <div class="group-card">
+          <div class="group-head">
+            <span class="name">Akses Admin (mode offline)</span>
+            <span class="kode-tag">Peran Anda: Admin</span>
+          </div>
+          <div class="group-body" style="padding-top:12px;">
+            <div class="banner">Password ini hanya dipakai selama belum tersambung ke Firebase. Setelah tersambung, login akan otomatis memakai akun Firebase Authentication (lebih aman) dan password ini tidak dipakai lagi.</div>
             <div class="form-grid">
               <div><label class="field-label">Password Admin</label><input type="text" id="adminPassInput" value="${esc(getAdminPassword())}"></div>
             </div>
             <button class="btn secondary small" id="savePasswordsBtn">Simpan Password</button>
           </div>
         </div>
+        `}
 
         <div class="group-card">
           <div class="group-head"><span class="name">Cadangan Manual (.json)</span></div>
@@ -1742,7 +1822,7 @@ service cloud.firestore {
   }
 
   // ---------- MODE ABSEN TENTOR (link mandiri, tanpa login/PIN) ----------
-  async function startAbsenMode(kodeRaw){
+  async function startAbsenMode(idRaw, tokenRaw){
     document.title = 'Absen Mengajar — Les Private Banda Aceh';
     document.body.innerHTML = `
       <div style="max-width:520px;margin:0 auto;padding:26px 16px 60px;">
@@ -1760,10 +1840,11 @@ service cloud.firestore {
       return;
     }
     await loadCore();
-    const kode = (kodeRaw||'').trim().toUpperCase();
-    const tentor = tentors.find(t=>t.kode.toUpperCase()===kode);
-    if(!tentor){
-      body.innerHTML = `<div class="empty"><h3>Link tidak ditemukan</h3><p>Kode tentor pada link ini tidak dikenali. Hubungi admin untuk mendapatkan link absen yang benar.</p></div>`;
+    const id = (idRaw||'').trim();
+    const token = (tokenRaw||'').trim();
+    const tentor = tentors.find(t=>t.id===id);
+    if(!tentor || !token || tentor.secretToken!==token){
+      body.innerHTML = `<div class="empty"><h3>Link tidak valid</h3><p>Link ini tidak dikenali atau sudah tidak berlaku (mungkin sudah di-reset oleh admin). Hubungi admin untuk mendapatkan link absen yang baru.</p></div>`;
       return;
     }
     if(tentor.status==='nonaktif'){
@@ -1820,12 +1901,11 @@ service cloud.firestore {
           try{
             const aid = btn.dataset.id;
             const m = selectedDate.slice(0,7);
-            const sessNow = (await storeGet('sessions:'+m)) || {};
-            const kNow = (await storeGet('kehadiran:'+m)) || [];
-            sessNow[aid] = (sessNow[aid]||0) + 1;
-            kNow.push({id:uid(), assignmentId:aid, tentorId:tentor.id, tanggal:selectedDate, dicatatOleh:'tentor', waktu:new Date().toISOString()});
-            await storeSet('sessions:'+m, sessNow);
-            await storeSet('kehadiran:'+m, kNow);
+            const rec = {id:uid(), assignmentId:aid, tentorId:tentor.id, tanggal:selectedDate, dicatatOleh:'tentor', waktu:new Date().toISOString()};
+            // Transaksi: aman walau banyak tentor menekan tombol di waktu yang sama —
+            // tidak ada yang saling menimpa catatan orang lain.
+            await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val = val||[]; val.push(rec); return val; });
+            await storeTransactionUpdate('sessions:'+m, (val)=>{ val = val||{}; val[aid] = (val[aid]||0) + 1; return val; });
           }catch(e){ alert('Gagal menyimpan, periksa koneksi internet lalu coba lagi.'); }
           await draw();
         });
@@ -1862,7 +1942,9 @@ service cloud.firestore {
       logoutBtn.style.display='none';
     }
   }
-  document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+    const a = initAuth();
+    if(a){ try{ await a.signOut(); }catch(e){} }
     role = null;
     try{ localStorage.removeItem('loggedInRole'); }catch(e){}
     updateRoleBadge();
@@ -1879,50 +1961,118 @@ service cloud.firestore {
     render();
   }
 
+  // Login Admin sungguhan lewat Firebase Authentication (email+password),
+  // BUKAN sekadar cek password di JavaScript. Ini yang membuat aturan
+  // keamanan di Firestore ("hanya admin yang login boleh baca data
+  // tentor/orang tua/anak") benar-benar bisa ditegakkan oleh server,
+  // bukan cuma tombol di tampilan.
+  // Jika Firebase belum disambungkan (mode offline murni), tetap pakai
+  // password lokal seperti sebelumnya supaya aplikasi tetap bisa dipakai
+  // tanpa internet sama sekali.
   function showLogin(){
     const overlay = document.getElementById('loginOverlay');
-    overlay.innerHTML = `
-      <div class="login-card">
-        <img src="${LOGO_DATA_URI}" alt="Logo">
-        <h2>Les Private Banda Aceh</h2>
-        <p>Masuk sebagai Admin untuk melanjutkan.</p>
-        <div class="login-error" id="loginError">Password salah, coba lagi.</div>
-        <input type="password" id="loginPassword" placeholder="Masukkan password Admin">
-        <button class="btn" id="loginBtn" style="width:100%;">Masuk</button>
-      </div>
-    `;
-    overlay.style.display = 'flex';
-    const doLogin = ()=>{
-      const val = document.getElementById('loginPassword').value;
-      if(val && val===getAdminPassword()) role = 'admin';
-      else { document.getElementById('loginError').style.display='block'; return; }
-      try{ localStorage.setItem('loggedInRole', role); }catch(e){}
-      proceedToApp();
-    };
-    document.getElementById('loginBtn').addEventListener('click', doLogin);
-    document.getElementById('loginPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
-    document.getElementById('loginPassword').focus();
+    const useAuth = !!getApiUrl();
+    if(useAuth){
+      overlay.innerHTML = `
+        <div class="login-card">
+          <img src="${LOGO_DATA_URI}" alt="Logo">
+          <h2>Les Private Banda Aceh</h2>
+          <p>Masuk sebagai Admin untuk melanjutkan.</p>
+          <div class="login-error" id="loginError">Email atau password salah.</div>
+          <input type="text" id="loginEmail" placeholder="Email Admin" autocomplete="username">
+          <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+          <button class="btn" id="loginBtn" style="width:100%;">Masuk</button>
+        </div>
+      `;
+      overlay.style.display = 'flex';
+      const doLogin = async ()=>{
+        const email = document.getElementById('loginEmail').value.trim();
+        const pass = document.getElementById('loginPassword').value;
+        const errBox = document.getElementById('loginError');
+        errBox.style.display = 'none';
+        if(!email || !pass) return;
+        const a = initAuth();
+        const btn = document.getElementById('loginBtn');
+        btn.disabled = true; btn.textContent = 'Memeriksa…';
+        try{
+          await a.signInWithEmailAndPassword(email, pass);
+          // onAuthStateChanged akan memanggil proceedToApp()
+        }catch(e){
+          errBox.textContent = 'Gagal masuk: email atau password salah, atau akun belum dibuatkan admin di Firebase Console.';
+          errBox.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Masuk';
+        }
+      };
+      document.getElementById('loginBtn').addEventListener('click', doLogin);
+      overlay.querySelectorAll('input').forEach(inp=>{
+        inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
+      });
+      document.getElementById('loginEmail').focus();
+    } else {
+      overlay.innerHTML = `
+        <div class="login-card">
+          <img src="${LOGO_DATA_URI}" alt="Logo">
+          <h2>Les Private Banda Aceh</h2>
+          <p>Mode offline (belum tersambung Firebase). Masuk sebagai Admin untuk melanjutkan.</p>
+          <div class="login-error" id="loginError">Password salah, coba lagi.</div>
+          <input type="password" id="loginPassword" placeholder="Masukkan password Admin">
+          <button class="btn" id="loginBtn" style="width:100%;">Masuk</button>
+        </div>
+      `;
+      overlay.style.display = 'flex';
+      const doLogin = ()=>{
+        const val = document.getElementById('loginPassword').value;
+        if(val && val===getAdminPassword()) role = 'admin';
+        else { document.getElementById('loginError').style.display='block'; return; }
+        try{ localStorage.setItem('loggedInRole', role); }catch(e){}
+        proceedToApp();
+      };
+      document.getElementById('loginBtn').addEventListener('click', doLogin);
+      document.getElementById('loginPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
+      document.getElementById('loginPassword').focus();
+    }
   }
 
   (async function init(){
     const urlParams = new URLSearchParams(location.search);
-    const absenKode = urlParams.get('t') || urlParams.get('absen');
-    if(absenKode){
+    const absenId = urlParams.get('t') || urlParams.get('absen');
+    const absenToken = urlParams.get('k') || '';
+    if(absenId){
       const apiParam = urlParams.get('api');
       if(apiParam){ try{ setApiUrl(decodeURIComponent(apiParam)); }catch(e){} }
-      await startAbsenMode(absenKode);
+      await startAbsenMode(absenId, absenToken);
       return;
     }
     startDataLoad();
-    let savedRole = null;
-    try{ savedRole = localStorage.getItem('loggedInRole'); }catch(e){}
-    if(savedRole==='admin'){
-      role = savedRole;
-      updateRoleBadge();
-      await dataReadyPromise;
-      render();
+    const a = initAuth();
+    if(a){
+      // Mode Firebase: status login dikelola oleh Firebase Auth sendiri
+      // (sesi tersimpan otomatis di perangkat, aman lintas refresh).
+      a.onAuthStateChanged(async (user)=>{
+        if(user){
+          role = 'admin';
+          updateRoleBadge();
+          document.getElementById('loginOverlay').style.display = 'none';
+          if(!loaded) await dataReadyPromise;
+          render();
+        } else {
+          role = null;
+          updateRoleBadge();
+          showLogin();
+        }
+      });
     } else {
-      showLogin();
+      // Mode offline murni: fallback ke password lokal seperti sebelumnya.
+      let savedRole = null;
+      try{ savedRole = localStorage.getItem('loggedInRole'); }catch(e){}
+      if(savedRole==='admin'){
+        role = savedRole;
+        updateRoleBadge();
+        await dataReadyPromise;
+        render();
+      } else {
+        showLogin();
+      }
     }
   })();
 
