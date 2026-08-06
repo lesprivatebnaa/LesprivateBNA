@@ -612,8 +612,12 @@
   function getAdminPassword(){ try{ return localStorage.getItem('adminPassword') || 'admin123'; }catch(e){ return 'admin123'; } }
   let ownerUnlocked = false; // reset tiap kali refresh/login — sengaja tidak disimpan, supaya default-nya selalu terkunci
   function isOwner(){ return !!role && ownerUnlocked; }
-  function getOwnerPin(){ try{ return localStorage.getItem('ownerPin') || ''; }catch(e){ return ''; } }
-  function setOwnerPin(pin){ try{ localStorage.setItem('ownerPin', pin); }catch(e){} }
+  // PIN Owner disimpan lewat storeGet/storeSet (sama seperti data tentor/keluarga),
+  // jadi kalau sudah tersambung Firebase, PIN ini otomatis SERAGAM di semua device —
+  // sekali dibuat di satu device, device lain akan memakai PIN yang sama, bukan diminta buat baru lagi.
+  // Kalau belum tersambung Firebase (mode offline), tetap fallback ke localStorage per-device seperti sebelumnya.
+  async function getOwnerPin(){ try{ return (await storeGet('ownerPin')) || ''; }catch(e){ return ''; } }
+  async function setOwnerPin(pin){ try{ await storeSet('ownerPin', pin); }catch(e){} }
 
   async function loadCore(){
     tentors = (await storeGet('tentors')) || [];
@@ -1888,7 +1892,7 @@ service cloud.firestore {
             <span class="kode-tag">${isOwner()?'Aktif 🔓':'Terkunci 🔒'}</span>
           </div>
           <div class="group-body" style="padding-top:12px;">
-            <div class="banner">Login pakai akun yang sama untuk semua orang, tapi Total Biaya Les / Total Honor Tentor / Total Fee di tab Rekap Bulanan disembunyikan sampai PIN Owner dimasukkan lewat tombol "🔒 Mode Owner" di pojok kanan atas. Cocok kalau ada staf/tentor senior yang input data tapi tidak perlu tahu angka keuntungan bisnis.</div>
+            ${isOwner() ? `<div class="banner">Login pakai akun yang sama untuk semua orang, tapi Total Biaya Les / Total Honor Tentor / Total Fee di tab Rekap Bulanan disembunyikan sampai PIN Owner dimasukkan lewat tombol "🔒 Mode Owner" di pojok kanan atas. Cocok kalau ada staf/tentor senior yang input data tapi tidak perlu tahu angka keuntungan bisnis.</div>` : ``}
             ${isOwner() ? `
             <button class="btn secondary small" id="changeOwnerPinBtn">Ganti PIN Owner</button>
             ` : `
@@ -1927,13 +1931,13 @@ service cloud.firestore {
     });
 
     const changePinBtn = document.getElementById('changeOwnerPinBtn');
-    if(changePinBtn) changePinBtn.addEventListener('click', ()=>{
+    if(changePinBtn) changePinBtn.addEventListener('click', async ()=>{
       const p1 = prompt('Masukkan PIN Owner baru:');
       if(!p1) return;
       const p2 = prompt('Ulangi PIN baru untuk konfirmasi:');
       if(p1!==p2){ alert('PIN tidak sama, coba lagi.'); return; }
-      setOwnerPin(p1);
-      alert('PIN Owner berhasil diganti.');
+      await setOwnerPin(p1);
+      alert('PIN Owner berhasil diganti (berlaku sama di semua device).');
     });
 
     const connectBtn = document.getElementById('connectBtn');
@@ -2163,20 +2167,20 @@ service cloud.firestore {
       ownerBtn.style.display='none';
     }
   }
-  document.getElementById('ownerToggleBtn').addEventListener('click', ()=>{
+  document.getElementById('ownerToggleBtn').addEventListener('click', async ()=>{
     if(ownerUnlocked){
       ownerUnlocked = false;
       updateRoleBadge();
       render();
       return;
     }
-    const savedPin = getOwnerPin();
+    const savedPin = await getOwnerPin();
     if(!savedPin){
-      const p1 = prompt('Belum ada PIN Owner. Buat PIN baru untuk membuka data keuangan (Total Biaya/Honor/Fee):');
+      const p1 = prompt('Belum ada PIN Owner. Buat PIN baru untuk membuka data keuangan (Total Biaya/Honor/Fee) — PIN ini akan berlaku sama di semua device:');
       if(!p1) return;
       const p2 = prompt('Ulangi PIN yang sama untuk konfirmasi:');
       if(p1!==p2){ alert('PIN tidak sama, coba lagi dari awal.'); return; }
-      setOwnerPin(p1);
+      await setOwnerPin(p1);
       ownerUnlocked = true;
     } else {
       const p = prompt('Masukkan PIN Owner untuk melihat data keuangan:');
