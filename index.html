@@ -268,6 +268,7 @@
     </div>
     <span class="stamp" id="saveStamp">siap</span>
     <span class="role-badge" id="roleBadge" style="display:none;"></span>
+    <button class="btn secondary small" id="ownerToggleBtn" style="display:none;">🔒 Mode Owner</button>
     <button class="btn secondary small" id="logoutBtn" style="display:none;">Keluar</button>
   </div>
 </header>
@@ -609,7 +610,10 @@
   // ---------- akses Admin ----------
   // Ini gerbang sederhana di sisi tampilan saja (bukan keamanan tingkat server).
   function getAdminPassword(){ try{ return localStorage.getItem('adminPassword') || 'admin123'; }catch(e){ return 'admin123'; } }
-  function isOwner(){ return !!role; }
+  let ownerUnlocked = false; // reset tiap kali refresh/login — sengaja tidak disimpan, supaya default-nya selalu terkunci
+  function isOwner(){ return !!role && ownerUnlocked; }
+  function getOwnerPin(){ try{ return localStorage.getItem('ownerPin') || ''; }catch(e){ return ''; } }
+  function setOwnerPin(pin){ try{ localStorage.setItem('ownerPin', pin); }catch(e){} }
 
   async function loadCore(){
     tentors = (await storeGet('tentors')) || [];
@@ -1879,6 +1883,21 @@ service cloud.firestore {
         `}
 
         <div class="group-card">
+          <div class="group-head">
+            <span class="name">Mode Owner (kunci data keuangan)</span>
+            <span class="kode-tag">${isOwner()?'Aktif 🔓':'Terkunci 🔒'}</span>
+          </div>
+          <div class="group-body" style="padding-top:12px;">
+            <div class="banner">Login pakai akun yang sama untuk semua orang, tapi Total Biaya Les / Total Honor Tentor / Total Fee di tab Rekap Bulanan disembunyikan sampai PIN Owner dimasukkan lewat tombol "🔒 Mode Owner" di pojok kanan atas. Cocok kalau ada staf/tentor senior yang input data tapi tidak perlu tahu angka keuntungan bisnis.</div>
+            ${isOwner() ? `
+            <button class="btn secondary small" id="changeOwnerPinBtn">Ganti PIN Owner</button>
+            ` : `
+            <div style="font-size:12.5px;color:var(--ink-soft);">Masuk ke Mode Owner dulu (tombol di pojok kanan atas) untuk mengganti PIN ini.</div>
+            `}
+          </div>
+        </div>
+
+        <div class="group-card">
           <div class="group-head"><span class="name">Cadangan Manual (.json)</span></div>
           <div class="group-body" style="padding-top:12px;">
             <div class="banner">Tetap disarankan mengunduh cadangan sesekali sebagai jaring pengaman, baik dalam mode online maupun offline.</div>
@@ -1905,6 +1924,16 @@ service cloud.firestore {
         localStorage.setItem('adminPassword', ap);
         alert('Password berhasil disimpan.');
       }catch(e){ alert('Gagal menyimpan password di perangkat ini.'); }
+    });
+
+    const changePinBtn = document.getElementById('changeOwnerPinBtn');
+    if(changePinBtn) changePinBtn.addEventListener('click', ()=>{
+      const p1 = prompt('Masukkan PIN Owner baru:');
+      if(!p1) return;
+      const p2 = prompt('Ulangi PIN baru untuk konfirmasi:');
+      if(p1!==p2){ alert('PIN tidak sama, coba lagi.'); return; }
+      setOwnerPin(p1);
+      alert('PIN Owner berhasil diganti.');
     });
 
     const connectBtn = document.getElementById('connectBtn');
@@ -2120,19 +2149,49 @@ service cloud.firestore {
   function updateRoleBadge(){
     const badge = document.getElementById('roleBadge');
     const logoutBtn = document.getElementById('logoutBtn');
+    const ownerBtn = document.getElementById('ownerToggleBtn');
     if(role){
       badge.style.display='inline-block';
       badge.textContent = 'Admin';
       logoutBtn.style.display='inline-block';
+      ownerBtn.style.display='inline-block';
+      ownerBtn.textContent = ownerUnlocked ? '🔓 Mode Owner aktif' : '🔒 Mode Owner';
+      ownerBtn.classList.toggle('secondary', !ownerUnlocked);
     } else {
       badge.style.display='none';
       logoutBtn.style.display='none';
+      ownerBtn.style.display='none';
     }
   }
+  document.getElementById('ownerToggleBtn').addEventListener('click', ()=>{
+    if(ownerUnlocked){
+      ownerUnlocked = false;
+      updateRoleBadge();
+      render();
+      return;
+    }
+    const savedPin = getOwnerPin();
+    if(!savedPin){
+      const p1 = prompt('Belum ada PIN Owner. Buat PIN baru untuk membuka data keuangan (Total Biaya/Honor/Fee):');
+      if(!p1) return;
+      const p2 = prompt('Ulangi PIN yang sama untuk konfirmasi:');
+      if(p1!==p2){ alert('PIN tidak sama, coba lagi dari awal.'); return; }
+      setOwnerPin(p1);
+      ownerUnlocked = true;
+    } else {
+      const p = prompt('Masukkan PIN Owner untuk melihat data keuangan:');
+      if(p===null) return;
+      if(p!==savedPin){ alert('PIN salah.'); return; }
+      ownerUnlocked = true;
+    }
+    updateRoleBadge();
+    render();
+  });
   document.getElementById('logoutBtn').addEventListener('click', async ()=>{
     const a = initAuth();
     if(a){ try{ await a.signOut(); }catch(e){} }
     role = null;
+    ownerUnlocked = false;
     try{ localStorage.removeItem('loggedInRole'); }catch(e){}
     updateRoleBadge();
     showLogin();
