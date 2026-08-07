@@ -726,7 +726,7 @@
       x.id!==excludeId &&
       x.status!=='nonaktif' &&
       (x.namaSiswa||'').trim().toLowerCase()===nm &&
-      (x.familyId===familyId || x.tentorId===tentorId)
+      x.tentorId===tentorId
     ) || null;
   }
 
@@ -1457,7 +1457,7 @@
     view.appendChild(el(`
       <div>
         <h2 style="margin-bottom:16px;">Siswa &amp; Kelas</h2>
-        <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang. Kalau ada 2 siswa dengan nama sama persis (satu tentor atau satu alamat), isi kolom "Keterangan Pembeda" — sistem akan otomatis mengingatkan Anda saat ini terjadi.</div>
+        <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang. Kalau ada 2 siswa dengan nama sama persis diajar oleh tentor yang sama, isi kolom "Keterangan Pembeda" — sistem akan otomatis mengingatkan Anda saat ini terjadi.</div>
         ${tentors.length===0 ? `<div class="banner">Tambahkan tentor terlebih dahulu di tab "Tentor".</div>` : ''}
         ${families.length===0 ? `<div class="banner">Tambahkan data alamat terlebih dahulu di tab "Orang Tua".</div>` : ''}
         <div class="form-grid" id="newAssignForm">
@@ -1536,8 +1536,8 @@
               <tr data-id="${a.id}">
                 <td><span class="kode-tag" style="${a.status==='nonaktif'?'background:var(--danger-soft);color:var(--danger);':'background:#DFF5E8;color:var(--success);'}">${a.status==='nonaktif'?'Nonaktif':'Aktif'}</span></td>
                 <td>${esc(tentorName(a.tentorId))} <span class="kode-tag">${tentorById(a.tentorId)?tentorById(a.tentorId).kode:''}</span></td>
-                <td>${esc(childLabel(a))}${needsWarning?` <span class="kode-tag" style="background:var(--danger-soft);color:var(--danger);" title="Ada siswa lain dengan nama sama di tentor/alamat ini — isi Keterangan Pembeda">⚠ nama sama</span>`:''}</td>
-                <td>${esc(familyName(a.familyId))}</td>
+                <td>${esc(childLabel(a))}${needsWarning?` <span class="kode-tag" style="background:var(--danger-soft);color:var(--danger);" title="Ada siswa lain dengan nama sama diajar tentor ini — isi Keterangan Pembeda">⚠ nama sama</span>`:''}</td>
+                <td>${esc(familyName(a.familyId))} <span class="kode-tag">${familyById(a.familyId)?familyById(a.familyId).kode:''}</span></td>
                 <td>${esc(a.tingkatan)}</td>
                 <td class="num">${rupiah(a.biayaLes)}</td>
                 <td class="num">${rupiah(a.honorTentor)}</td>
@@ -1590,7 +1590,7 @@
       }
       const clash = findNameClash(namaSiswa, familyId, tentorId, editingAssignmentId);
       if(clash && !keterangan && !(clash.keterangan||'').trim()){
-        const lanjut = confirm(`Ada siswa lain bernama "${namaSiswa}" juga (di alamat/tentor yang sama). Supaya tidak tertukar saat absen dan di rekap, sebaiknya isi "Keterangan Pembeda" dulu (mis. "anak sulung" / "kelas Matematika").\n\nTetap simpan tanpa keterangan?`);
+        const lanjut = confirm(`Ada siswa lain bernama "${namaSiswa}" juga diajar tentor yang sama. Supaya tidak tertukar saat absen dan di rekap, sebaiknya isi "Keterangan Pembeda" dulu (mis. "anak sulung" / "kelas Matematika").\n\nTetap simpan tanpa keterangan?`);
         if(!lanjut) return;
       }
       if(editingAssignmentId){
