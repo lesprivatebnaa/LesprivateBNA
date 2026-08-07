@@ -112,6 +112,11 @@
   .table-wrap.scroll10 table thead th{position:sticky; top:0; z-index:2;}
   .pill-input{width:64px; text-align:center; padding:6px 4px;}
   .money{color:var(--blue-700); font-weight:700;}
+  tr.catatan-row td{background:var(--blue-50);}
+  tr.catatan-row:hover td{background:var(--blue-100);}
+  tr.catatan-row td:first-child{border-radius:0;}
+  .catatan-label{font-size:10px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--blue-700); background:var(--blue-100); padding:2px 7px; border-radius:8px; margin-left:6px; white-space:nowrap;}
+  .belum-diisi{color:#B8860B; font-weight:600; font-size:12px;}
   .kode-tag{
     font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--blue-700); background:var(--blue-100);
     padding:2px 8px; border-radius:12px; white-space:nowrap;
@@ -595,6 +600,7 @@
   let assignments = [];
   let counters = {tentor:0, family:0};
   let sessions = {};
+  let sessionsNoHonor = {}; // {assignmentId: jumlah sesi "bercatatan" bulan ini — honor otomatis = 0, diisi manual admin saat rekap}
   let kehadiran = [];
   let availableMonths = [];
   let currentMonth = currentMonthStr();
@@ -629,6 +635,7 @@
   }
   async function loadSessions(month){
     sessions = (await storeGet('sessions:'+month)) || {};
+    sessionsNoHonor = (await storeGet('sessionsNoHonor:'+month)) || {};
     kehadiran = (await storeGet('kehadiran:'+month)) || [];
     payments = (await storeGet('payments:'+month)) || {};
   }
@@ -725,13 +732,46 @@
 
   function calcRow(a){
     const jumlah = sessions[a.id] || 0;
-    const feePertemuan = Math.max(0,(a.biayaLes||0)-(a.honorTentor||0));
+    const jumlahCatatan = Math.min(sessionsNoHonor[a.id] || 0, jumlah); // sesi bercatatan: biaya & honor otomatis = 0, menunggu diisi manual admin
+    const jumlahNormal = jumlah - jumlahCatatan;
+    const catatanRecs = kehadiran.filter(r=>r.assignmentId===a.id && r.catatan);
+    const manualHonorSum = catatanRecs.reduce((s,r)=> s + (r.honorManual||0), 0);
+    const manualBiayaSum = catatanRecs.reduce((s,r)=> s + (r.biayaManual||0), 0);
+    const totalBiaya = jumlahNormal*(a.biayaLes||0) + manualBiayaSum;
+    const totalHonor = jumlahNormal*(a.honorTentor||0) + manualHonorSum;
+    const totalFee = Math.max(0, totalBiaya - totalHonor);
+    const feePertemuan = jumlah>0 ? Math.round(totalFee/jumlah) : Math.max(0,(a.biayaLes||0)-(a.honorTentor||0));
     return {
-      jumlah, feePertemuan,
-      totalBiaya: (a.biayaLes||0)*jumlah,
-      totalHonor: (a.honorTentor||0)*jumlah,
-      totalFee: feePertemuan*jumlah
+      jumlah, feePertemuan, jumlahNormal, jumlahCatatan,
+      totalBiaya, totalHonor, totalFee
     };
+  }
+
+  // Ringkasan sesi "bercatatan" (absen dengan note) untuk satu kelas/assignment
+  // di bulan berjalan — dipakai untuk menampilkan keterangan tambahan di bawah
+  // nama tentor pada Rekap Bulanan, Slip Honor, dan Invoice Orang Tua, supaya
+  // jelas mana sesi normal dan mana yang honor/biayanya diisi manual oleh admin.
+  function catatanSummary(a){
+    const recs = kehadiran.filter(r=>r.assignmentId===a.id && r.catatan);
+    if(recs.length===0) return null;
+    const totalHonor = recs.reduce((s,r)=> s + (r.honorManual||0), 0);
+    const totalBiaya = recs.reduce((s,r)=> s + (r.biayaManual||0), 0);
+    const belum = recs.some(r=> r.honorManual==null || r.biayaManual==null);
+    return {count:recs.length, totalHonor, totalBiaya, belum};
+  }
+
+  // Data siap-pakai untuk baris "catatan" terpisah (warna biru muda) yang
+  // ditampilkan persis seperti baris absen normal — supaya jelas honor tentor,
+  // biaya per pertemuan, dan jumlah pertemuannya, tapi kelihatan beda dari sesi normal.
+  function catatanRowData(a){
+    const s = catatanSummary(a);
+    if(!s) return null;
+    const honorRate = s.count>0 ? Math.round(s.totalHonor/s.count) : 0;
+    const biayaRate = s.count>0 ? Math.round(s.totalBiaya/s.count) : 0;
+    return Object.assign({honorRate, biayaRate}, s);
+  }
+  function moneyOrBelum(nilai, belum){
+    return belum ? `<span class="belum-diisi">belum diisi</span>` : rupiah(nilai);
   }
 
   // ---------- render helpers ----------
@@ -925,7 +965,9 @@
             ${isOwner() ? `<th>Total Biaya</th><th>Total Honor</th><th>Total Fee</th>` : ''}
           </tr></thead>
           <tbody>
-            ${filtered.map(({a,c})=>`
+            ${filtered.map(({a,c})=>{
+              const cd = catatanRowData(a);
+              const mainRow = `
               <tr data-id="${a.id}">
                 <td>${esc(tentorName(a.tentorId))} <span class="kode-tag">${tentorById(a.tentorId)?tentorById(a.tentorId).kode:''}</span></td>
                 <td>${esc(familyName(a.familyId))}</td>
@@ -933,14 +975,32 @@
                 <td>${esc(childLabel(a))}</td>
                 <td class="num">${rupiah(a.biayaLes)}</td>
                 <td class="num">${rupiah(a.honorTentor)}</td>
-                <td><input type="number" min="0" class="pill-input sesi-input num" data-id="${a.id}" value="${c.jumlah}"></td>
+                <td><input type="number" min="0" class="pill-input sesi-input num" data-id="${a.id}" data-catatan="${c.jumlahCatatan}" value="${c.jumlahNormal}"></td>
                 <td class="num">${rupiah(c.feePertemuan)}</td>
                 ${isOwner() ? `
                 <td class="num money">${rupiah(c.totalBiaya)}</td>
                 <td class="num money">${rupiah(c.totalHonor)}</td>
                 <td class="num money">${rupiah(c.totalFee)}</td>
                 ` : ''}
-              </tr>`).join('')}
+              </tr>`;
+              const catatanRow = cd ? `
+              <tr class="catatan-row">
+                <td>${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span></td>
+                <td>${esc(familyName(a.familyId))}</td>
+                <td>${esc(a.tingkatan)}</td>
+                <td>${esc(childLabel(a))}</td>
+                <td class="num">${moneyOrBelum(cd.biayaRate, cd.belum)}</td>
+                <td class="num">${moneyOrBelum(cd.honorRate, cd.belum)}</td>
+                <td class="num">${cd.count}x</td>
+                <td class="num">${cd.belum ? '-' : rupiah(Math.max(0,cd.biayaRate-cd.honorRate))}</td>
+                ${isOwner() ? `
+                <td class="num money">${moneyOrBelum(cd.totalBiaya, cd.belum)}</td>
+                <td class="num money">${moneyOrBelum(cd.totalHonor, cd.belum)}</td>
+                <td class="num money">${cd.belum ? '-' : rupiah(Math.max(0,cd.totalBiaya-cd.totalHonor))}</td>
+                ` : ''}
+              </tr>` : '';
+              return mainRow + catatanRow;
+            }).join('')}
           </tbody>
           ${isOwner() ? `<tfoot><tr><td colspan="8">TOTAL (kelas aktif)</td><td class="num">${rupiah(totBiaya)}</td><td class="num">${rupiah(totHonor)}</td><td class="num">${rupiah(totFee)}</td></tr></tfoot>` : ''}
         </table>
@@ -953,7 +1013,12 @@
     view.querySelectorAll('.sesi-input').forEach(inp=>{
       inp.addEventListener('change', async ()=>{
         const id = inp.dataset.id;
-        const val = Math.max(0, parseInt(inp.value,10)||0);
+        const jumlahCatatan = Math.max(0, parseInt(inp.dataset.catatan,10)||0);
+        const jumlahNormal = Math.max(0, parseInt(inp.value,10)||0);
+        // Kolom ini mengedit jumlah sesi NORMAL saja — sesi bercatatan tetap
+        // ikut terhitung otomatis dari Log Absensi dan ditambahkan lagi di sini
+        // supaya total pertemuan yang tersimpan tetap benar (normal + catatan).
+        const val = jumlahNormal + jumlahCatatan;
         sessions[id] = val;
         if(!availableMonths.includes(currentMonth)){
           availableMonths = [currentMonth, ...availableMonths].sort().reverse();
@@ -981,13 +1046,13 @@
   }
 
   function exportCsv(rows){
-    const header = ['Kode Tentor','Tentor','Alamat','Tingkatan','Siswa','Keterangan Pembeda','Biaya/Pertemuan','Honor/Pertemuan','Jumlah Pertemuan','Fee/Pertemuan','Total Biaya','Total Honor','Total Fee'];
+    const header = ['Kode Tentor','Tentor','Alamat','Tingkatan','Siswa','Keterangan Pembeda','Biaya/Pertemuan','Honor/Pertemuan','Jumlah Pertemuan','Sesi Normal','Sesi Bercatatan','Fee/Pertemuan','Total Biaya','Total Honor','Total Fee'];
     const lines = [header.join(',')];
     rows.forEach(({a,c})=>{
       const t = tentorById(a.tentorId);
       lines.push([
         t?t.kode:'', t?t.nama:'', familyName(a.familyId), a.tingkatan||'', a.namaSiswa||'', a.keterangan||'',
-        a.biayaLes||0, a.honorTentor||0, c.jumlah, c.feePertemuan, c.totalBiaya, c.totalHonor, c.totalFee
+        a.biayaLes||0, a.honorTentor||0, c.jumlah, c.jumlahNormal, c.jumlahCatatan, c.feePertemuan, c.totalBiaya, c.totalHonor, c.totalFee
       ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     });
     const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
@@ -1010,6 +1075,7 @@
       return hay.includes(q);
     });
     const tentorOptions = tentors.filter(t=>t.status!=='nonaktif');
+    const belumDiisi = kehadiran.filter(r=>r.catatan && (r.honorManual==null || r.biayaManual==null));
 
     view.appendChild(el(`
       <div>
@@ -1018,6 +1084,7 @@
         </div>
         ${monthPickerHtml()}
         <div class="banner">Catatan ini terisi otomatis saat tentor mengisi absen lewat link masing-masing (lihat tombol "Link Absen" di tab Tentor). Anda tetap bisa menambah catatan yang terlewat atau menghapus catatan yang salah di sini — jumlah pertemuan di tab "Rekap Bulanan", Slip Honor, dan Invoice ikut menyesuaikan otomatis.</div>
+        ${belumDiisi.length>0 ? `<div class="banner" style="background:#FFF4E5;border-color:#F5D9A8;color:#8A5A00;">⚠ Ada ${belumDiisi.length} sesi bercatatan bulan ${monthLabel(currentMonth)} yang biaya/honornya belum diisi manual — cek tabel bawah (baris dengan ikon 📝).</div>` : ''}
         <div class="stat-grid">
           <div class="stat"><div class="label">Tercatat Hari Ini</div><div class="value">${todayRecs.length}x</div></div>
           <div class="stat"><div class="label">Tentor Sudah Absen Hari Ini</div><div class="value">${todayTentorCount}</div></div>
@@ -1044,6 +1111,12 @@
                 <input type="date" id="manTanggal" value="${currentMonth}-01" max="${todayStr()}">
               </div>
             </div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);margin:10px 0 4px;cursor:pointer;">
+              <input type="checkbox" id="manCatatanToggle"> Ini sesi bercatatan (honor diisi manual, bukan otomatis)
+            </label>
+            <div id="manCatatanWrap" style="display:none;margin-bottom:8px;">
+              <input type="text" id="manCatatanText" placeholder="Tulis kejadiannya, mis. cuma 1 murid hadir" style="width:100%;">
+            </div>
             <button class="btn small" id="manAddBtn">Tambah Catatan</button>
           </div>
         </div>
@@ -1053,7 +1126,7 @@
         ${filtered.length===0 ? `<div class="empty"><h3>Belum ada catatan absen</h3><p>Bagikan link absen masing-masing tentor (tab Tentor) atau tambahkan catatan manual di atas.</p></div>` : `
         <div class="table-wrap">
         <table>
-          <thead><tr><th>Tanggal</th><th>Tentor</th><th>Siswa</th><th>Alamat</th><th>Dicatat Oleh</th><th></th></tr></thead>
+          <thead><tr><th>Tanggal</th><th>Tentor</th><th>Siswa</th><th>Alamat</th><th>Catatan</th><th>Biaya (Ortu)</th><th>Honor (Tentor)</th><th>Dicatat Oleh</th><th></th></tr></thead>
           <tbody>
             ${filtered.map(r=>{
               const a = assignments.find(x=>x.id===r.assignmentId);
@@ -1062,6 +1135,16 @@
                 <td>${esc(a?tentorName(a.tentorId):'(kelas dihapus)')}</td>
                 <td>${esc(a?childLabel(a):'-')}</td>
                 <td>${esc(a?familyName(a.familyId):'-')}</td>
+                <td>${r.catatan ? `<span style="color:var(--ink-soft);font-size:12px;">📝 ${esc(r.catatan)}</span>` : '—'}</td>
+                <td>${r.catatan
+                  ? `<input type="number" min="0" class="biaya-manual-input" data-id="${r.id}" value="${r.biayaManual!=null?r.biayaManual:''}" placeholder="0" title="Isi lalu klik Simpan di kolom Honor" style="width:90px;padding:4px 6px;font-size:12px;">`
+                  : (a?rupiah(a.biayaLes):'-')}</td>
+                <td>${r.catatan
+                  ? `<div style="display:flex;gap:4px;align-items:center;">
+                      <input type="number" min="0" class="honor-manual-input" data-id="${r.id}" value="${r.honorManual!=null?r.honorManual:''}" placeholder="0" style="width:90px;padding:4px 6px;font-size:12px;">
+                      <button class="icon-btn set-honor-manual" data-id="${r.id}">Simpan</button>
+                    </div>`
+                  : (a?rupiah(a.honorTentor):'-')}</td>
                 <td>${r.dicatatOleh==='tentor' ? 'Tentor (mandiri)' : 'Admin'}</td>
                 <td><button class="icon-btn del-absensi" data-id="${r.id}">Hapus</button></td>
               </tr>`;
@@ -1083,18 +1166,30 @@
         opts.length ? `<option value="">Pilih kelas…</option>`+opts.map(a=>`<option value="${a.id}">${esc(childLabel(a))} — ${esc(familyName(a.familyId))}</option>`).join('')
         : `<option value="">(tentor ini belum punya kelas aktif)</option>`;
     });
+    const manCatatanToggle = document.getElementById('manCatatanToggle');
+    manCatatanToggle.addEventListener('change', ()=>{
+      document.getElementById('manCatatanWrap').style.display = manCatatanToggle.checked ? '' : 'none';
+    });
     document.getElementById('manAddBtn').addEventListener('click', async ()=>{
       const aid = manKelasSel.value;
       const tanggal = document.getElementById('manTanggal').value;
       if(!aid || !tanggal){ alert('Pilih tentor, kelas, dan tanggal terlebih dahulu.'); return; }
+      const isCatatan = manCatatanToggle.checked;
+      const catatanText = document.getElementById('manCatatanText').value.trim();
+      if(isCatatan && !catatanText){ alert('Tulis catatan kejadiannya dulu, atau matikan opsi "sesi bercatatan".'); return; }
       const a = assignments.find(x=>x.id===aid);
       const m = tanggal.slice(0,7);
       const rec = {id:uid(), assignmentId:aid, tentorId:a.tentorId, tanggal, dicatatOleh:'admin', waktu:new Date().toISOString()};
+      if(isCatatan){ rec.catatan = catatanText; rec.honorManual = null; }
       await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val=val||[]; val.push(rec); return val; });
       await storeTransactionUpdate('sessions:'+m, (val)=>{ val=val||{}; val[aid]=(val[aid]||0)+1; return val; });
+      if(isCatatan){
+        await storeTransactionUpdate('sessionsNoHonor:'+m, (val)=>{ val=val||{}; val[aid]=(val[aid]||0)+1; return val; });
+      }
       if(m===currentMonth){
         kehadiran = (await storeGet('kehadiran:'+m)) || [];
         sessions = (await storeGet('sessions:'+m)) || {};
+        sessionsNoHonor = (await storeGet('sessionsNoHonor:'+m)) || {};
         render();
       } else {
         if(!availableMonths.includes(m)){ availableMonths=[m,...availableMonths].sort().reverse(); }
@@ -1115,9 +1210,35 @@
             val[rec.assignmentId] = Math.max(0, (val[rec.assignmentId]||0) - 1);
             return val;
           });
+          if(rec.catatan){
+            await storeTransactionUpdate('sessionsNoHonor:'+currentMonth, (val)=>{
+              val=val||{};
+              val[rec.assignmentId] = Math.max(0, (val[rec.assignmentId]||0) - 1);
+              return val;
+            });
+          }
         }
         kehadiran = (await storeGet('kehadiran:'+currentMonth)) || [];
         sessions = (await storeGet('sessions:'+currentMonth)) || {};
+        sessionsNoHonor = (await storeGet('sessionsNoHonor:'+currentMonth)) || {};
+        render();
+      });
+    });
+
+    view.querySelectorAll('.set-honor-manual').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = btn.dataset.id;
+        const honorInput = view.querySelector(`.honor-manual-input[data-id="${id}"]`);
+        const biayaInput = view.querySelector(`.biaya-manual-input[data-id="${id}"]`);
+        const honorNilai = Math.max(0, parseInt(honorInput.value,10)||0);
+        const biayaNilai = Math.max(0, parseInt(biayaInput.value,10)||0);
+        await storeTransactionUpdate('kehadiran:'+currentMonth, (val)=>{
+          val = val||[];
+          const r = val.find(x=>x.id===id);
+          if(r){ r.honorManual = honorNilai; r.biayaManual = biayaNilai; }
+          return val;
+        });
+        kehadiran = (await storeGet('kehadiran:'+currentMonth)) || [];
         render();
       });
     });
@@ -1557,7 +1678,10 @@
     const rows = list.map(a=>{
       const c = calcRow(a);
       total += c.totalHonor;
-      return `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(familyName(a.familyId))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlah}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.honorTentor)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalHonor)}</td></tr>`;
+      const cd = catatanRowData(a);
+      const mainRow = `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(familyName(a.familyId))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.honorTentor)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalHonor-(cd?cd.totalHonor:0))}</td></tr>`;
+      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(childLabel(a))} <span class="catatan-label">Catatan</span></td><td style="padding:6px 4px;">${esc(familyName(a.familyId))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td><td class="num" style="padding:6px 4px;text-align:right;">${moneyOrBelum(cd.honorRate,cd.belum)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${moneyOrBelum(cd.totalHonor,cd.belum)}</td></tr>` : '';
+      return mainRow + catatanRow;
     }).join('');
     const t = tentorById(tid);
     return `
@@ -1585,7 +1709,10 @@
     const rows = list.map(a=>{
       const c = calcRow(a);
       total += c.totalBiaya;
-      return `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlah}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.biayaLes)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalBiaya)}</td></tr>`;
+      const cd = catatanRowData(a);
+      const mainRow = `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.biayaLes)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalBiaya-(cd?cd.totalBiaya:0))}</td></tr>`;
+      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span></td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td><td class="num" style="padding:6px 4px;text-align:right;">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
+      return mainRow + catatanRow;
     }).join('');
     const f = familyById(fid);
     const childNames = list.map(a=>childLabel(a)).join(', ') || (f?f.alamat:'');
@@ -1614,13 +1741,24 @@
     const tentorIds = Object.keys(groups).sort((x,y)=>tentorName(x).localeCompare(tentorName(y)));
     const sections = tentorIds.map(tid=>{
       const t = tentorById(tid);
-      const body = groups[tid].map(({a,c})=>`
+      const body = groups[tid].map(({a,c})=>{
+        const cd = catatanRowData(a);
+        const mainRow = `
         <tr>
           <td>${esc(familyName(a.familyId))}</td>
           <td>${esc(childLabel(a))}</td>
           <td>${esc(a.tingkatan)}</td>
-          <td class="num" style="text-align:right;">${c.jumlah}x</td>
-        </tr>`).join('');
+          <td class="num" style="text-align:right;">${c.jumlahNormal}x</td>
+        </tr>`;
+        const catatanRow = cd ? `
+        <tr class="catatan-row">
+          <td>${esc(familyName(a.familyId))}</td>
+          <td>${esc(childLabel(a))} <span class="catatan-label">Catatan</span></td>
+          <td>${esc(a.tingkatan)}</td>
+          <td class="num" style="text-align:right;">${cd.count}x</td>
+        </tr>` : '';
+        return mainRow + catatanRow;
+      }).join('');
       return `
       <div class="rekap-section">
         <div class="rekap-title">
@@ -1676,7 +1814,10 @@
       let total = 0;
       const rowsHtml = list.map(a=>{
         const c = calcRow(a); total += c.totalHonor;
-        return `<tr><td>${esc(childLabel(a))}</td><td>${esc(familyName(a.familyId))}</td><td class="num">${c.jumlah}x</td><td class="num">${rupiah(a.honorTentor)}</td><td class="num money">${rupiah(c.totalHonor)}</td></tr>`;
+        const cd = catatanRowData(a);
+        const mainRow = `<tr><td>${esc(childLabel(a))}</td><td>${esc(familyName(a.familyId))}</td><td class="num">${c.jumlahNormal}x</td><td class="num">${rupiah(a.honorTentor)}</td><td class="num money">${rupiah(c.totalHonor-(cd?cd.totalHonor:0))}</td></tr>`;
+        const catatanRow = cd ? `<tr class="catatan-row"><td>${esc(childLabel(a))} <span class="catatan-label">Catatan</span></td><td>${esc(familyName(a.familyId))}</td><td class="num">${cd.count}x</td><td class="num">${moneyOrBelum(cd.honorRate,cd.belum)}</td><td class="num money">${moneyOrBelum(cd.totalHonor,cd.belum)}</td></tr>` : '';
+        return mainRow + catatanRow;
       }).join('');
       const t = tentorById(tid);
       const isOpen = expandedTentors.has(tid);
@@ -1745,7 +1886,10 @@
       let total = 0;
       const rowsHtml = list.map(a=>{
         const c = calcRow(a); total += c.totalBiaya;
-        return `<tr><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))}</td><td class="num">${c.jumlah}x</td><td class="num">${rupiah(a.biayaLes)}</td><td class="num money">${rupiah(c.totalBiaya)}</td></tr>`;
+        const cd = catatanRowData(a);
+        const mainRow = `<tr><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))}</td><td class="num">${c.jumlahNormal}x</td><td class="num">${rupiah(a.biayaLes)}</td><td class="num money">${rupiah(c.totalBiaya-(cd?cd.totalBiaya:0))}</td></tr>`;
+        const catatanRow = cd ? `<tr class="catatan-row"><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span></td><td class="num">${cd.count}x</td><td class="num">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num money">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
+        return mainRow + catatanRow;
       }).join('');
       const f = familyById(fid);
       const isOpen = expandedFamilies.has(fid);
@@ -1848,17 +1992,18 @@ service cloud.firestore {
       // Baca (read): data tentor/keluarga/kelas & absensi dibuka untuk
       // siapa saja SUPAYA halaman absen (tanpa login) tetap bisa
       // menampilkan nama tentor & daftar kelasnya, termasuk status
-      // honorVisible (buka/tutup honor per bulan). Data pembayaran
-      // (payments:*) tetap butuh login admin untuk dibaca.
+      // honorVisible (buka/tutup honor per bulan) dan sessionsNoHonor
+      // (jumlah sesi bercatatan yang honornya diisi manual admin). Data
+      // pembayaran (payments:*) tetap butuh login admin untuk dibaca.
       allow read: if docId == 'tentors' || docId == 'families' || docId == 'assignments'
         || docId == 'honorVisible'
-        || docId.matches('^(kehadiran|sessions):.*')
+        || docId.matches('^(kehadiran|sessions|sessionsNoHonor):.*')
         || request.auth != null;
 
       // Tulis (ubah/hapus): HANYA admin yang login, kecuali dokumen
       // absensi & jumlah pertemuan (supaya tentor bisa absen tanpa login).
       allow write: if request.auth != null
-        || docId.matches('^(kehadiran|sessions):.*');
+        || docId.matches('^(kehadiran|sessions|sessionsNoHonor):.*');
     }
   }
 }</textarea>
@@ -2101,11 +2246,18 @@ service cloud.firestore {
       body.innerHTML = `<div class="empty"><h3>Memuat…</h3></div>`;
       const month = selectedDate.slice(0,7);
       const sess = (await storeGet('sessions:'+month)) || {};
+      const sessNoHonor = (await storeGet('sessionsNoHonor:'+month)) || {};
       const kLog = (await storeGet('kehadiran:'+month)) || [];
       const list = assignments.filter(a=>a.tentorId===tentor.id && a.status!=='nonaktif');
       const isToday = selectedDate===todayStr();
       const honorTerbuka = !!honorVisible[month];
-      const totalHonorBulan = list.reduce((sum,a)=> sum + (a.honorTentor||0) * (sess[a.id]||0), 0);
+      const totalHonorBulan = list.reduce((sum,a)=>{
+        const jumlah = sess[a.id]||0;
+        const jumlahCatatan = Math.min(sessNoHonor[a.id]||0, jumlah);
+        const jumlahNormal = jumlah-jumlahCatatan;
+        const manualHonorSum = kLog.filter(r=>r.assignmentId===a.id && r.catatan).reduce((s,r)=>s+(r.honorManual||0),0);
+        return sum + jumlahNormal*(a.honorTentor||0) + manualHonorSum;
+      }, 0);
       const totalSesiBulan = list.reduce((sum,a)=> sum + (sess[a.id]||0), 0);
       body.innerHTML = `
         <div style="margin-bottom:4px;">
@@ -2140,7 +2292,11 @@ service cloud.firestore {
             </div>
             <div class="group-body" style="padding-top:12px;">
               ${sudah>0 ? `<div class="banner" style="background:#DFF5E8;border-color:#BFE8D2;color:var(--success);">✓ Sudah dicatat ${sudah}x pada tanggal ini</div>` : ''}
-              <button class="btn absen-mark" data-id="${a.id}" style="width:100%;font-size:15px;padding:14px 18px;">${sudah>0?'Catat Sesi Tambahan':'✓ Tandai Sudah Mengajar'}</button>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <button class="btn absen-mark" data-id="${a.id}" style="width:100%;font-size:15px;padding:14px 18px;">${sudah>0?'Catat Sesi Tambahan':'✓ Tandai Sudah Mengajar'}</button>
+                <button class="btn secondary absen-note" data-id="${a.id}" style="width:100%;font-size:13.5px;padding:11px 16px;">📝 Tandai dengan Catatan</button>
+              </div>
+              <div style="font-size:11px;color:var(--ink-soft);margin-top:8px;">"Tandai dengan Catatan" dipakai kalau ada kejadian di luar biasa (mis. cuma 1 murid hadir) — tetap tercatat mengajar, tapi honornya diisi manual oleh admin sesuai kejadian, bukan otomatis.</div>
             </div>
           </div>`;
         }).join('')}
@@ -2165,6 +2321,22 @@ service cloud.firestore {
             // tidak ada yang saling menimpa catatan orang lain.
             await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val = val||[]; val.push(rec); return val; });
             await storeTransactionUpdate('sessions:'+m, (val)=>{ val = val||{}; val[aid] = (val[aid]||0) + 1; return val; });
+          }catch(e){ alert('Gagal menyimpan, periksa koneksi internet lalu coba lagi.'); }
+          await draw();
+        });
+      });
+      body.querySelectorAll('.absen-note').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const catatan = prompt('Tulis kejadian hari ini (mis. "Cuma 1 murid hadir, yang lain izin"). Sesi ini tetap tercatat mengajar, tapi honornya kosong dulu — admin akan mengisi honornya manual sesuai catatan ini saat rekap.');
+          if(!catatan || !catatan.trim()) return;
+          btn.disabled = true; btn.textContent = 'Menyimpan…';
+          try{
+            const aid = btn.dataset.id;
+            const m = selectedDate.slice(0,7);
+            const rec = {id:uid(), assignmentId:aid, tentorId:tentor.id, tanggal:selectedDate, dicatatOleh:'tentor', catatan:catatan.trim(), honorManual:null, waktu:new Date().toISOString()};
+            await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val = val||[]; val.push(rec); return val; });
+            await storeTransactionUpdate('sessions:'+m, (val)=>{ val = val||{}; val[aid] = (val[aid]||0) + 1; return val; });
+            await storeTransactionUpdate('sessionsNoHonor:'+m, (val)=>{ val = val||{}; val[aid] = (val[aid]||0) + 1; return val; });
           }catch(e){ alert('Gagal menyimpan, periksa koneksi internet lalu coba lagi.'); }
           await draw();
         });
