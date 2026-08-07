@@ -1847,9 +1847,11 @@ service cloud.firestore {
     match /kv/{docId} {
       // Baca (read): data tentor/keluarga/kelas & absensi dibuka untuk
       // siapa saja SUPAYA halaman absen (tanpa login) tetap bisa
-      // menampilkan nama tentor & daftar kelasnya. Data pembayaran
+      // menampilkan nama tentor & daftar kelasnya, termasuk status
+      // honorVisible (buka/tutup honor per bulan). Data pembayaran
       // (payments:*) tetap butuh login admin untuk dibaca.
       allow read: if docId == 'tentors' || docId == 'families' || docId == 'assignments'
+        || docId == 'honorVisible'
         || docId.matches('^(kehadiran|sessions):.*')
         || request.auth != null;
 
