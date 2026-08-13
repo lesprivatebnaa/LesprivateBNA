@@ -202,7 +202,7 @@
     <div class="logo">BB</div>
     <h2>BIMBEL BNA</h2>
     <p>Masuk untuk mengakses panel admin</p>
-    <input type="email" id="authEmail" placeholder="Email" autocomplete="username">
+    <input type="text" id="authEmail" placeholder="Username" autocomplete="username">
     <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
     <div class="auth-error" id="authError"></div>
     <button id="authLoginBtn">Masuk</button>
@@ -308,17 +308,23 @@ document.getElementById("authLoginBtn").addEventListener("click", doLogin);
 document.getElementById("authPassword").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
 document.getElementById("authEmail").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
 
+const AUTH_USERNAME_DOMAIN = "bimbelbna.local";
+function toAuthEmail(input){
+  // Biar admin cukup ketik username biasa (mis. "bimblebna"), tanpa perlu format email.
+  return input.includes("@") ? input : `${input}@${AUTH_USERNAME_DOMAIN}`;
+}
+
 function doLogin(){
-  const email = document.getElementById("authEmail").value.trim();
+  const username = document.getElementById("authEmail").value.trim();
   const pass = document.getElementById("authPassword").value;
   const btn = document.getElementById("authLoginBtn");
   const errBox = document.getElementById("authError");
-  if(!email || !pass){ errBox.textContent = "Isi email dan password."; return; }
+  if(!username || !pass){ errBox.textContent = "Isi username dan password."; return; }
   btn.disabled = true; errBox.textContent = "";
-  auth.signInWithEmailAndPassword(email, pass)
+  auth.signInWithEmailAndPassword(toAuthEmail(username), pass)
     .catch((err)=>{
-      let msg = "Email atau password salah.";
-      if(err.code === "auth/invalid-email") msg = "Format email tidak valid.";
+      let msg = "Username atau password salah.";
+      if(err.code === "auth/invalid-email") msg = "Username tidak valid.";
       if(err.code === "auth/too-many-requests") msg = "Terlalu banyak percobaan, coba lagi nanti.";
       errBox.textContent = msg;
     })
