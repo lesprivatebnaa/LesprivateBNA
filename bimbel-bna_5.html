@@ -6,6 +6,8 @@
 <title>BIMBEL BNA — Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --bg:#EEF3FF; --card:#FFFFFF; --ink:#1A2148; --ink-soft:#636F94;
@@ -230,8 +232,8 @@
 
 <div id="modalBackdrop" class="modal-backdrop">
   <div class="modal-sheet">
-    <h2>Tambah Murid</h2>
-    <p>Data ini yang jadi dasar tagihan bulanan otomatis.</p>
+    <h2 id="muridModalTitle">Tambah Murid</h2>
+    <p>Data ini yang jadi dasar tagihan bulanan otomatis. Field yang belum ada datanya boleh dikosongkan dulu, bisa diedit belakangan.</p>
     <div class="field"><label class="field-label">Nama Murid</label><input type="text" id="fNama" placeholder="cth. Rangga Aditya"></div>
     <div class="field"><label class="field-label">Kelas</label><input type="text" id="fKelas" placeholder="cth. TK A, TK B, SD 1, SMP 2, dst"></div>
     <div class="field"><label class="field-label">Tanggal Daftar</label>
@@ -249,7 +251,7 @@
     <div class="field"><label class="field-label">No. WA Orang Tua</label><input type="text" id="fWa" placeholder="cth. 0812xxxxxxx"></div>
     <div class="modal-actions">
       <button class="btn secondary" id="cancelMurid">Batal</button>
-      <button class="btn" id="saveMurid">Simpan Murid</button>
+      <button class="btn" id="saveMurid">Simpan</button>
     </div>
   </div>
 </div>
@@ -384,7 +386,7 @@ const tentorSeed = [
 ];
 let tentor = tentorSeed.map((t,i)=>({
   id:i+1, nama:t.nama, alamat:t.alamat, noWa:t.noWa, rate: RATE_PERTEMUAN,
-  gajiDibayar:false
+  gajiDibayar:false, totalPertemuanOverride:{}
 }));
 let nextTentorId = tentor.length+1;
 
@@ -433,6 +435,7 @@ const todayDate = new Date().getDate();
 const todayISO = () => toLocalISO(new Date());
 const findTentor = id => tentor.find(t=>t.id===id);
 let muridFilter = "aktif";
+let muridEditId = null;
 
 function formatTgl(iso){
   const d = new Date(iso+"T00:00:00");
@@ -444,8 +447,10 @@ function monthKey(ref=new Date()){
 }
 
 /* Jumlah pertemuan otomatis = hitungan dari absensi "Hadir" bulan berjalan.
-   Tentor bisa menambah/mengurangi manual (mis. ngajar di luar jadwal meja/sesi yang tidak sempat diabsen),
-   tersimpan per bulan di t.penyesuaianPertemuan[monthKey]. Absensi tetap jadi sumber utama & tidak ditimpa. */
+   Admin bisa langsung mengubah angka "Total Pertemuan" di tab Gaji Tentor kalau ada selisih
+   (mis. tentor absen tapi sebenarnya masuk 2x) — nilai ini adalah GANTI (override), bukan tambahan,
+   tersimpan per bulan di t.totalPertemuanOverride[monthKey]. Kalau belum pernah diubah, otomatis
+   dari absensi tetap dipakai. */
 function pertemuanOtomatis(tentorId, ref=new Date()){
   const y = ref.getFullYear(), m = ref.getMonth();
   return absensiLog.filter(a=>{
@@ -454,13 +459,15 @@ function pertemuanOtomatis(tentorId, ref=new Date()){
     return ad.getFullYear()===y && ad.getMonth()===m;
   }).length;
 }
-function penyesuaianBulanIni(tentorId, ref=new Date()){
+function totalPertemuanOverride(tentorId, ref=new Date()){
   const t = findTentor(tentorId);
-  if(!t || !t.penyesuaianPertemuan) return 0;
-  return t.penyesuaianPertemuan[monthKey(ref)] || 0;
+  if(!t || !t.totalPertemuanOverride) return null;
+  const v = t.totalPertemuanOverride[monthKey(ref)];
+  return (v===undefined || v===null) ? null : v;
 }
 function pertemuanBulanIni(tentorId, ref=new Date()){
-  return pertemuanOtomatis(tentorId, ref) + penyesuaianBulanIni(tentorId, ref);
+  const override = totalPertemuanOverride(tentorId, ref);
+  return override!==null ? override : pertemuanOtomatis(tentorId, ref);
 }
 
 let absForm = { tanggal: todayISO(), sesi:0, meja:1, tentorId: tentor[0].id, hadir:true, editId:null };
@@ -683,6 +690,7 @@ function renderMurid(){
                   <button class="btn small secondary" data-toggle-lunas="${m.id}">${m.lunasBulanIni?'Batalkan':'Tandai Lunas'}</button>
                   <button class="btn small danger" data-toggle-status="${m.id}">Nonaktifkan</button>
                 ` : `<button class="btn small" data-toggle-status="${m.id}">Aktifkan Lagi</button>`}
+                <button class="btn small secondary" data-edit-murid="${m.id}">Edit</button>
                 <button class="btn small danger" data-del-murid="${m.id}">Hapus</button>
               </td>
             </tr>`;
@@ -756,14 +764,57 @@ function renderAbsensiTable(){
 function renderRekapBulanan(){
   const rows = tentor.map(t=>`<tr><td>${t.nama}</td><td class="num">${pertemuanBulanIni(t.id)}x</td><td class="num money">${rupiah(pertemuanBulanIni(t.id)*t.rate)}</td></tr>`).join("");
   return `<div class="card">
-    <h3>Rekap Bulanan per Tentor</h3>
-    <span class="sub-note">Otomatis terhitung dari absensi berstatus "Hadir" bulan berjalan — ini yang jadi dasar Gaji Tentor, tidak perlu diisi ulang manual di tab lain</span>
+    <div class="row between" style="margin-bottom:2px">
+      <h3>Rekap Bulanan per Tentor</h3>
+      <button class="btn small secondary" id="downloadRekapPdfBtn">⬇ Download PDF</button>
+    </div>
+    <span class="sub-note">Otomatis terhitung dari absensi berstatus "Hadir" bulan berjalan (atau angka Total Pertemuan yang sudah diubah manual di tab Gaji Tentor) — ini yang jadi dasar Gaji Tentor</span>
     <div class="divider"></div>
     <div class="table-wrap"><table>
       <thead><tr><th>Tentor</th><th>Pertemuan Bulan Ini</th><th>Estimasi Gaji</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
+}
+
+/* Unduh rekap bulanan tentor sebagai PDF (nama tentor, jumlah pertemuan, honor/pertemuan, total gaji) */
+function downloadRekapTentorPDF(){
+  if(typeof window.jspdf === "undefined"){ alert("Gagal memuat pustaka PDF. Pastikan perangkat terhubung internet, lalu coba lagi."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const now = new Date();
+  const judulBulan = `${namaBulan[now.getMonth()]} ${now.getFullYear()}`;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text("BIMBEL BNA", 14, 17);
+  doc.setFontSize(11);
+  doc.text(`Rekap Gaji Tentor Bulanan — ${judulBulan}`, 14, 25);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(110);
+  doc.text(`Dicetak: ${now.toLocaleDateString('id-ID',{weekday:'long', day:'numeric', month:'long', year:'numeric'})}`, 14, 31);
+  doc.setTextColor(20);
+
+  const body = tentor.map(t=>{
+    const p = pertemuanBulanIni(t.id);
+    return [t.nama, `${p}x`, rupiah(t.rate), rupiah(p*t.rate), t.gajiDibayar ? "Sudah dibayar" : "Belum dibayar"];
+  });
+  const totalGaji = tentor.reduce((s,t)=>s+pertemuanBulanIni(t.id)*t.rate,0);
+
+  doc.autoTable({
+    startY: 37,
+    head: [["Tentor","Pertemuan","Honor/Pertemuan","Total Gaji","Status"]],
+    body,
+    foot: [["", "", "Total", rupiah(totalGaji), ""]],
+    theme: "grid",
+    headStyles: { fillColor: [76,111,245], textColor: 255, fontStyle: "bold" },
+    footStyles: { fillColor: [238,243,255], textColor: [26,33,72], fontStyle: "bold" },
+    styles: { fontSize: 9, cellPadding: 3 },
+    columnStyles: { 1:{halign:'right'}, 2:{halign:'right'}, 3:{halign:'right'} }
+  });
+
+  doc.save(`bimbel-bna-rekap-tentor-${monthKey()}.pdf`);
 }
 
 function renderAbsensi(){
@@ -845,21 +896,22 @@ function renderGaji(){
   return `
     <div class="card">
       <h3>Gaji Tentor</h3>
-      <span class="sub-note">Pertemuan otomatis dihitung dari absensi "Hadir" bulan berjalan (isi di tab Absensi Tentor). Kalau ada pertemuan yang belum sempat diabsen, tambahkan lewat kolom "Penyesuaian Manual" — hasilnya tetap dijumlah dengan absensi, tidak menggantikannya. Gaji dibayar tiap tanggal 13.</span>
+      <span class="sub-note">"Dari Absensi" otomatis dihitung dari absensi "Hadir" bulan berjalan (isi di tab Absensi Tentor). Kolom "Total Pertemuan" bisa diubah langsung kalau angkanya belum pas (mis. tentor lupa diabsen tapi sebenarnya masuk 2x) — angka yang disimpan di situ yang jadi dasar gaji. Gaji dibayar tiap tanggal 13.</span>
       <div class="divider"></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Tentor</th><th>Dari Absensi</th><th>Penyesuaian Manual</th><th>Total Pertemuan</th><th>Honor</th><th>Total Gaji</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Tentor</th><th>Dari Absensi</th><th>Total Pertemuan</th><th>Honor</th><th>Total Gaji</th><th>Status</th><th></th></tr></thead>
         <tbody>
-          ${tentor.map(t=>{ const auto = pertemuanOtomatis(t.id); const manual = penyesuaianBulanIni(t.id); const p = auto+manual; return `<tr>
+          ${tentor.map(t=>{ const auto = pertemuanOtomatis(t.id); const override = totalPertemuanOverride(t.id); const p = pertemuanBulanIni(t.id); return `<tr>
             <td>${t.nama}</td>
             <td class="num">${auto}x</td>
             <td>
               <div class="row" style="gap:6px; flex-wrap:nowrap">
-                <input type="number" step="1" class="num" style="width:80px" id="manualPertemuan-${t.id}" value="${manual}">
-                <button class="btn small secondary" data-save-manual-pertemuan="${t.id}">Simpan</button>
+                <input type="number" min="0" step="1" class="num" style="width:70px" id="totalPertemuan-${t.id}" value="${p}">
+                <button class="btn small secondary" data-save-total-pertemuan="${t.id}">Simpan</button>
+                ${override!==null ? `<button class="btn small" data-reset-total-pertemuan="${t.id}" title="Kembalikan ke hitungan otomatis dari absensi">↺</button>` : ""}
               </div>
+              ${override!==null ? `<span class="sub-note">Diubah manual dari ${auto}x</span>` : ""}
             </td>
-            <td class="num">${p}x</td>
             <td class="num">${rupiah(t.rate)}</td>
             <td class="num money">${rupiah(p*t.rate)}</td>
             <td><span class="pay-toggle ${t.gajiDibayar?'paid':'unpaid'}">${t.gajiDibayar?'Sudah dibayar':'Menunggu tgl 13'}</span></td>
@@ -914,10 +966,27 @@ function renderMain(){
   updateStatusBadge(lastStatusKind);
 }
 
-function openModal(){ renderMuridForm(); document.getElementById("modalBackdrop").classList.add("open"); }
+function openModal(id){
+  muridEditId = id || null;
+  const m = muridEditId ? murid.find(x=>x.id===muridEditId) : null;
+  document.getElementById("muridModalTitle").textContent = m ? "Edit Murid" : "Tambah Murid";
+  document.getElementById("saveMurid").textContent = m ? "Simpan Perubahan" : "Simpan Murid";
+  if(m){
+    document.getElementById("fNama").value = m.nama || "";
+    document.getElementById("fKelas").value = m.kelas || "";
+    document.getElementById("fTgl").value = m.tglDaftar || "";
+    document.getElementById("fBulan").value = m.bulanDaftar || (new Date().getMonth()+1);
+    document.getElementById("fOrtu").value = (m.orangTua && m.orangTua!=="-") ? m.orangTua : "";
+    document.getElementById("fWa").value = (m.noWa && m.noWa!=="-") ? m.noWa : "";
+  } else {
+    renderMuridForm();
+  }
+  document.getElementById("modalBackdrop").classList.add("open");
+}
 function closeModal(){
   document.getElementById("modalBackdrop").classList.remove("open");
   ["fNama","fTgl","fKelas","fOrtu","fWa"].forEach(id=>document.getElementById(id).value="");
+  muridEditId = null;
 }
 
 function openTentorModal(){
@@ -961,6 +1030,9 @@ function bindEvents(){
       }
     });
   });
+  document.querySelectorAll("[data-edit-murid]").forEach(b=>{
+    b.addEventListener("click",()=>{ openModal(+b.dataset.editMurid); });
+  });
   document.querySelectorAll("[data-mfilter]").forEach(b=>{
     b.addEventListener("click",()=>{ muridFilter = b.dataset.mfilter; renderMain(); });
   });
@@ -973,21 +1045,30 @@ function bindEvents(){
       renderMain();
     });
   });
-  document.querySelectorAll("[data-save-manual-pertemuan]").forEach(b=>{
+  document.querySelectorAll("[data-save-total-pertemuan]").forEach(b=>{
     b.addEventListener("click", ()=>{
-      const id = +b.dataset.saveManualPertemuan;
-      const input = document.getElementById("manualPertemuan-"+id);
+      const id = +b.dataset.saveTotalPertemuan;
+      const input = document.getElementById("totalPertemuan-"+id);
       const val = parseInt(input.value, 10);
-      if(isNaN(val)){ alert("Isi angka penyesuaian yang valid (boleh negatif)."); return; }
+      if(isNaN(val) || val<0){ alert("Isi angka total pertemuan yang valid (tidak boleh negatif)."); return; }
       const t = tentor.find(x=>x.id===id);
-      if(!t.penyesuaianPertemuan) t.penyesuaianPertemuan = {};
-      t.penyesuaianPertemuan[monthKey()] = val;
+      if(!t.totalPertemuanOverride) t.totalPertemuanOverride = {};
+      t.totalPertemuanOverride[monthKey()] = val;
+      saveState();
+      renderMain();
+    });
+  });
+  document.querySelectorAll("[data-reset-total-pertemuan]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const id = +b.dataset.resetTotalPertemuan;
+      const t = tentor.find(x=>x.id===id);
+      if(t.totalPertemuanOverride) delete t.totalPertemuanOverride[monthKey()];
       saveState();
       renderMain();
     });
   });
   const addBtn = document.getElementById("addMurid");
-  if(addBtn) addBtn.addEventListener("click", openModal);
+  if(addBtn) addBtn.addEventListener("click", ()=>openModal());
   const addTentorBtn = document.getElementById("addTentor");
   if(addTentorBtn) addTentorBtn.addEventListener("click", openTentorModal);
   document.querySelectorAll("[data-save-rate]").forEach(b=>{
@@ -1066,6 +1147,8 @@ function bindEvents(){
   });
   const batalEdit = document.getElementById("batalEditAbsensi");
   if(batalEdit) batalEdit.addEventListener("click", (e)=>{ e.preventDefault(); absForm.editId=null; renderMain(); });
+  const downloadRekapBtn = document.getElementById("downloadRekapPdfBtn");
+  if(downloadRekapBtn) downloadRekapBtn.addEventListener("click", downloadRekapTentorPDF);
 
   /* ---- Backup JSON & Firebase ---- */
   const exportBtn = document.getElementById("exportJsonBtn");
@@ -1149,9 +1232,17 @@ document.getElementById("saveMurid").addEventListener("click", ()=>{
   const ortu = document.getElementById("fOrtu").value.trim();
   const wa = document.getElementById("fWa").value.trim();
   if(!nama || !kelas || !tgl){ alert("Nama, kelas, dan tanggal daftar wajib diisi."); return; }
-  murid.push({ id: nextMuridId++, nama, kelas, tglDaftar: tgl, bulanDaftar: bulan, orangTua: ortu || "-", noWa: wa || "-", status:"aktif", lunasBulanIni:false, tanggalBayar:null });
+  if(muridEditId){
+    const m = murid.find(x=>x.id===muridEditId);
+    if(m){
+      m.nama = nama; m.kelas = kelas; m.tglDaftar = tgl; m.bulanDaftar = bulan;
+      m.orangTua = ortu || "-"; m.noWa = wa || "-";
+    }
+  } else {
+    murid.push({ id: nextMuridId++, nama, kelas, tglDaftar: tgl, bulanDaftar: bulan, orangTua: ortu || "-", noWa: wa || "-", status:"aktif", lunasBulanIni:false, tanggalBayar:null });
+    muridFilter = "aktif";
+  }
   closeModal();
-  muridFilter = "aktif";
   saveState();
   renderMain();
 });
@@ -1166,7 +1257,7 @@ document.getElementById("saveTentor").addEventListener("click", ()=>{
   const rate = rateRaw ? +rateRaw : RATE_PERTEMUAN;
   if(!nama){ alert("Nama tentor wajib diisi."); return; }
   if(isNaN(rate) || rate<0){ alert("Honor tidak valid."); return; }
-  tentor.push({ id: nextTentorId++, nama, alamat: alamat || "-", noWa: wa || "-", rate, gajiDibayar:false, penyesuaianPertemuan:{} });
+  tentor.push({ id: nextTentorId++, nama, alamat: alamat || "-", noWa: wa || "-", rate, gajiDibayar:false, totalPertemuanOverride:{} });
   closeTentorModal();
   saveState();
   renderMain();
