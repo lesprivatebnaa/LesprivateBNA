@@ -151,9 +151,63 @@
     tbody tr{display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; padding:10px 4px; border-bottom:1px solid var(--line);}
     tbody td{border:none; padding:2px 4px;}
   }
+  #authGate{
+    position:fixed; inset:0; z-index:9999;
+    background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  #authGate.hidden{ display:none; }
+  .auth-card{
+    width:100%; max-width:380px; background:var(--card);
+    border-radius:20px; padding:32px 28px;
+    box-shadow:0 20px 50px rgba(26,33,72,0.12);
+    text-align:center;
+  }
+  .auth-card .logo{
+    width:56px; height:56px; border-radius:16px;
+    background:var(--blue-500,#4C6FF5); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Poppins',sans-serif; font-weight:800; font-size:20px;
+    margin:0 auto 16px;
+  }
+  .auth-card h2{ font-family:'Poppins',sans-serif; margin:0 0 4px; color:var(--ink); }
+  .auth-card p{ color:var(--ink-soft); font-size:14px; margin:0 0 24px; }
+  .auth-card input{
+    width:100%; box-sizing:border-box; padding:12px 14px; margin-bottom:12px;
+    border:1px solid var(--blue-100,#DEE9FF); border-radius:10px; font-size:14px;
+    font-family:'Inter',sans-serif;
+  }
+  .auth-card button{
+    width:100%; padding:12px 14px; border:none; border-radius:10px;
+    background:var(--blue-500,#4C6FF5); color:#fff; font-weight:600; font-size:14px;
+    cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .auth-card button:disabled{ opacity:0.6; cursor:not-allowed; }
+  .auth-error{ color:#D64545; font-size:13px; margin:-4px 0 12px; min-height:16px; }
+  body.app-locked > header, body.app-locked > nav, body.app-locked > main, body.app-locked > footer{
+    display:none;
+  }
+  #logoutBtn{
+    background:none; border:1px solid var(--blue-100,#DEE9FF); border-radius:8px;
+    padding:6px 12px; font-size:12px; cursor:pointer; color:var(--ink-soft);
+    font-family:'Inter',sans-serif; margin-left:auto;
+  }
 </style>
 </head>
-<body>
+<body class="app-locked">
+
+<div id="authGate">
+  <div class="auth-card">
+    <div class="logo">BB</div>
+    <h2>BIMBEL BNA</h2>
+    <p>Masuk untuk mengakses panel admin</p>
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="username">
+    <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password">
+    <div class="auth-error" id="authError"></div>
+    <button id="authLoginBtn">Masuk</button>
+  </div>
+</div>
 
 <header class="app-header">
   <div class="brand">
@@ -164,6 +218,7 @@
     </div>
     <div class="stamp" id="stamp"></div>
     <span class="status-badge idle" id="storageBadge">💾 Memuat…</span>
+    <button id="logoutBtn">Keluar</button>
   </div>
 </header>
 
@@ -216,6 +271,64 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+/* ---------------- Auth gate ---------------- */
+const AUTH_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAhx0sDzDGN-42d5sCIfYbc8oXfORQMLNE",
+  authDomain: "bimble-bna.firebaseapp.com",
+  projectId: "bimble-bna",
+  storageBucket: "bimble-bna.firebasestorage.app",
+  messagingSenderId: "444746094764",
+  appId: "1:444746094764:web:d3c3da962443a7377c6709"
+};
+const authApp = firebase.apps && firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(AUTH_FIREBASE_CONFIG);
+const auth = firebase.auth(authApp);
+
+function showAuthGate(errorMsg){
+  document.body.classList.add("app-locked");
+  document.getElementById("authGate").classList.remove("hidden");
+  document.getElementById("authError").textContent = errorMsg || "";
+}
+function hideAuthGate(){
+  document.body.classList.remove("app-locked");
+  document.getElementById("authGate").classList.add("hidden");
+}
+
+auth.onAuthStateChanged((user)=>{
+  if(user){
+    hideAuthGate();
+    if(!fbDb) connectFirebase(AUTH_FIREBASE_CONFIG, true);
+  } else {
+    showAuthGate();
+  }
+});
+
+document.getElementById("authLoginBtn").addEventListener("click", doLogin);
+document.getElementById("authPassword").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
+document.getElementById("authEmail").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
+
+function doLogin(){
+  const email = document.getElementById("authEmail").value.trim();
+  const pass = document.getElementById("authPassword").value;
+  const btn = document.getElementById("authLoginBtn");
+  const errBox = document.getElementById("authError");
+  if(!email || !pass){ errBox.textContent = "Isi email dan password."; return; }
+  btn.disabled = true; errBox.textContent = "";
+  auth.signInWithEmailAndPassword(email, pass)
+    .catch((err)=>{
+      let msg = "Email atau password salah.";
+      if(err.code === "auth/invalid-email") msg = "Format email tidak valid.";
+      if(err.code === "auth/too-many-requests") msg = "Terlalu banyak percobaan, coba lagi nanti.";
+      errBox.textContent = msg;
+    })
+    .finally(()=>{ btn.disabled = false; });
+}
+
+document.getElementById("logoutBtn").addEventListener("click", ()=>{
+  auth.signOut();
+});
+</script>
 <script>
 /* ---------------- Mock data ---------------- */
 const namaBulan = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
