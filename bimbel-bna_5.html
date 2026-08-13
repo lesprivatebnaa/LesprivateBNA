@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIMBEL BNA — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EEF3FF; --card:#FFFFFF; --ink:#1A2148; --ink-soft:#636F94;
+    --blue-50:#EEF3FF; --blue-100:#DEE9FF; --blue-300:#9FBBFF; --blue-500:#4C6FF5; --blue-600:#3B5CE0; --blue-700:#2E48B8;
+    --purple-500:#8B6CF5; --purple-600:#7857E8; --purple-50:#F2EEFF; --purple-100:#E6DCFF;
+    --orange-500:#FF9F4A; --orange-50:#FFF2E3; --orange-100:#FFE2BE;
+    --pink-500:#FF6FA0; --pink-50:#FFEAF2; --pink-100:#FFD3E5;
+    --green-50:#E4F8ED; --green-100:#C9F0DA;
+    --line:#DFE7FA; --danger:#D64545; --danger-soft:#FBE4E4; --success:#2E9B6B;
+    --radius:16px;
+    --grad-primary:linear-gradient(135deg, var(--blue-500), var(--purple-500));
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1100px 520px at 8% -10%, rgba(139,108,245,0.14), transparent),
+      radial-gradient(900px 500px at 100% 0%, rgba(76,111,245,0.12), transparent),
+      radial-gradient(700px 500px at 50% 100%, rgba(255,159,74,0.06), transparent),
+      var(--bg);
+    color:var(--ink); font-family:'Inter',sans-serif; font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .num{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums;}
+  h1,h2,h3{font-family:'Poppins',sans-serif; margin:0; letter-spacing:-0.01em; color:var(--ink);}
+  header.app-header{padding:26px 20px 0; max-width:1180px; margin:0 auto;}
+  .brand{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+  .brand .logo{
+    width:46px; height:46px; flex:none; display:flex; align-items:center; justify-content:center;
+    background:var(--grad-primary); border-radius:14px; box-shadow:0 6px 16px rgba(76,111,245,0.28);
+    color:#fff; font-family:'Poppins',sans-serif; font-weight:800; font-size:17px;
+  }
+  .brand .titles{display:flex; flex-direction:column;}
+  .brand h1{font-size:23px; font-weight:800; background:var(--grad-primary); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .brand .tagline{color:var(--ink-soft); font-size:12.5px;}
+  .brand .stamp{
+    margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--blue-700);
+    border:1px solid var(--blue-100); background:var(--blue-50); padding:5px 12px; border-radius:20px; white-space:nowrap;
+  }
+  nav.tabs{max-width:1180px; margin:20px auto 0; padding:0 20px; display:flex; gap:8px; overflow-x:auto; scrollbar-width:none;}
+  nav.tabs::-webkit-scrollbar{display:none;}
+  nav.tabs button{
+    font-family:'Inter',sans-serif; font-weight:600; font-size:13px; border:1px solid var(--line);
+    background:#fff; color:var(--ink-soft); padding:10px 18px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:all .15s;
+  }
+  nav.tabs button:hover{border-color:var(--blue-300); color:var(--blue-700);}
+  nav.tabs button.active{background:var(--grad-primary); color:#fff; border-color:transparent; box-shadow:0 6px 16px rgba(76,111,245,0.3);}
+  main{max-width:1180px; margin:16px auto 60px; padding:0 20px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:24px; box-shadow:0 4px 18px rgba(26,33,72,0.05);}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .row.between{justify-content:space-between;}
+  label.field-label{display:block; font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin-bottom:4px;}
+  input[type=text], input[type=number], select{
+    font-family:'Inter',sans-serif; font-size:13.5px; padding:9px 11px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); width:100%;
+  }
+  input:focus, select:focus, button:focus-visible{outline:2px solid var(--blue-500); outline-offset:1px;}
+  .btn{font-family:'Inter',sans-serif; font-weight:600; font-size:13px; padding:10px 18px; border-radius:10px; border:1px solid transparent; background:var(--grad-primary); color:#fff; cursor:pointer; transition:all .15s; box-shadow:0 4px 12px rgba(76,111,245,0.22);}
+  .btn:hover{filter:brightness(1.06); box-shadow:0 6px 16px rgba(76,111,245,0.32);}
+  .btn.secondary{background:#fff; color:var(--blue-700); border-color:var(--blue-300); box-shadow:none;}
+  .btn.secondary:hover{background:var(--blue-50);}
+  .btn.danger{background:#fff; border-color:var(--danger); color:var(--danger); box-shadow:none;}
+  .btn.danger:hover{background:var(--danger-soft);}
+  .btn.small{padding:6px 12px; font-size:12px; border-radius:7px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  thead th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:#fff; background:var(--grad-primary); padding:11px 8px; white-space:nowrap;}
+  thead th:first-child{border-radius:8px 0 0 8px;}
+  thead th:last-child{border-radius:0 8px 8px 0;}
+  tbody td{padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  tbody tr:hover{background:var(--blue-50);}
+  .table-wrap{overflow-x:auto;}
+  .money{color:var(--blue-700); font-weight:700;}
+  .kode-tag{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--blue-700); background:var(--blue-100); padding:2px 8px; border-radius:12px; white-space:nowrap;}
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:12px; margin-bottom:20px;}
+  .stat{border:1px solid var(--blue-100); border-radius:14px; padding:15px 17px; background:var(--blue-50);}
+  .stat .label{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin-bottom:6px;}
+  .stat .value{font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; color:var(--blue-700);}
+  .stat-grid .stat:nth-child(4n+2){background:var(--purple-50); border-color:var(--purple-100);}
+  .stat-grid .stat:nth-child(4n+2) .value{color:var(--purple-600);}
+  .stat-grid .stat:nth-child(4n+3){background:var(--orange-50); border-color:var(--orange-100);}
+  .stat-grid .stat:nth-child(4n+3) .value{color:#D97A1F;}
+  .stat-grid .stat:nth-child(4n+4){background:var(--pink-50); border-color:var(--pink-100);}
+  .stat-grid .stat:nth-child(4n+4) .value{color:#D14A80;}
+  .empty{text-align:center; padding:44px 20px; color:var(--ink-soft);}
+  .empty h3{color:var(--ink); margin-bottom:6px; font-size:17px;}
+  .divider{height:1px; background:var(--line); margin:20px 0;}
+  .group-card{border:1px solid var(--line); border-radius:12px; margin-bottom:14px; overflow:hidden;}
+  .group-head{background:var(--blue-50); padding:13px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;}
+  .group-head .name{font-family:'Poppins',sans-serif; font-weight:600; font-size:15.5px; color:var(--ink);}
+  .group-head .name .sub{color:var(--ink-soft); font-weight:400; font-size:12.5px; font-family:'Inter',sans-serif;}
+  .group-body{padding:14px 16px; background:#fff;}
+  .kelas-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px;}
+  .kelas-card{border:1px solid var(--line); border-radius:10px; padding:12px; background:var(--blue-50);}
+  .group-card.compact .group-head{padding:8px 12px;}
+  .group-card.compact .group-body{padding:8px 10px;}
+  .group-card.compact .name{font-size:13.5px;}
+  .group-card.compact .kelas-grid{gap:7px;}
+  .group-card.compact .kelas-card{padding:7px 8px; border-radius:8px;}
+  .group-card.compact .kelas-name{font-size:11.5px; margin-bottom:3px;}
+  .group-card.compact .sub-note{font-size:11px;}
+  .table-compact{font-size:12px; max-width:520px;}
+  .table-compact thead th{padding:6px 8px; font-size:10px;}
+  .table-compact tbody td{padding:5px 8px;}
+  .table-compact .btn.small{padding:3px 7px; font-size:10px;}
+  .kelas-name{font-weight:700; font-size:13px; margin-bottom:8px; font-family:'Poppins',sans-serif;}
+  .kelas-card select{margin-bottom:8px;}
+  .kelas-toggle{display:flex; gap:5px;}
+  .kelas-toggle .btn{flex:1; padding:5px 6px; font-size:11px;}
+  .kelas-card.filled{background:var(--blue-100); border-color:var(--blue-300);}
+  .pay-toggle{display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; padding:6px 12px; border-radius:20px; cursor:pointer; user-select:none; white-space:nowrap; border:1px solid transparent;}
+  .pay-toggle.paid{background:#DFF5E8; color:var(--success); border-color:#BFE8D2;}
+  .pay-toggle.unpaid{background:var(--danger-soft); color:var(--danger); border-color:#F3C9C9;}
+  .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:14px;}
+  .banner{font-size:12.5px; color:var(--ink-soft); background:var(--blue-50); border:1px solid var(--blue-100); border-radius:10px; padding:11px 15px; margin-bottom:16px;}
+  .chip-row{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 16px;}
+  .chip{font-family:'JetBrains Mono',monospace; font-size:11.5px; padding:5px 11px; border-radius:20px; border:1px solid var(--line); background:#fff; color:var(--ink-soft); cursor:pointer;}
+  .chip.active{background:var(--grad-primary); color:#fff; border-color:transparent;}
+  .welcome-card{position:relative; overflow:hidden; border-radius:20px; margin-bottom:20px; background:var(--grad-primary); padding:26px 28px; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap;}
+  .welcome-card::before{content:''; position:absolute; inset:0; background:radial-gradient(280px 200px at 92% -20%, rgba(255,255,255,0.22), transparent), radial-gradient(220px 220px at 100% 120%, rgba(255,159,74,0.28), transparent); pointer-events:none;}
+  .welcome-card .welcome-text{position:relative; z-index:1; max-width:560px;}
+  .welcome-card h2{color:#fff; font-size:21px; margin-bottom:6px;}
+  .welcome-card p{margin:0; color:rgba(255,255,255,0.88); font-size:13px; line-height:1.6;}
+  .sub-note{color:var(--ink-soft); font-size:12px; margin-top:2px; display:block;}
+  .modal-backdrop{display:none; position:fixed; inset:0; background:rgba(22,34,60,0.55); z-index:1000; align-items:center; justify-content:center; padding:20px;}
+  .modal-backdrop.open{display:flex;}
+  .modal-sheet{background:#fff; max-width:420px; width:100%; border-radius:16px; padding:26px; box-shadow:0 20px 50px rgba(22,34,60,0.3);}
+  .modal-sheet h2{font-size:19px; margin-bottom:4px;}
+  .modal-sheet > p{color:var(--ink-soft); font-size:12.5px; margin:0 0 18px;}
+  .field{margin-bottom:13px;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+  footer{max-width:1180px; margin:0 auto; padding:10px 20px 40px; color:var(--ink-soft); font-size:11.5px; text-align:center;}
+  .status-badge{font-family:'JetBrains Mono',monospace; font-size:11px; padding:5px 12px; border-radius:20px; white-space:nowrap; border:1px solid var(--line); background:#fff; color:var(--ink-soft); display:inline-block;}
+  .status-badge.ok{background:var(--green-50); border-color:var(--green-100); color:var(--success);}
+  .status-badge.pending{background:var(--orange-50); border-color:var(--orange-100); color:#D97A1F;}
+  .status-badge.error{background:var(--danger-soft); border-color:#F3C9C9; color:var(--danger);}
+  .status-badge.idle{background:var(--blue-50); border-color:var(--blue-100); color:var(--blue-700);}
+  textarea{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:10px 11px; border:1px solid var(--line); border-radius:9px; width:100%; min-height:110px; resize:vertical; color:var(--ink);}
+  .backup-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  label.file-btn{display:inline-flex; align-items:center;}
+  @media (max-width:900px){ .kelas-grid{grid-template-columns:repeat(2,1fr);} .stat-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:640px){
+    .brand .stamp{order:3; margin-left:0;}
+    .kelas-grid{grid-template-columns:1fr;}
+    thead{display:none;}
+    tbody tr{display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; padding:10px 4px; border-bottom:1px solid var(--line);}
+    tbody td{border:none; padding:2px 4px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="logo">BB</div>
+    <div class="titles">
+      <h1>BIMBEL BNA</h1>
+      <div class="tagline">Sistem pengelolaan murid, tentor & keuangan harian</div>
+    </div>
+    <div class="stamp" id="stamp"></div>
+    <span class="status-badge idle" id="storageBadge">💾 Memuat…</span>
+  </div>
+</header>
+
+<nav class="tabs" id="nav"></nav>
+
+<main id="main"></main>
+
+<footer>BIMBEL BNA · Data tersimpan otomatis di perangkat ini. Sambungkan Firebase atau unduh backup JSON di tab "Backup &amp; Firebase".</footer>
+
+<div id="modalBackdrop" class="modal-backdrop">
+  <div class="modal-sheet">
+    <h2>Tambah Murid</h2>
+    <p>Data ini yang jadi dasar tagihan bulanan otomatis.</p>
+    <div class="field"><label class="field-label">Nama Murid</label><input type="text" id="fNama" placeholder="cth. Rangga Aditya"></div>
+    <div class="field"><label class="field-label">Kelas</label><input type="text" id="fKelas" placeholder="cth. TK A, TK B, SD 1, SMP 2, dst"></div>
+    <div class="field"><label class="field-label">Tanggal Daftar</label>
+      <div class="row" style="gap:8px; flex-wrap:nowrap">
+        <input type="number" id="fTgl" min="1" max="31" placeholder="cth. 20" style="flex:1">
+        <select id="fBulan" style="flex:1.6">
+          <option value="1">Januari</option><option value="2">Februari</option><option value="3">Maret</option>
+          <option value="4">April</option><option value="5">Mei</option><option value="6">Juni</option>
+          <option value="7">Juli</option><option value="8">Agustus</option><option value="9">September</option>
+          <option value="10">Oktober</option><option value="11">November</option><option value="12">Desember</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label class="field-label">Nama Orang Tua</label><input type="text" id="fOrtu" placeholder="cth. Bu Yuni"></div>
+    <div class="field"><label class="field-label">No. WA Orang Tua</label><input type="text" id="fWa" placeholder="cth. 0812xxxxxxx"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="cancelMurid">Batal</button>
+      <button class="btn" id="saveMurid">Simpan Murid</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalBackdropTentor" class="modal-backdrop">
+  <div class="modal-sheet">
+    <h2>Tambah Tentor</h2>
+    <p>Data ini dipakai sebagai pilihan tentor di Absensi & dasar hitung gaji.</p>
+    <div class="field"><label class="field-label">Nama Tentor</label><input type="text" id="tNama" placeholder="cth. Pak Budi"></div>
+    <div class="field"><label class="field-label">Alamat</label><input type="text" id="tAlamat" placeholder="cth. Jl. Melati No.1, Blangpidie"></div>
+    <div class="field"><label class="field-label">No. WA</label><input type="text" id="tWa" placeholder="cth. 0812xxxxxxx"></div>
+    <div class="field"><label class="field-label">Honor per Pertemuan (Rp)</label><input type="number" id="tRate" min="0" step="1000" placeholder="cth. 25000"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="cancelTentor">Batal</button>
+      <button class="btn" id="saveTentor">Simpan Tentor</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ---------------- Mock data ---------------- */
+const namaBulan = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+const namaMuridRaw = [
+  ["Aisyah Putri","SD 5","Bu Wulan","0812-1111-2201"],
+  ["Bagas Wirawan","SMP 1","Pak Handoko","0813-2222-3302"],
+  ["Citra Ayu","SD 6","Bu Retno","0812-3333-4403"],
+  ["Dimas Prakoso","SMA 1","Pak Joko","0813-4444-5504"],
+  ["Erlangga Saputra","SMP 2","Bu Yuni","0812-5555-6605"],
+  ["Fira Anggraini","SD 4","Pak Bambang","0813-6666-7706"],
+  ["Galih Nugroho","SMA 2","Bu Ida","0812-7777-8807"],
+  ["Hana Kirana","SMP 3","Pak Rudi","0813-8888-9908"],
+  ["Iqbal Maulana","SD 5","Bu Nita","0812-9999-0009"],
+  ["Jihan Salsabila","SMA 3","Pak Agus","0813-1010-1010"],
+  ["Kevin Wijaya","SD 6","Bu Sri","0812-2020-2020"],
+  ["Larasati Dewi","SMP 1","Pak Eko","0813-3030-3030"],
+  ["Made Surya","SMA 1","Bu Dian","0812-4040-4040"],
+  ["Nadia Rahmawati","SD 4","Pak Hendra","0813-5050-5050"],
+  ["Oki Firmansyah","SMP 2","Bu Ratna","0812-6060-6060"],
+  ["Putri Amelia","SMA 2","Pak Fajar","0813-7070-7070"],
+  ["Rafi Ardiansyah","SD 5","Bu Lina","0812-8080-8080"],
+  ["Salsa Nur Aini","SMP 3","Pak Dedi","0813-9090-9090"],
+  ["Taufik Hidayat","SD 6","Bu Tari","0812-1212-1212"],
+  ["Umi Kalsum","SMA 3","Pak Wawan","0813-1313-1313"]
+];
+let murid = namaMuridRaw.map((row,i)=>{
+  const tglDaftar = ((i*3+7)%27)+1;
+  const bulanDaftar = ((i*2)%12)+1;
+  const lunas = (i%5!==0);
+  return {
+    id:i+1, nama:row[0], kelas:row[1], tglDaftar, bulanDaftar,
+    orangTua:row[2], noWa:row[3],
+    status: (i===6||i===15) ? "nonaktif" : "aktif",
+    lunasBulanIni: lunas,
+    tanggalBayar: lunas ? (tglDaftar>15? 1 : null) : null
+  };
+});
+let nextMuridId = murid.length+1;
+
+const RATE_PERTEMUAN = 25000;
+const tentorSeed = [
+  {nama:"Pak Ridwan", alamat:"Jl. Melati No.12, Blangpidie", noWa:"0812-1000-1001"},
+  {nama:"Bu Sinta", alamat:"Jl. Kenanga No.5, Blangpidie", noWa:"0813-1000-1002"},
+  {nama:"Pak Yoga", alamat:"Jl. Cempaka No.8, Blangpidie", noWa:"0812-1000-1003"},
+  {nama:"Bu Nabila", alamat:"Jl. Anggrek No.3, Blangpidie", noWa:"0813-1000-1004"},
+  {nama:"Pak Fauzan", alamat:"Jl. Mawar No.20, Blangpidie", noWa:"0812-1000-1005"}
+];
+let tentor = tentorSeed.map((t,i)=>({
+  id:i+1, nama:t.nama, alamat:t.alamat, noWa:t.noWa, rate: RATE_PERTEMUAN,
+  gajiDibayar:false
+}));
+let nextTentorId = tentor.length+1;
+
+const sesiInfo = [
+  {label:"Sesi 1", jam:"12.00 – 13.30"},
+  {label:"Sesi 2", jam:"14.00 – 15.30"},
+  {label:"Sesi 3", jam:"16.30 – 18.00"}
+];
+const MEJA_PER_SESI = [1,2,3,4];
+
+/* Absensi tentor: diisi manual per tanggal + sesi + meja (tiap sesi selalu 4 meja).
+   Log inilah yang jadi sumber rekap bulanan & dasar hitung gaji. */
+let absensiLog = [];
+let nextAbsensiId = 1;
+
+/* Format tanggal ke YYYY-MM-DD berdasarkan kalender LOKAL (bukan UTC) — .toISOString() salah
+   karena menggeser tanggal mundur 1 hari untuk zona waktu WIB/WITA/WIT (UTC lebih maju dari GMT). */
+function toLocalISO(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function seedAbsensi(){
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth(), lastDay = now.getDate();
+  const log = [];
+  let id = 1;
+  for(let d=1; d<=lastDay; d++){
+    const dateStr = toLocalISO(new Date(year, month, d));
+    for(let si=0; si<sesiInfo.length; si++){
+      for(const meja of MEJA_PER_SESI){
+        const tIdx = (d + si*4 + meja) % tentor.length;
+        const tidakHadir = ((d + si + meja) % 11 === 0);
+        log.push({ id:id++, tanggal:dateStr, sesi:si, meja, tentorId:tentor[tIdx].id, hadir:!tidakHadir });
+      }
+    }
+  }
+  return log;
+}
+
+/* ---------------- Helpers ---------------- */
+const rupiah = v => "Rp" + v.toLocaleString("id-ID");
+const todayDate = new Date().getDate();
+const todayISO = () => toLocalISO(new Date());
+const findTentor = id => tentor.find(t=>t.id===id);
+let muridFilter = "aktif";
+
+function formatTgl(iso){
+  const d = new Date(iso+"T00:00:00");
+  return d.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+}
+
+function pertemuanBulanIni(tentorId, ref=new Date()){
+  const y = ref.getFullYear(), m = ref.getMonth();
+  return absensiLog.filter(a=>{
+    if(a.tentorId!==tentorId || !a.hadir) return false;
+    const ad = new Date(a.tanggal+"T00:00:00");
+    return ad.getFullYear()===y && ad.getMonth()===m;
+  }).length;
+}
+
+let absForm = { tanggal: todayISO(), sesi:0, meja:1, tentorId: tentor[0].id, hadir:true, editId:null };
+
+document.getElementById("stamp").textContent = new Date().toLocaleDateString('id-ID',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+/* ---------------- Penyimpanan: localStorage + Firebase (opsional) ---------------- */
+const LS_KEY = "bimbelBnaData";
+const LS_FB_KEY = "bimbelBnaFbConfig";
+let fbDb = null, fbConfig = null, lastStatusKind = "local-saved", saveTimer = null;
+
+function serializeState(){
+  return { murid, tentor, absensiLog, nextMuridId, nextTentorId, nextAbsensiId, updatedAt: new Date().toISOString() };
+}
+
+function loadLocalState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    if(data.murid) murid = data.murid;
+    if(data.tentor) tentor = data.tentor;
+    if(data.absensiLog) absensiLog = data.absensiLog;
+    if(data.nextMuridId) nextMuridId = data.nextMuridId;
+    if(data.nextTentorId) nextTentorId = data.nextTentorId;
+    if(data.nextAbsensiId) nextAbsensiId = data.nextAbsensiId;
+    return true;
+  }catch(e){ console.error("Gagal memuat data lokal", e); return false; }
+}
+
+function updateStatusBadge(kind){
+  lastStatusKind = kind;
+  const map = {
+    "local-saved": {text:"💾 Tersimpan di perangkat", cls:"ok"},
+    "fb-saving": {text:"☁ Menyimpan ke Firebase…", cls:"pending"},
+    "fb-saved": {text:"☁ Firebase tersambung — tersimpan", cls:"ok"},
+    "fb-error": {text:"☁ Gagal sinkron ke Firebase", cls:"error"},
+    "fb-connecting": {text:"☁ Menghubungkan Firebase…", cls:"pending"},
+    "fb-connected": {text:"☁ Firebase tersambung", cls:"ok"},
+    "fb-disconnected": {text:"☁ Firebase belum tersambung", cls:"idle"}
+  };
+  const s = map[kind] || map["local-saved"];
+  ["storageBadge","storageBadgeInline"].forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = s.text;
+    el.className = "status-badge " + s.cls;
+  });
+}
+
+function saveState(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(serializeState())); }
+  catch(e){ console.error("Gagal simpan lokal", e); }
+  updateStatusBadge("local-saved");
+  if(fbDb){
+    updateStatusBadge("fb-saving");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(()=>{
+      fbDb.collection("bimbelBNA").doc("data").set(serializeState())
+        .then(()=> updateStatusBadge("fb-saved"))
+        .catch(err=>{ console.error(err); updateStatusBadge("fb-error"); });
+    }, 500);
+  }
+}
+
+function connectFirebase(configObj, pullFirst){
+  try{
+    updateStatusBadge("fb-connecting");
+    if(!window.firebase){ throw new Error("SDK Firebase gagal dimuat (cek koneksi internet)"); }
+    const app = firebase.apps && firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(configObj);
+    fbDb = firebase.firestore(app);
+    fbConfig = configObj;
+    localStorage.setItem(LS_FB_KEY, JSON.stringify(configObj));
+    if(pullFirst){
+      fbDb.collection("bimbelBNA").doc("data").get().then(doc=>{
+        if(doc.exists){
+          const data = doc.data();
+          if(data.murid) murid = data.murid;
+          if(data.tentor) tentor = data.tentor;
+          if(data.absensiLog) absensiLog = data.absensiLog;
+          if(data.nextMuridId) nextMuridId = data.nextMuridId;
+          if(data.nextTentorId) nextTentorId = data.nextTentorId;
+          if(data.nextAbsensiId) nextAbsensiId = data.nextAbsensiId;
+          saveState();
+          renderMain();
+        }
+        updateStatusBadge("fb-connected");
+      }).catch(err=>{ console.error(err); updateStatusBadge("fb-error"); });
+    } else {
+      updateStatusBadge("fb-connected");
+    }
+  }catch(err){
+    console.error(err);
+    fbDb = null;
+    updateStatusBadge("fb-error");
+    alert("Gagal tersambung ke Firebase: " + err.message);
+  }
+}
+
+function disconnectFirebase(){
+  fbDb = null; fbConfig = null;
+  localStorage.removeItem(LS_FB_KEY);
+  updateStatusBadge("fb-disconnected");
+}
+
+function loadFirebaseConfigAndConnect(){
+  try{
+    const raw = localStorage.getItem(LS_FB_KEY);
+    if(raw) connectFirebase(JSON.parse(raw), true);
+  }catch(e){ console.error(e); }
+}
+
+function statusTagihan(m){
+  if(m.lunasBulanIni) return {label:"Lunas", cls:"paid", note: m.tanggalBayar ? `dibayar tgl ${m.tanggalBayar}` : ""};
+  if(todayDate >= m.tglDaftar) return {label:"Terlambat", cls:"unpaid", note:""};
+  return {label:"Belum jatuh tempo", cls:"unpaid", note:""};
+}
+
+/* ---------------- Nav ---------------- */
+const tabs = [
+  {id:"dashboard", label:"Dashboard"},
+  {id:"murid", label:"Data Murid"},
+  {id:"tentor", label:"Data Tentor"},
+  {id:"absensi", label:"Absensi Tentor"},
+  {id:"tagihan", label:"Tagihan Murid"},
+  {id:"gaji", label:"Gaji Tentor"},
+  {id:"backup", label:"Backup & Firebase"}
+];
+let activeTab = "dashboard";
+
+function renderNav(){
+  document.getElementById("nav").innerHTML = tabs.map(t=>`<button data-tab="${t.id}" class="${activeTab===t.id?'active':''}">${t.label}</button>`).join("");
+  document.querySelectorAll("nav.tabs button").forEach(b=>{
+    b.addEventListener("click",()=>{ activeTab=b.dataset.tab; renderNav(); renderMain(); });
+  });
+}
+
+/* ---------------- Pages ---------------- */
+function renderDashboard(){
+  const belumLunas = murid.filter(m=>m.status==="aktif" && !m.lunasBulanIni).length;
+  const totalGaji13 = tentor.reduce((s,t)=>s+pertemuanBulanIni(t.id)*t.rate,0);
+  const aktifCount = murid.filter(m=>m.status==="aktif").length;
+  const todayStr = todayISO();
+  return `
+    <div class="welcome-card">
+      <div class="welcome-text">
+        <h2>Selamat datang di BIMBEL BNA 👋</h2>
+        <p>Ringkasan murid, tentor, tagihan, dan gaji hari ini — absensi tentor per meja tercatat otomatis masuk ke rekap bulanan di sini.</p>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="label">Murid Aktif</div><div class="value">${aktifCount}</div></div>
+      <div class="stat"><div class="label">Total Tentor</div><div class="value">${tentor.length}</div></div>
+      <div class="stat"><div class="label">Tagihan Belum Lunas</div><div class="value">${belumLunas}</div></div>
+      <div class="stat"><div class="label">Gaji Jatuh Tempo Tgl 13</div><div class="value" style="font-size:16px">${rupiah(totalGaji13)}</div></div>
+    </div>
+    <div class="card">
+      <div class="row between" style="margin-bottom:14px">
+        <h3>Absensi hari ini</h3>
+        <span class="kode-tag">4 meja / sesi</span>
+      </div>
+      ${sesiInfo.map((s,si)=>{
+        const entries = absensiLog.filter(a=>a.tanggal===todayStr && a.sesi===si);
+        const diisi = entries.length;
+        return `<div class="group-card compact">
+          <div class="group-head">
+            <div class="name">${s.label} <span class="sub">${s.jam}</span></div>
+            <span class="kode-tag">${diisi}/4 meja terisi</span>
+          </div>
+          <div class="group-body">
+            <div class="kelas-grid">
+              ${MEJA_PER_SESI.map(meja=>{
+                const e = entries.find(x=>x.meja===meja);
+                const t = e ? findTentor(e.tentorId) : null;
+                const label = e ? (t ? t.nama + (e.hadir ? "" : " · tidak hadir") : "(tentor sudah dihapus)") : "Belum diisi";
+                return `<div class="kelas-card ${e?'filled':''}"><div class="kelas-name">Meja ${meja}</div><div class="sub-note">${label}</div></div>`;
+              }).join("")}
+            </div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderMuridForm(){
+  document.getElementById("fBulan").value = new Date().getMonth()+1;
+}
+
+function renderMurid(){
+  const list = murid.filter(m=>m.status===muridFilter);
+  const aktifCount = murid.filter(m=>m.status==="aktif").length;
+  const nonaktifCount = murid.filter(m=>m.status==="nonaktif").length;
+  return `
+    <div class="card">
+      <div class="row between" style="margin-bottom:16px">
+        <div>
+          <h3>Data Murid</h3>
+          <span class="sub-note">Tanggal tagihan mengikuti tanggal daftar masing-masing anak</span>
+        </div>
+        <button class="btn" id="addMurid">+ Tambah Murid</button>
+      </div>
+      <div class="chip-row">
+        <button class="chip ${muridFilter==='aktif'?'active':''}" data-mfilter="aktif">Aktif (${aktifCount})</button>
+        <button class="chip ${muridFilter==='nonaktif'?'active':''}" data-mfilter="nonaktif">Nonaktif (${nonaktifCount})</button>
+      </div>
+      ${list.length? `<div class="table-wrap"><table>
+        <thead><tr><th>Nama</th><th>Kelas</th><th>Kontak Orang Tua</th><th>Tgl Daftar</th><th>Tagihan Bulan Ini</th><th></th></tr></thead>
+        <tbody>
+          ${list.map(m=>{
+            const st = statusTagihan(m);
+            return `<tr>
+              <td>${m.nama}</td>
+              <td>${m.kelas}</td>
+              <td>${m.orangTua}<span class="sub-note">${m.noWa}</span></td>
+              <td class="num">Tgl ${m.tglDaftar} ${namaBulan[m.bulanDaftar-1]}</td>
+              <td><span class="pay-toggle ${st.cls}">${st.label}</span>${st.note?`<span class="sub-note">${st.note}</span>`:""}</td>
+              <td style="text-align:right">
+                ${m.status==='aktif' ? `
+                  <button class="btn small secondary" data-toggle-lunas="${m.id}">${m.lunasBulanIni?'Batalkan':'Tandai Lunas'}</button>
+                  <button class="btn small danger" data-toggle-status="${m.id}">Nonaktifkan</button>
+                ` : `<button class="btn small" data-toggle-status="${m.id}">Aktifkan Lagi</button>`}
+                <button class="btn small danger" data-del-murid="${m.id}">Hapus</button>
+              </td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table></div>` : `<div class="empty"><h3>Belum ada murid ${muridFilter}</h3><p>Data akan muncul di sini.</p></div>`}
+    </div>
+  `;
+}
+
+function renderTentor(){
+  return `
+    <div class="card">
+      <div class="row between" style="margin-bottom:16px">
+        <div>
+          <h3>Data Tentor</h3>
+          <span class="sub-note">Honor per pertemuan bisa diubah kapan saja per tentor — cocok kalau nanti ada kenaikan honor</span>
+        </div>
+        <button class="btn" id="addTentor">+ Tambah Tentor</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Nama</th><th>Alamat</th><th>No WA</th><th>Honor / Pertemuan</th><th>Pertemuan Bulan Ini</th><th>Estimasi Gaji</th><th></th></tr></thead>
+        <tbody>
+          ${tentor.length ? tentor.map(t=>{ const p = pertemuanBulanIni(t.id); return `<tr>
+            <td>${t.nama}</td>
+            <td>${t.alamat || "-"}</td>
+            <td>${t.noWa || "-"}</td>
+            <td>
+              <div class="row" style="gap:6px; flex-wrap:nowrap">
+                <input type="number" min="0" step="1000" class="num" style="width:110px" id="rateInput-${t.id}" value="${t.rate}">
+                <button class="btn small secondary" data-save-rate="${t.id}">Simpan</button>
+              </div>
+            </td>
+            <td class="num">${p}x</td>
+            <td class="num money">${rupiah(p*t.rate)}</td>
+            <td style="text-align:right"><button class="btn small danger" data-del-tentor="${t.id}">Hapus</button></td>
+          </tr>`; }).join("") : `<tr><td colspan="7" class="sub-note" style="text-align:center; padding:20px 0">Belum ada tentor.</td></tr>`}
+        </tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function renderAbsensiTable(){
+  const day = absensiLog.filter(a=>a.tanggal===absForm.tanggal);
+  return sesiInfo.map((s,si)=>{
+    const rows = MEJA_PER_SESI.map(meja=>{
+      const entry = day.find(a=>a.sesi===si && a.meja===meja);
+      if(!entry) return `<tr><td class="num">Meja ${meja}</td><td colspan="2" class="sub-note">— belum diisi —</td><td></td></tr>`;
+      const t = findTentor(entry.tentorId);
+      return `<tr>
+        <td class="num">Meja ${meja}</td>
+        <td>${t ? t.nama : "-"}</td>
+        <td><span class="pay-toggle ${entry.hadir?'paid':'unpaid'}">${entry.hadir?'Hadir':'Tidak Hadir'}</span></td>
+        <td style="text-align:right">
+          <button class="btn small secondary" data-edit-absensi="${entry.id}">Edit</button>
+          <button class="btn small danger" data-del-absensi="${entry.id}">Hapus</button>
+        </td>
+      </tr>`;
+    }).join("");
+    return `<div class="group-card compact">
+      <div class="group-head"><div class="name">${s.label} <span class="sub">${s.jam}</span></div></div>
+      <div class="group-body"><div class="table-wrap"><table class="table-compact">
+        <thead><tr><th>Meja</th><th>Tentor</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div></div>
+    </div>`;
+  }).join("");
+}
+
+function renderRekapBulanan(){
+  const rows = tentor.map(t=>`<tr><td>${t.nama}</td><td class="num">${pertemuanBulanIni(t.id)}x</td><td class="num money">${rupiah(pertemuanBulanIni(t.id)*t.rate)}</td></tr>`).join("");
+  return `<div class="card">
+    <h3>Rekap Bulanan per Tentor</h3>
+    <span class="sub-note">Otomatis terhitung dari absensi berstatus "Hadir" bulan berjalan — ini yang jadi dasar Gaji Tentor, tidak perlu diisi ulang manual di tab lain</span>
+    <div class="divider"></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Tentor</th><th>Pertemuan Bulan Ini</th><th>Estimasi Gaji</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderAbsensi(){
+  if(tentor.length===0){
+    return `<div class="card"><div class="empty"><h3>Belum ada tentor</h3><p>Tambahkan tentor dulu di tab Data Tentor sebelum mengisi absensi.</p></div></div>`;
+  }
+  return `
+    <div class="card">
+      <h3>Absensi Tentor</h3>
+      <span class="sub-note">Isi manual per meja untuk hari tersebut — tiap sesi selalu ada 4 meja. Sekali simpan, langsung masuk ke rekap bulanan di bawah.</span>
+      <div class="divider"></div>
+      <div class="form-grid">
+        <div class="field"><label class="field-label">Tanggal</label><input type="date" id="absTanggal" value="${absForm.tanggal}"></div>
+        <div class="field"><label class="field-label">Sesi</label>
+          <select id="absSesi">${sesiInfo.map((s,i)=>`<option value="${i}" ${absForm.sesi===i?'selected':''}>${s.label} (${s.jam})</option>`).join("")}</select>
+        </div>
+        <div class="field"><label class="field-label">Meja</label>
+          <select id="absMeja">${MEJA_PER_SESI.map(m=>`<option value="${m}" ${absForm.meja===m?'selected':''}>Meja ${m}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label class="field-label">Nama Tentor</label>
+          <select id="absTentor">${tentor.map(t=>`<option value="${t.id}" ${absForm.tentorId===t.id?'selected':''}>${t.nama}</option>`).join("")}</select>
+        </div>
+      </div>
+      <div class="row between" style="align-items:flex-end; margin-bottom:6px">
+        <div class="field" style="margin:0">
+          <label class="field-label">Kehadiran</label>
+          <div class="kelas-toggle" style="width:210px">
+            <button type="button" class="btn small ${absForm.hadir?'':'secondary'}" data-abs-hadir="true">Hadir</button>
+            <button type="button" class="btn small ${!absForm.hadir?'danger':'secondary'}" data-abs-hadir="false">Tidak Hadir</button>
+          </div>
+        </div>
+        <button class="btn" id="simpanAbsensi">${absForm.editId ? 'Simpan Perubahan' : '+ Simpan Absensi'}</button>
+      </div>
+      ${absForm.editId ? `<div class="banner">Mode edit entri — ubah nilai di atas lalu klik simpan, atau <a href="#" id="batalEditAbsensi">batalkan edit</a>.</div>` : ""}
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Absensi Tanggal ${formatTgl(absForm.tanggal)}</h3>
+      <span class="sub-note">3 sesi × 4 meja per hari</span>
+      <div class="divider"></div>
+      ${renderAbsensiTable()}
+    </div>
+    <div style="margin-top:14px">${renderRekapBulanan()}</div>
+  `;
+}
+
+function renderTagihan(){
+  const aktif = murid.filter(m=>m.status==="aktif");
+  const belum = aktif.filter(m=>!m.lunasBulanIni);
+  const lunas = aktif.filter(m=>m.lunasBulanIni);
+  return `
+    <div class="card">
+      <h3>Tagihan Murid</h3>
+      <span class="sub-note">Tagihan otomatis mengikuti tanggal daftar tiap anak. Kalau dibayar lebih awal tetap tercatat lunas — begitu siklus bulan berikutnya dimulai, tagihan baru otomatis dibuat berstatus belum lunas (bukan me-reset yang lama, tapi riwayatnya tetap tersimpan).</span>
+      <div class="divider"></div>
+      <div class="row between" style="margin-bottom:10px"><h3 style="font-size:15px">Belum lunas (${belum.length})</h3></div>
+      ${belum.length? `<div class="table-wrap"><table>
+        <thead><tr><th>Nama</th><th>Jatuh Tempo</th><th>Status</th><th></th></tr></thead>
+        <tbody>${belum.map(m=>{
+          const st = statusTagihan(m);
+          return `<tr><td>${m.nama}</td><td class="num">Tgl ${m.tglDaftar} ${namaBulan[m.bulanDaftar-1]}</td><td><span class="pay-toggle ${st.cls}">${st.label}</span></td>
+          <td style="text-align:right"><button class="btn small" data-toggle-lunas="${m.id}">Tandai Lunas</button></td></tr>`;
+        }).join("")}</tbody>
+      </table></div>` : `<div class="empty"><h3>Semua sudah lunas</h3></div>`}
+      <div class="divider"></div>
+      <div class="row between" style="margin-bottom:10px"><h3 style="font-size:15px">Sudah lunas (${lunas.length})</h3></div>
+      ${lunas.length? `<div class="table-wrap"><table>
+        <thead><tr><th>Nama</th><th>Jatuh Tempo</th><th>Status</th><th></th></tr></thead>
+        <tbody>${lunas.map(m=>{
+          const st = statusTagihan(m);
+          return `<tr><td>${m.nama}</td><td class="num">Tgl ${m.tglDaftar} ${namaBulan[m.bulanDaftar-1]}</td><td><span class="pay-toggle paid">Lunas</span>${st.note?`<span class="sub-note">${st.note}</span>`:""}</td>
+          <td style="text-align:right"><button class="btn small secondary" data-toggle-lunas="${m.id}">Batalkan</button></td></tr>`;
+        }).join("")}</tbody>
+      </table></div>` : `<div class="empty"><h3>Belum ada yang bayar bulan ini</h3></div>`}
+    </div>
+  `;
+}
+
+function renderGaji(){
+  return `
+    <div class="card">
+      <h3>Gaji Tentor</h3>
+      <span class="sub-note">Dihitung otomatis dari absensi "Hadir" bulan berjalan (isi di tab Absensi Tentor), dibayar tiap tanggal 13</span>
+      <div class="divider"></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Tentor</th><th>Pertemuan Bulan Ini</th><th>Honor</th><th>Total Gaji</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${tentor.map(t=>{ const p = pertemuanBulanIni(t.id); return `<tr>
+            <td>${t.nama}</td>
+            <td class="num">${p}x</td>
+            <td class="num">${rupiah(t.rate)}</td>
+            <td class="num money">${rupiah(p*t.rate)}</td>
+            <td><span class="pay-toggle ${t.gajiDibayar?'paid':'unpaid'}">${t.gajiDibayar?'Sudah dibayar':'Menunggu tgl 13'}</span></td>
+            <td style="text-align:right"><button class="btn small ${t.gajiDibayar?'secondary':''}" data-toggle-gaji="${t.id}">${t.gajiDibayar?'Batalkan':'Tandai Dibayar'}</button></td>
+          </tr>`; }).join("")}
+        </tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function renderBackup(){
+  return `
+    <div class="card">
+      <h3>Backup Manual (JSON)</h3>
+      <span class="sub-note">Simpan semua data (murid, tentor, absensi) ke file JSON di perangkatmu, atau pulihkan dari file backup sebelumnya.</span>
+      <div class="divider"></div>
+      <div class="backup-actions">
+        <button class="btn" id="exportJsonBtn">⬇ Unduh Backup JSON</button>
+        <label class="btn secondary file-btn">⬆ Pulihkan dari File JSON
+          <input type="file" id="importJsonInput" accept="application/json" style="display:none">
+        </label>
+      </div>
+      <div class="banner" style="margin-top:14px">Memulihkan file akan menimpa data yang sedang tampil di aplikasi ini. Kalau sedang tersambung Firebase, hasil pulihan ini otomatis ikut tersimpan ke sana juga.</div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="row between" style="margin-bottom:4px"><h3>Sinkronisasi Firebase</h3><span id="storageBadgeInline" class="status-badge idle"></span></div>
+      <span class="sub-note">Opsional — sambungkan ke project Firebase (Firestore) supaya data ikut tersimpan online dan bisa dibuka dari perangkat lain. Tempel objek firebaseConfig dari Firebase Console (Project settings → General → SDK setup and configuration).</span>
+      <div class="divider"></div>
+      <div class="field"><label class="field-label">Firebase Config (JSON)</label>
+        <textarea id="fbConfigInput" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'>${fbConfig ? JSON.stringify(fbConfig,null,2) : ""}</textarea>
+      </div>
+      <div class="row" style="gap:10px">
+        <button class="btn" id="fbConnectBtn">${fbDb ? 'Sambungkan Ulang' : 'Hubungkan'}</button>
+        ${fbDb ? `<button class="btn secondary" id="fbPullBtn">Tarik Data dari Firebase</button><button class="btn danger" id="fbDisconnectBtn">Putuskan Sambungan</button>` : ""}
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Reset Data</h3>
+      <span class="sub-note">Kalau tanggal/absensi terlihat kacau (misalnya sisa data lama sebelum ada perbaikan), pakai ini untuk mulai bersih dari data contoh lagi. Data di perangkat ini akan dihapus — pastikan sudah unduh backup JSON dulu kalau ada data penting.</span>
+      <div class="divider"></div>
+      <button class="btn danger" id="resetDataBtn">🔄 Reset ke Data Awal</button>
+    </div>
+  `;
+}
+
+/* ---------------- Router + events ---------------- */
+function renderMain(){
+  const map = {dashboard:renderDashboard, murid:renderMurid, tentor:renderTentor, absensi:renderAbsensi, tagihan:renderTagihan, gaji:renderGaji, backup:renderBackup};
+  document.getElementById("main").innerHTML = map[activeTab]();
+  bindEvents();
+  updateStatusBadge(lastStatusKind);
+}
+
+function openModal(){ renderMuridForm(); document.getElementById("modalBackdrop").classList.add("open"); }
+function closeModal(){
+  document.getElementById("modalBackdrop").classList.remove("open");
+  ["fNama","fTgl","fKelas","fOrtu","fWa"].forEach(id=>document.getElementById(id).value="");
+}
+
+function openTentorModal(){
+  document.getElementById("tRate").value = RATE_PERTEMUAN;
+  document.getElementById("modalBackdropTentor").classList.add("open");
+}
+function closeTentorModal(){
+  document.getElementById("modalBackdropTentor").classList.remove("open");
+  ["tNama","tAlamat","tWa","tRate"].forEach(id=>document.getElementById(id).value="");
+}
+
+function bindEvents(){
+  document.querySelectorAll("[data-toggle-lunas]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const id = +b.dataset.toggleLunas;
+      const m = murid.find(x=>x.id===id);
+      m.lunasBulanIni = !m.lunasBulanIni;
+      m.tanggalBayar = m.lunasBulanIni ? todayDate : null;
+      saveState();
+      renderMain();
+    });
+  });
+  document.querySelectorAll("[data-toggle-status]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const id = +b.dataset.toggleStatus;
+      const m = murid.find(x=>x.id===id);
+      m.status = m.status==="aktif" ? "nonaktif" : "aktif";
+      saveState();
+      renderMain();
+    });
+  });
+  document.querySelectorAll("[data-del-murid]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const id = +b.dataset.delMurid;
+      const m = murid.find(x=>x.id===id);
+      if(!m) return;
+      if(confirm(`Hapus murid ${m.nama} secara permanen? Data ini tidak bisa dikembalikan lagi (beda dengan "Nonaktifkan").`)){
+        murid = murid.filter(x=>x.id!==id);
+        saveState();
+        renderMain();
+      }
+    });
+  });
+  document.querySelectorAll("[data-mfilter]").forEach(b=>{
+    b.addEventListener("click",()=>{ muridFilter = b.dataset.mfilter; renderMain(); });
+  });
+  document.querySelectorAll("[data-toggle-gaji]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const id = +b.dataset.toggleGaji;
+      const t = tentor.find(x=>x.id===id);
+      t.gajiDibayar = !t.gajiDibayar;
+      saveState();
+      renderMain();
+    });
+  });
+  const addBtn = document.getElementById("addMurid");
+  if(addBtn) addBtn.addEventListener("click", openModal);
+  const addTentorBtn = document.getElementById("addTentor");
+  if(addTentorBtn) addTentorBtn.addEventListener("click", openTentorModal);
+  document.querySelectorAll("[data-save-rate]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const id = +b.dataset.saveRate;
+      const input = document.getElementById("rateInput-"+id);
+      const val = parseInt(input.value, 10);
+      if(isNaN(val) || val<0){ alert("Honor tidak valid."); return; }
+      const t = tentor.find(x=>x.id===id);
+      t.rate = val;
+      saveState();
+      renderMain();
+    });
+  });
+  document.querySelectorAll("[data-del-tentor]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const id = +b.dataset.delTentor;
+      const t = tentor.find(x=>x.id===id);
+      if(!t) return;
+      if(confirm(`Hapus tentor ${t.nama}? Riwayat absensi yang sudah tercatat tetap tersimpan, tapi tentor ini tidak lagi muncul untuk absensi & gaji baru.`)){
+        tentor = tentor.filter(x=>x.id!==id);
+        if(!tentor.find(x=>x.id===absForm.tentorId)) absForm.tentorId = tentor[0]?.id ?? null;
+        saveState();
+        renderMain();
+      }
+    });
+  });
+
+  /* ---- Absensi Tentor ---- */
+  const absTanggal = document.getElementById("absTanggal");
+  if(absTanggal) absTanggal.addEventListener("change", ()=>{ absForm.tanggal = absTanggal.value; renderMain(); });
+  const absSesi = document.getElementById("absSesi");
+  if(absSesi) absSesi.addEventListener("change", ()=>{ absForm.sesi = +absSesi.value; renderMain(); });
+  const absMeja = document.getElementById("absMeja");
+  if(absMeja) absMeja.addEventListener("change", ()=>{ absForm.meja = +absMeja.value; renderMain(); });
+  const absTentorSel = document.getElementById("absTentor");
+  if(absTentorSel) absTentorSel.addEventListener("change", ()=>{ absForm.tentorId = +absTentorSel.value; renderMain(); });
+  document.querySelectorAll("[data-abs-hadir]").forEach(b=>{
+    b.addEventListener("click", ()=>{ absForm.hadir = b.dataset.absHadir==="true"; renderMain(); });
+  });
+  const simpanAbsensiBtn = document.getElementById("simpanAbsensi");
+  if(simpanAbsensiBtn) simpanAbsensiBtn.addEventListener("click", ()=>{
+    const {tanggal, sesi, meja, tentorId, hadir, editId} = absForm;
+    if(editId){
+      const e = absensiLog.find(a=>a.id===editId);
+      if(e){ e.tanggal=tanggal; e.sesi=sesi; e.meja=meja; e.tentorId=tentorId; e.hadir=hadir; }
+      absForm.editId = null;
+    } else {
+      const existing = absensiLog.find(a=>a.tanggal===tanggal && a.sesi===sesi && a.meja===meja);
+      if(existing){ existing.tentorId=tentorId; existing.hadir=hadir; }
+      else { absensiLog.push({ id: nextAbsensiId++, tanggal, sesi, meja, tentorId, hadir }); }
+    }
+    saveState();
+    renderMain();
+  });
+  document.querySelectorAll("[data-edit-absensi]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const id = +b.dataset.editAbsensi;
+      const e = absensiLog.find(a=>a.id===id);
+      if(e){
+        absForm = { tanggal:e.tanggal, sesi:e.sesi, meja:e.meja, tentorId:e.tentorId, hadir:e.hadir, editId:e.id };
+        renderMain();
+        window.scrollTo({top:0, behavior:"smooth"});
+      }
+    });
+  });
+  document.querySelectorAll("[data-del-absensi]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const id = +b.dataset.delAbsensi;
+      if(confirm("Hapus data absensi ini?")){
+        absensiLog = absensiLog.filter(a=>a.id!==id);
+        saveState();
+        renderMain();
+      }
+    });
+  });
+  const batalEdit = document.getElementById("batalEditAbsensi");
+  if(batalEdit) batalEdit.addEventListener("click", (e)=>{ e.preventDefault(); absForm.editId=null; renderMain(); });
+
+  /* ---- Backup JSON & Firebase ---- */
+  const exportBtn = document.getElementById("exportJsonBtn");
+  if(exportBtn) exportBtn.addEventListener("click", ()=>{
+    const data = serializeState();
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `bimbel-bna-backup-${todayISO()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+  const importInput = document.getElementById("importJsonInput");
+  if(importInput) importInput.addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(reader.result);
+        if(!data.murid || !data.tentor) throw new Error("Format file tidak sesuai");
+        if(!confirm("Pulihkan data dari file ini? Data yang sedang tampil akan ditimpa.")) return;
+        murid = data.murid; tentor = data.tentor; absensiLog = data.absensiLog || [];
+        nextMuridId = data.nextMuridId || (Math.max(0,...murid.map(m=>m.id))+1);
+        nextTentorId = data.nextTentorId || (Math.max(0,...tentor.map(t=>t.id))+1);
+        nextAbsensiId = data.nextAbsensiId || (absensiLog.length ? Math.max(...absensiLog.map(a=>a.id))+1 : 1);
+        saveState();
+        renderMain();
+        alert("Data berhasil dipulihkan dari file JSON.");
+      }catch(err){
+        alert("Gagal membaca file JSON: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    importInput.value = "";
+  });
+  const fbConnectBtn = document.getElementById("fbConnectBtn");
+  if(fbConnectBtn) fbConnectBtn.addEventListener("click", ()=>{
+    const raw = document.getElementById("fbConfigInput").value.trim();
+    if(!raw){ alert("Tempel dulu firebaseConfig dari Firebase Console."); return; }
+    try{ connectFirebase(JSON.parse(raw), true); }
+    catch(err){ alert("Format JSON firebaseConfig tidak valid."); }
+  });
+  const fbPullBtn = document.getElementById("fbPullBtn");
+  if(fbPullBtn) fbPullBtn.addEventListener("click", ()=>{
+    if(!fbDb) return;
+    fbDb.collection("bimbelBNA").doc("data").get().then(doc=>{
+      if(doc.exists){
+        const data = doc.data();
+        murid = data.murid || murid; tentor = data.tentor || tentor; absensiLog = data.absensiLog || absensiLog;
+        nextMuridId = data.nextMuridId || nextMuridId; nextTentorId = data.nextTentorId || nextTentorId; nextAbsensiId = data.nextAbsensiId || nextAbsensiId;
+        saveState();
+        renderMain();
+        alert("Data terbaru dari Firebase berhasil ditarik.");
+      } else { alert("Belum ada data tersimpan di Firebase untuk project ini."); }
+    }).catch(err=>{ alert("Gagal mengambil data: " + err.message); });
+  });
+  const fbDisconnectBtn = document.getElementById("fbDisconnectBtn");
+  if(fbDisconnectBtn) fbDisconnectBtn.addEventListener("click", ()=>{
+    if(confirm("Putuskan sambungan Firebase? Data lokal tidak akan terhapus.")){
+      disconnectFirebase();
+      renderMain();
+    }
+  });
+  const resetDataBtn = document.getElementById("resetDataBtn");
+  if(resetDataBtn) resetDataBtn.addEventListener("click", ()=>{
+    if(confirm("Hapus semua data di perangkat ini dan mulai ulang dari data contoh? Tindakan ini tidak bisa dibatalkan.")){
+      localStorage.removeItem(LS_KEY);
+      location.reload();
+    }
+  });
+}
+
+document.getElementById("cancelMurid").addEventListener("click", closeModal);
+document.getElementById("modalBackdrop").addEventListener("click", (e)=>{ if(e.target.id==="modalBackdrop") closeModal(); });
+document.getElementById("saveMurid").addEventListener("click", ()=>{
+  const nama = document.getElementById("fNama").value.trim();
+  const kelas = document.getElementById("fKelas").value.trim();
+  const tgl = +document.getElementById("fTgl").value;
+  const bulan = +document.getElementById("fBulan").value;
+  const ortu = document.getElementById("fOrtu").value.trim();
+  const wa = document.getElementById("fWa").value.trim();
+  if(!nama || !kelas || !tgl){ alert("Nama, kelas, dan tanggal daftar wajib diisi."); return; }
+  murid.push({ id: nextMuridId++, nama, kelas, tglDaftar: tgl, bulanDaftar: bulan, orangTua: ortu || "-", noWa: wa || "-", status:"aktif", lunasBulanIni:false, tanggalBayar:null });
+  closeModal();
+  muridFilter = "aktif";
+  saveState();
+  renderMain();
+});
+
+document.getElementById("cancelTentor").addEventListener("click", closeTentorModal);
+document.getElementById("modalBackdropTentor").addEventListener("click", (e)=>{ if(e.target.id==="modalBackdropTentor") closeTentorModal(); });
+document.getElementById("saveTentor").addEventListener("click", ()=>{
+  const nama = document.getElementById("tNama").value.trim();
+  const alamat = document.getElementById("tAlamat").value.trim();
+  const wa = document.getElementById("tWa").value.trim();
+  const rateRaw = document.getElementById("tRate").value;
+  const rate = rateRaw ? +rateRaw : RATE_PERTEMUAN;
+  if(!nama){ alert("Nama tentor wajib diisi."); return; }
+  if(isNaN(rate) || rate<0){ alert("Honor tidak valid."); return; }
+  tentor.push({ id: nextTentorId++, nama, alamat: alamat || "-", noWa: wa || "-", rate, gajiDibayar:false });
+  closeTentorModal();
+  saveState();
+  renderMain();
+});
+
+/* ---------------- Bootstrap ---------------- */
+const hadDataLokal = loadLocalState();
+if(absensiLog.length===0){
+  absensiLog = seedAbsensi();
+  nextAbsensiId = absensiLog.length + 1;
+}
+absForm = { tanggal: todayISO(), sesi:0, meja:1, tentorId: tentor[0]?.id ?? null, hadir:true, editId:null };
+if(!hadDataLokal) saveState();
+renderNav();
+renderMain();
+loadFirebaseConfigAndConnect();
+</script>
+</body>
+</html>
