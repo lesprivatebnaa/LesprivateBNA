@@ -439,13 +439,28 @@ function formatTgl(iso){
   return d.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 }
 
-function pertemuanBulanIni(tentorId, ref=new Date()){
+function monthKey(ref=new Date()){
+  return `${ref.getFullYear()}-${String(ref.getMonth()+1).padStart(2,'0')}`;
+}
+
+/* Jumlah pertemuan otomatis = hitungan dari absensi "Hadir" bulan berjalan.
+   Tentor bisa menambah/mengurangi manual (mis. ngajar di luar jadwal meja/sesi yang tidak sempat diabsen),
+   tersimpan per bulan di t.penyesuaianPertemuan[monthKey]. Absensi tetap jadi sumber utama & tidak ditimpa. */
+function pertemuanOtomatis(tentorId, ref=new Date()){
   const y = ref.getFullYear(), m = ref.getMonth();
   return absensiLog.filter(a=>{
     if(a.tentorId!==tentorId || !a.hadir) return false;
     const ad = new Date(a.tanggal+"T00:00:00");
     return ad.getFullYear()===y && ad.getMonth()===m;
   }).length;
+}
+function penyesuaianBulanIni(tentorId, ref=new Date()){
+  const t = findTentor(tentorId);
+  if(!t || !t.penyesuaianPertemuan) return 0;
+  return t.penyesuaianPertemuan[monthKey(ref)] || 0;
+}
+function pertemuanBulanIni(tentorId, ref=new Date()){
+  return pertemuanOtomatis(tentorId, ref) + penyesuaianBulanIni(tentorId, ref);
 }
 
 let absForm = { tanggal: todayISO(), sesi:0, meja:1, tentorId: tentor[0].id, hadir:true, editId:null };
@@ -830,13 +845,20 @@ function renderGaji(){
   return `
     <div class="card">
       <h3>Gaji Tentor</h3>
-      <span class="sub-note">Dihitung otomatis dari absensi "Hadir" bulan berjalan (isi di tab Absensi Tentor), dibayar tiap tanggal 13</span>
+      <span class="sub-note">Pertemuan otomatis dihitung dari absensi "Hadir" bulan berjalan (isi di tab Absensi Tentor). Kalau ada pertemuan yang belum sempat diabsen, tambahkan lewat kolom "Penyesuaian Manual" — hasilnya tetap dijumlah dengan absensi, tidak menggantikannya. Gaji dibayar tiap tanggal 13.</span>
       <div class="divider"></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Tentor</th><th>Pertemuan Bulan Ini</th><th>Honor</th><th>Total Gaji</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Tentor</th><th>Dari Absensi</th><th>Penyesuaian Manual</th><th>Total Pertemuan</th><th>Honor</th><th>Total Gaji</th><th>Status</th><th></th></tr></thead>
         <tbody>
-          ${tentor.map(t=>{ const p = pertemuanBulanIni(t.id); return `<tr>
+          ${tentor.map(t=>{ const auto = pertemuanOtomatis(t.id); const manual = penyesuaianBulanIni(t.id); const p = auto+manual; return `<tr>
             <td>${t.nama}</td>
+            <td class="num">${auto}x</td>
+            <td>
+              <div class="row" style="gap:6px; flex-wrap:nowrap">
+                <input type="number" step="1" class="num" style="width:80px" id="manualPertemuan-${t.id}" value="${manual}">
+                <button class="btn small secondary" data-save-manual-pertemuan="${t.id}">Simpan</button>
+              </div>
+            </td>
             <td class="num">${p}x</td>
             <td class="num">${rupiah(t.rate)}</td>
             <td class="num money">${rupiah(p*t.rate)}</td>
@@ -947,6 +969,19 @@ function bindEvents(){
       const id = +b.dataset.toggleGaji;
       const t = tentor.find(x=>x.id===id);
       t.gajiDibayar = !t.gajiDibayar;
+      saveState();
+      renderMain();
+    });
+  });
+  document.querySelectorAll("[data-save-manual-pertemuan]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const id = +b.dataset.saveManualPertemuan;
+      const input = document.getElementById("manualPertemuan-"+id);
+      const val = parseInt(input.value, 10);
+      if(isNaN(val)){ alert("Isi angka penyesuaian yang valid (boleh negatif)."); return; }
+      const t = tentor.find(x=>x.id===id);
+      if(!t.penyesuaianPertemuan) t.penyesuaianPertemuan = {};
+      t.penyesuaianPertemuan[monthKey()] = val;
       saveState();
       renderMain();
     });
@@ -1131,7 +1166,7 @@ document.getElementById("saveTentor").addEventListener("click", ()=>{
   const rate = rateRaw ? +rateRaw : RATE_PERTEMUAN;
   if(!nama){ alert("Nama tentor wajib diisi."); return; }
   if(isNaN(rate) || rate<0){ alert("Honor tidak valid."); return; }
-  tentor.push({ id: nextTentorId++, nama, alamat: alamat || "-", noWa: wa || "-", rate, gajiDibayar:false });
+  tentor.push({ id: nextTentorId++, nama, alamat: alamat || "-", noWa: wa || "-", rate, gajiDibayar:false, penyesuaianPertemuan:{} });
   closeTentorModal();
   saveState();
   renderMain();
