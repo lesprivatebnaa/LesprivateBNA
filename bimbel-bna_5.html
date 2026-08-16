@@ -368,13 +368,13 @@ let murid = namaMuridRaw.map((row,i)=>{
   const tglDaftar = ((i*3+7)%27)+1;
   const bulanDaftar = ((i*2)%12)+1;
   const lunas = (i%5!==0);
+  const curKey = monthKey();
   return {
     id:i+1, nama:row[0], kelas:row[1], tglDaftar, bulanDaftar,
     orangTua:row[2], noWa:row[3],
     biayaBulanan: DEFAULT_BIAYA_BULANAN,
     status: (i===6||i===15) ? "nonaktif" : "aktif",
-    lunasBulanIni: lunas,
-    tanggalBayar: lunas ? (tglDaftar>15? 1 : null) : null
+    lunasHistory: lunas ? { [curKey]: { lunas:true, tanggalBayar: (tglDaftar>15? 1 : null) } } : {}
   };
 });
 let nextMuridId = murid.length+1;
@@ -389,7 +389,7 @@ const tentorSeed = [
 ];
 let tentor = tentorSeed.map((t,i)=>({
   id:i+1, nama:t.nama, alamat:t.alamat, noWa:t.noWa, rate: RATE_PERTEMUAN,
-  gajiDibayar:false, totalPertemuanOverride:{}
+  gajiHistory:{}, totalPertemuanOverride:{}
 }));
 let nextTentorId = tentor.length+1;
 
@@ -474,6 +474,51 @@ function pertemuanBulanIni(tentorId, ref=new Date()){
   return override!==null ? override : pertemuanOtomatis(tentorId, ref);
 }
 
+/* Status lunas & gaji dibayar disimpan PER BULAN (key "YYYY-MM"), bukan satu flag tunggal —
+   supaya begitu bulan berganti, tagihan/gaji bulan baru otomatis mulai dari "belum lunas/belum dibayar"
+   tanpa perlu direset manual, sementara riwayat bulan-bulan sebelumnya tetap tersimpan. */
+function lunasInfo(m, ref=new Date()){
+  const key = monthKey(ref);
+  const h = m.lunasHistory && m.lunasHistory[key];
+  return h ? { lunas: !!h.lunas, tanggalBayar: h.tanggalBayar ?? null } : { lunas:false, tanggalBayar:null };
+}
+function setLunas(m, val, ref=new Date()){
+  const key = monthKey(ref);
+  if(!m.lunasHistory) m.lunasHistory = {};
+  if(val) m.lunasHistory[key] = { lunas:true, tanggalBayar: todayDate };
+  else delete m.lunasHistory[key];
+}
+function gajiDibayarBulanIni(t, ref=new Date()){
+  const key = monthKey(ref);
+  return !!(t.gajiHistory && t.gajiHistory[key]);
+}
+function setGajiDibayar(t, val, ref=new Date()){
+  const key = monthKey(ref);
+  if(!t.gajiHistory) t.gajiHistory = {};
+  if(val) t.gajiHistory[key] = true;
+  else delete t.gajiHistory[key];
+}
+/* Migrasi data lama (flag tunggal lunasBulanIni/gajiDibayar) ke format riwayat per bulan,
+   dipanggil tiap kali data dimuat dari localStorage, Firebase, atau file backup JSON. */
+function migrasiStatusBulanan(){
+  const key = monthKey();
+  murid.forEach(m=>{
+    if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN;
+    if(!m.lunasHistory){
+      m.lunasHistory = {};
+      if(m.lunasBulanIni) m.lunasHistory[key] = { lunas:true, tanggalBayar: m.tanggalBayar ?? null };
+    }
+    delete m.lunasBulanIni; delete m.tanggalBayar;
+  });
+  tentor.forEach(t=>{
+    if(!t.gajiHistory){
+      t.gajiHistory = {};
+      if(t.gajiDibayar) t.gajiHistory[key] = true;
+    }
+    delete t.gajiDibayar;
+  });
+}
+
 let absForm = { tanggal: todayISO(), sesi:0, meja:1, tentorId: tentor[0].id, hadir:true, editId:null };
 
 document.getElementById("stamp").textContent = new Date().toLocaleDateString('id-ID',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
@@ -498,7 +543,7 @@ function loadLocalState(){
     if(data.nextMuridId) nextMuridId = data.nextMuridId;
     if(data.nextTentorId) nextTentorId = data.nextTentorId;
     if(data.nextAbsensiId) nextAbsensiId = data.nextAbsensiId;
-    murid.forEach(m=>{ if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN; });
+    migrasiStatusBulanan();
     return true;
   }catch(e){ console.error("Gagal memuat data lokal", e); return false; }
 }
@@ -556,7 +601,7 @@ function connectFirebase(configObj, pullFirst){
           if(data.nextMuridId) nextMuridId = data.nextMuridId;
           if(data.nextTentorId) nextTentorId = data.nextTentorId;
           if(data.nextAbsensiId) nextAbsensiId = data.nextAbsensiId;
-          murid.forEach(m=>{ if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN; });
+          migrasiStatusBulanan();
           saveState();
           renderMain();
         }
@@ -587,7 +632,8 @@ function loadFirebaseConfigAndConnect(){
 }
 
 function statusTagihan(m){
-  if(m.lunasBulanIni) return {label:"Lunas", cls:"paid", note: m.tanggalBayar ? `dibayar tgl ${m.tanggalBayar}` : ""};
+  const info = lunasInfo(m);
+  if(info.lunas) return {label:"Lunas", cls:"paid", note: info.tanggalBayar ? `dibayar tgl ${info.tanggalBayar}` : ""};
   if(todayDate >= m.tglDaftar) return {label:"Terlambat", cls:"unpaid", note:""};
   return {label:"Belum jatuh tempo", cls:"unpaid", note:""};
 }
@@ -613,11 +659,11 @@ function renderNav(){
 
 /* ---------------- Pages ---------------- */
 function renderDashboard(){
-  const belumLunas = murid.filter(m=>m.status==="aktif" && !m.lunasBulanIni).length;
+  const belumLunas = murid.filter(m=>m.status==="aktif" && !lunasInfo(m).lunas).length;
   const totalGaji13 = tentor.reduce((s,t)=>s+pertemuanBulanIni(t.id)*t.rate,0);
   const aktifCount = murid.filter(m=>m.status==="aktif").length;
   const potensiPemasukan = murid.filter(m=>m.status==="aktif").reduce((s,m)=>s+(m.biayaBulanan||0),0);
-  const sudahDiterima = murid.filter(m=>m.status==="aktif" && m.lunasBulanIni).reduce((s,m)=>s+(m.biayaBulanan||0),0);
+  const sudahDiterima = murid.filter(m=>m.status==="aktif" && lunasInfo(m).lunas).reduce((s,m)=>s+(m.biayaBulanan||0),0);
   const todayStr = todayISO();
   return `
     <div class="welcome-card">
@@ -709,7 +755,7 @@ function renderMurid(){
               <td><span class="pay-toggle ${st.cls}">${st.label}</span>${st.note?`<span class="sub-note">${st.note}</span>`:""}</td>
               <td style="text-align:right">
                 ${m.status==='aktif' ? `
-                  <button class="btn small secondary" data-toggle-lunas="${m.id}">${m.lunasBulanIni?'Batalkan':'Tandai Lunas'}</button>
+                  <button class="btn small secondary" data-toggle-lunas="${m.id}">${lunasInfo(m).lunas?'Batalkan':'Tandai Lunas'}</button>
                   <button class="btn small danger" data-toggle-status="${m.id}">Nonaktifkan</button>
                 ` : `<button class="btn small" data-toggle-status="${m.id}">Aktifkan Lagi</button>`}
                 <button class="btn small secondary" data-edit-murid="${m.id}">Edit</button>
@@ -820,7 +866,7 @@ function downloadRekapTentorPDF(){
 
   const body = tentor.map(t=>{
     const p = pertemuanBulanIni(t.id);
-    return [t.nama, `${p}x`, rupiah(t.rate), rupiah(p*t.rate), t.gajiDibayar ? "Sudah dibayar" : "Belum dibayar"];
+    return [t.nama, `${p}x`, rupiah(t.rate), rupiah(p*t.rate), gajiDibayarBulanIni(t) ? "Sudah dibayar" : "Belum dibayar"];
   });
   const totalGaji = tentor.reduce((s,t)=>s+pertemuanBulanIni(t.id)*t.rate,0);
 
@@ -884,8 +930,8 @@ function renderAbsensi(){
 
 function renderTagihan(){
   const aktif = murid.filter(m=>m.status==="aktif");
-  const belum = aktif.filter(m=>!m.lunasBulanIni);
-  const lunas = aktif.filter(m=>m.lunasBulanIni);
+  const belum = aktif.filter(m=>!lunasInfo(m).lunas);
+  const lunas = aktif.filter(m=>lunasInfo(m).lunas);
   const totalBelum = belum.reduce((s,m)=>s+(m.biayaBulanan||0),0);
   const totalLunas = lunas.reduce((s,m)=>s+(m.biayaBulanan||0),0);
   return `
@@ -938,8 +984,8 @@ function renderGaji(){
             </td>
             <td class="num">${rupiah(t.rate)}</td>
             <td class="num money">${rupiah(p*t.rate)}</td>
-            <td><span class="pay-toggle ${t.gajiDibayar?'paid':'unpaid'}">${t.gajiDibayar?'Sudah dibayar':'Menunggu tgl 13'}</span></td>
-            <td style="text-align:right"><button class="btn small ${t.gajiDibayar?'secondary':''}" data-toggle-gaji="${t.id}">${t.gajiDibayar?'Batalkan':'Tandai Dibayar'}</button></td>
+            <td><span class="pay-toggle ${gajiDibayarBulanIni(t)?'paid':'unpaid'}">${gajiDibayarBulanIni(t)?'Sudah dibayar':'Menunggu tgl 13'}</span></td>
+            <td style="text-align:right"><button class="btn small ${gajiDibayarBulanIni(t)?'secondary':''}" data-toggle-gaji="${t.id}">${gajiDibayarBulanIni(t)?'Batalkan':'Tandai Dibayar'}</button></td>
           </tr>`; }).join("")}
         </tbody>
       </table></div>
@@ -1028,8 +1074,7 @@ function bindEvents(){
     b.addEventListener("click",()=>{
       const id = +b.dataset.toggleLunas;
       const m = murid.find(x=>x.id===id);
-      m.lunasBulanIni = !m.lunasBulanIni;
-      m.tanggalBayar = m.lunasBulanIni ? todayDate : null;
+      setLunas(m, !lunasInfo(m).lunas);
       saveState();
       renderMain();
     });
@@ -1078,7 +1123,7 @@ function bindEvents(){
     b.addEventListener("click",()=>{
       const id = +b.dataset.toggleGaji;
       const t = tentor.find(x=>x.id===id);
-      t.gajiDibayar = !t.gajiDibayar;
+      setGajiDibayar(t, !gajiDibayarBulanIni(t));
       saveState();
       renderMain();
     });
@@ -1210,7 +1255,7 @@ function bindEvents(){
         if(!data.murid || !data.tentor) throw new Error("Format file tidak sesuai");
         if(!confirm("Pulihkan data dari file ini? Data yang sedang tampil akan ditimpa.")) return;
         murid = data.murid; tentor = data.tentor; absensiLog = data.absensiLog || [];
-        murid.forEach(m=>{ if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN; });
+        migrasiStatusBulanan();
         nextMuridId = data.nextMuridId || (Math.max(0,...murid.map(m=>m.id))+1);
         nextTentorId = data.nextTentorId || (Math.max(0,...tentor.map(t=>t.id))+1);
         nextAbsensiId = data.nextAbsensiId || (absensiLog.length ? Math.max(...absensiLog.map(a=>a.id))+1 : 1);
@@ -1238,7 +1283,7 @@ function bindEvents(){
       if(doc.exists){
         const data = doc.data();
         murid = data.murid || murid; tentor = data.tentor || tentor; absensiLog = data.absensiLog || absensiLog;
-        murid.forEach(m=>{ if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN; });
+        migrasiStatusBulanan();
         nextMuridId = data.nextMuridId || nextMuridId; nextTentorId = data.nextTentorId || nextTentorId; nextAbsensiId = data.nextAbsensiId || nextAbsensiId;
         saveState();
         renderMain();
@@ -1283,7 +1328,7 @@ document.getElementById("saveMurid").addEventListener("click", ()=>{
       m.orangTua = ortu || "-"; m.noWa = wa || "-";
     }
   } else {
-    murid.push({ id: nextMuridId++, nama, kelas, tglDaftar: tgl, bulanDaftar: bulan, biayaBulanan: biaya, orangTua: ortu || "-", noWa: wa || "-", status:"aktif", lunasBulanIni:false, tanggalBayar:null });
+    murid.push({ id: nextMuridId++, nama, kelas, tglDaftar: tgl, bulanDaftar: bulan, biayaBulanan: biaya, orangTua: ortu || "-", noWa: wa || "-", status:"aktif", lunasHistory:{} });
     muridFilter = "aktif";
   }
   closeModal();
@@ -1301,7 +1346,7 @@ document.getElementById("saveTentor").addEventListener("click", ()=>{
   const rate = rateRaw ? +rateRaw : RATE_PERTEMUAN;
   if(!nama){ alert("Nama tentor wajib diisi."); return; }
   if(isNaN(rate) || rate<0){ alert("Honor tidak valid."); return; }
-  tentor.push({ id: nextTentorId++, nama, alamat: alamat || "-", noWa: wa || "-", rate, gajiDibayar:false, totalPertemuanOverride:{} });
+  tentor.push({ id: nextTentorId++, nama, alamat: alamat || "-", noWa: wa || "-", rate, gajiHistory:{}, totalPertemuanOverride:{} });
   closeTentorModal();
   saveState();
   renderMain();
