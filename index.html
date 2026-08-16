@@ -1253,7 +1253,7 @@
         <h2 style="margin-bottom:16px;">Tentor</h2>
         <div class="banner" style="margin-bottom:18px;">
           <b>🔗 Satu Link Absen untuk Semua Tentor</b><br>
-          Bagikan link yang sama ke semua tentor. Saat dibuka, tentor tinggal pilih nama sendiri, lalu (khusus pertama kali) buat PIN 4 digit sendiri — jadi tidak perlu link berbeda-beda per tentor lagi.
+          Bagikan link yang sama ke semua tentor. Saat dibuka, tentor tinggal cari lalu pilih nama sendiri — jadi tidak perlu link berbeda-beda per tentor lagi.
           <div style="margin-top:10px;"><button class="btn small" id="copySharedAbsenLink">Salin Link Absen Bersama</button></div>
         </div>
         <div class="form-grid">
@@ -1309,7 +1309,7 @@
         return;
       }
       const link = location.origin + location.pathname + '?absen=all';
-      prompt('Link Absen Bersama (satu link untuk semua tentor) — bagikan link ini ke semua tentor lewat WhatsApp/grup. Saat dibuka, tentor tinggal pilih nama sendiri, lalu (kalau baru pertama kali) buat PIN 4 digit sendiri untuk melindungi absennya dari tentor lain:', link);
+      prompt('Link Absen Bersama (satu link untuk semua tentor) — bagikan link ini ke semua tentor lewat WhatsApp/grup. Saat dibuka, tentor tinggal cari lalu pilih nama sendiri:', link);
     });
 
     view.querySelectorAll('.copy-absen-link').forEach(btn=>{
@@ -2388,9 +2388,8 @@ service cloud.firestore {
     await runTentorAbsenSession(tentor, {allowSwitch:false});
   }
 
-  // Link bersama untuk semua tentor: ?absen=all — tentor memilih nama
-  // sendiri, lalu melindungi pilihannya dengan PIN 4 digit pribadi (dibuat
-  // sendiri saat pertama kali pakai). Setelah berhasil, HP tentor tsb akan
+  // Link bersama untuk semua tentor: ?absen=all — tentor cukup mencari lalu
+  // memilih nama sendiri dari daftar. Setelah dipilih, HP tentor tsb akan
   // "mengingat" pilihannya supaya lain kali langsung terbuka ke namanya.
   async function startAbsenModeShared(){
     document.title = 'Absen Mengajar — Les Private Banda Aceh';
@@ -2413,36 +2412,30 @@ service cloud.firestore {
 
   function showTentorPicker(){
     const body = document.getElementById('absenBody');
-    const aktif = tentors.filter(t=>t.status!=='nonaktif').slice().sort((a,b)=>a.nama.localeCompare(b.nama,'id'));
     body.innerHTML = `
       <div style="margin-bottom:4px;">
         <div style="font-family:'Poppins',sans-serif;font-weight:700;font-size:15.5px;color:var(--ink);">Pilih Nama Anda</div>
         <div style="color:var(--ink-soft);font-size:12px;margin-top:4px;">Link ini dipakai bersama oleh semua tentor. Pilih nama Anda sendiri — jangan pilih nama tentor lain.</div>
       </div>
-      ${aktif.length===0 ? `<div class="empty"><h3>Belum ada tentor</h3></div>` :
-      `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
-        ${aktif.map(t=>`<button class="btn secondary tentor-pick-btn" data-id="${t.id}" style="width:100%;text-align:left;font-size:14px;padding:12px 16px;">${esc(t.nama)}</button>`).join('')}
-      </div>`}
+      <div style="margin-top:14px;"><input type="search" id="tentorPickerSearch" placeholder="Cari nama…"></div>
+      <div id="tentorPickerList" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;"></div>
     `;
-    body.querySelectorAll('.tentor-pick-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{ handleTentorPinFlow(tentorById(btn.dataset.id)); });
-    });
+    function drawList(){
+      const q = (document.getElementById('tentorPickerSearch').value||'').trim().toLowerCase();
+      const aktif = tentors.filter(t=>t.status!=='nonaktif' && (!q || t.nama.toLowerCase().includes(q))).slice().sort((a,b)=>a.nama.localeCompare(b.nama,'id'));
+      const listEl = document.getElementById('tentorPickerList');
+      listEl.innerHTML = aktif.length===0 ? `<div class="empty"><h3>Tidak ditemukan</h3></div>` :
+        aktif.map(t=>`<button class="btn secondary tentor-pick-btn" data-id="${t.id}" style="width:100%;text-align:left;font-size:14px;padding:12px 16px;">${esc(t.nama)}</button>`).join('');
+      listEl.querySelectorAll('.tentor-pick-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{ selectTentor(tentorById(btn.dataset.id)); });
+      });
+    }
+    document.getElementById('tentorPickerSearch').addEventListener('input', drawList);
+    drawList();
   }
 
-  async function handleTentorPinFlow(t){
+  async function selectTentor(t){
     if(!t) return;
-    if(!t.absenPin){
-      const p1 = prompt('Ini pertama kalinya Anda ('+t.nama+') memakai link ini. Buat PIN 4 digit sendiri (bebas, mudah diingat) — PIN ini melindungi absen Anda supaya tidak diisi tentor lain:');
-      if(!p1) return;
-      const p2 = prompt('Ulangi PIN yang sama untuk konfirmasi:');
-      if(p1!==p2){ alert('PIN tidak sama, coba lagi dari awal.'); return; }
-      t.absenPin = p1;
-      try{ await storeSet('tentors', tentors); }catch(e){ alert('Gagal menyimpan PIN, periksa koneksi internet lalu coba lagi.'); return; }
-    } else {
-      const p = prompt('Masukkan PIN Anda ('+t.nama+'):');
-      if(p===null) return;
-      if(p!==t.absenPin){ alert('PIN salah.'); return; }
-    }
     try{ localStorage.setItem('absenSharedTentorId', t.id); }catch(e){}
     await runTentorAbsenSession(t, {allowSwitch:true});
   }
