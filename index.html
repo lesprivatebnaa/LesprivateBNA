@@ -1275,8 +1275,6 @@
                 <td>${esc(t.nama)}</td>
                 <td class="num">${jml} kelas</td>
                 <td>
-                  <button class="icon-btn edit-btn copy-absen-link" data-id="${t.id}">Link Absen</button>
-                  <button class="icon-btn edit-btn reset-absen-link" data-id="${t.id}">Reset Link</button>
                   <button class="icon-btn edit-btn toggle-tentor-status" data-id="${t.id}">${t.status==='nonaktif'?'Aktifkan':'Nonaktifkan'}</button>
                   <button class="icon-btn edit-btn rename-tentor" data-id="${t.id}">Ubah</button>
                   <button class="icon-btn del-tentor" data-id="${t.id}">Hapus</button>
@@ -1312,30 +1310,6 @@
       prompt('Link Absen Bersama (satu link untuk semua tentor) — bagikan link ini ke semua tentor lewat WhatsApp/grup. Saat dibuka, tentor tinggal cari lalu pilih nama sendiri:', link);
     });
 
-    view.querySelectorAll('.copy-absen-link').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const t = tentorById(btn.dataset.id);
-        const api = getApiUrl();
-        if(!api){
-          alert('Sambungkan dulu ke Firebase di tab "Cadangan & Sinkron" sebelum membuat link absen — supaya absen dari HP tentor tersimpan ke database yang sama, bukan cuma di HP-nya sendiri.');
-          setActiveTab('cadangan');
-          return;
-        }
-        if(!t.secretToken){ t.secretToken = uid()+uid(); storeSet('tentors', tentors); }
-        const link = location.origin + location.pathname + '?t=' + encodeURIComponent(t.id) + '&k=' + encodeURIComponent(t.secretToken);
-        prompt('Link absen untuk '+t.nama+' — tinggal disimpan/di-pin di WhatsApp, sekali tekan langsung absen, tidak perlu PIN. Link ini khusus untuk '+t.nama+' dan tidak berubah walau ada tentor lain ditambah/dihapus:', link);
-      });
-    });
-    view.querySelectorAll('.reset-absen-link').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const t = tentorById(btn.dataset.id);
-        if(!confirm('Buat link absen baru untuk '+t.nama+'? Link lama akan langsung berhenti berfungsi — gunakan ini kalau link lama pernah tidak sengaja tersebar.')) return;
-        t.secretToken = uid()+uid();
-        storeSet('tentors', tentors);
-        const link = location.origin + location.pathname + '?t=' + encodeURIComponent(t.id) + '&k=' + encodeURIComponent(t.secretToken);
-        prompt('Link absen BARU untuk '+t.nama+' (link lama sudah tidak berlaku):', link);
-      });
-    });
     view.querySelectorAll('.rename-tentor').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const t = tentorById(btn.dataset.id);
