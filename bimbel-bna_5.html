@@ -247,6 +247,7 @@
         </select>
       </div>
     </div>
+    <div class="field"><label class="field-label">Biaya Les per Bulan (Rp)</label><input type="number" id="fBiaya" min="0" step="5000" placeholder="cth. 150000"></div>
     <div class="field"><label class="field-label">Nama Orang Tua</label><input type="text" id="fOrtu" placeholder="cth. Bu Yuni"></div>
     <div class="field"><label class="field-label">No. WA Orang Tua</label><input type="text" id="fWa" placeholder="cth. 0812xxxxxxx"></div>
     <div class="modal-actions">
@@ -340,6 +341,7 @@ document.getElementById("logoutBtn").addEventListener("click", ()=>{
 <script>
 /* ---------------- Mock data ---------------- */
 const namaBulan = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+const DEFAULT_BIAYA_BULANAN = 150000;
 const namaMuridRaw = [
   ["Aisyah Putri","SD 5","Bu Wulan","0812-1111-2201"],
   ["Bagas Wirawan","SMP 1","Pak Handoko","0813-2222-3302"],
@@ -369,6 +371,7 @@ let murid = namaMuridRaw.map((row,i)=>{
   return {
     id:i+1, nama:row[0], kelas:row[1], tglDaftar, bulanDaftar,
     orangTua:row[2], noWa:row[3],
+    biayaBulanan: DEFAULT_BIAYA_BULANAN,
     status: (i===6||i===15) ? "nonaktif" : "aktif",
     lunasBulanIni: lunas,
     tanggalBayar: lunas ? (tglDaftar>15? 1 : null) : null
@@ -494,6 +497,7 @@ function loadLocalState(){
     if(data.nextMuridId) nextMuridId = data.nextMuridId;
     if(data.nextTentorId) nextTentorId = data.nextTentorId;
     if(data.nextAbsensiId) nextAbsensiId = data.nextAbsensiId;
+    murid.forEach(m=>{ if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN; });
     return true;
   }catch(e){ console.error("Gagal memuat data lokal", e); return false; }
 }
@@ -551,6 +555,7 @@ function connectFirebase(configObj, pullFirst){
           if(data.nextMuridId) nextMuridId = data.nextMuridId;
           if(data.nextTentorId) nextTentorId = data.nextTentorId;
           if(data.nextAbsensiId) nextAbsensiId = data.nextAbsensiId;
+          murid.forEach(m=>{ if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN; });
           saveState();
           renderMain();
         }
@@ -610,6 +615,8 @@ function renderDashboard(){
   const belumLunas = murid.filter(m=>m.status==="aktif" && !m.lunasBulanIni).length;
   const totalGaji13 = tentor.reduce((s,t)=>s+pertemuanBulanIni(t.id)*t.rate,0);
   const aktifCount = murid.filter(m=>m.status==="aktif").length;
+  const potensiPemasukan = murid.filter(m=>m.status==="aktif").reduce((s,m)=>s+(m.biayaBulanan||0),0);
+  const sudahDiterima = murid.filter(m=>m.status==="aktif" && m.lunasBulanIni).reduce((s,m)=>s+(m.biayaBulanan||0),0);
   const todayStr = todayISO();
   return `
     <div class="welcome-card">
@@ -623,6 +630,8 @@ function renderDashboard(){
       <div class="stat"><div class="label">Total Tentor</div><div class="value">${tentor.length}</div></div>
       <div class="stat"><div class="label">Tagihan Belum Lunas</div><div class="value">${belumLunas}</div></div>
       <div class="stat"><div class="label">Gaji Jatuh Tempo Tgl 13</div><div class="value" style="font-size:16px">${rupiah(totalGaji13)}</div></div>
+      <div class="stat"><div class="label">Potensi Pemasukan Bulan Ini</div><div class="value" style="font-size:16px">${rupiah(potensiPemasukan)}</div></div>
+      <div class="stat"><div class="label">Sudah Diterima Bulan Ini</div><div class="value" style="font-size:16px">${rupiah(sudahDiterima)}</div></div>
     </div>
     <div class="card">
       <div class="row between" style="margin-bottom:14px">
@@ -655,6 +664,7 @@ function renderDashboard(){
 
 function renderMuridForm(){
   document.getElementById("fBulan").value = new Date().getMonth()+1;
+  document.getElementById("fBiaya").value = DEFAULT_BIAYA_BULANAN;
 }
 
 function renderMurid(){
@@ -675,7 +685,7 @@ function renderMurid(){
         <button class="chip ${muridFilter==='nonaktif'?'active':''}" data-mfilter="nonaktif">Nonaktif (${nonaktifCount})</button>
       </div>
       ${list.length? `<div class="table-wrap"><table>
-        <thead><tr><th>Nama</th><th>Kelas</th><th>Kontak Orang Tua</th><th>Tgl Daftar</th><th>Tagihan Bulan Ini</th><th></th></tr></thead>
+        <thead><tr><th>Nama</th><th>Kelas</th><th>Kontak Orang Tua</th><th>Tgl Daftar</th><th>Biaya/Bulan</th><th>Tagihan Bulan Ini</th><th></th></tr></thead>
         <tbody>
           ${list.map(m=>{
             const st = statusTagihan(m);
@@ -684,6 +694,7 @@ function renderMurid(){
               <td>${m.kelas}</td>
               <td>${m.orangTua}<span class="sub-note">${m.noWa}</span></td>
               <td class="num">Tgl ${m.tglDaftar} ${namaBulan[m.bulanDaftar-1]}</td>
+              <td class="num money">${rupiah(m.biayaBulanan||0)}</td>
               <td><span class="pay-toggle ${st.cls}">${st.label}</span>${st.note?`<span class="sub-note">${st.note}</span>`:""}</td>
               <td style="text-align:right">
                 ${m.status==='aktif' ? `
@@ -864,27 +875,29 @@ function renderTagihan(){
   const aktif = murid.filter(m=>m.status==="aktif");
   const belum = aktif.filter(m=>!m.lunasBulanIni);
   const lunas = aktif.filter(m=>m.lunasBulanIni);
+  const totalBelum = belum.reduce((s,m)=>s+(m.biayaBulanan||0),0);
+  const totalLunas = lunas.reduce((s,m)=>s+(m.biayaBulanan||0),0);
   return `
     <div class="card">
       <h3>Tagihan Murid</h3>
       <span class="sub-note">Tagihan otomatis mengikuti tanggal daftar tiap anak. Kalau dibayar lebih awal tetap tercatat lunas — begitu siklus bulan berikutnya dimulai, tagihan baru otomatis dibuat berstatus belum lunas (bukan me-reset yang lama, tapi riwayatnya tetap tersimpan).</span>
       <div class="divider"></div>
-      <div class="row between" style="margin-bottom:10px"><h3 style="font-size:15px">Belum lunas (${belum.length})</h3></div>
+      <div class="row between" style="margin-bottom:10px"><h3 style="font-size:15px">Belum lunas (${belum.length})</h3><span class="kode-tag">${rupiah(totalBelum)}</span></div>
       ${belum.length? `<div class="table-wrap"><table>
-        <thead><tr><th>Nama</th><th>Jatuh Tempo</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Nama</th><th>Jatuh Tempo</th><th>Biaya/Bulan</th><th>Status</th><th></th></tr></thead>
         <tbody>${belum.map(m=>{
           const st = statusTagihan(m);
-          return `<tr><td>${m.nama}</td><td class="num">Tgl ${m.tglDaftar} ${namaBulan[m.bulanDaftar-1]}</td><td><span class="pay-toggle ${st.cls}">${st.label}</span></td>
+          return `<tr><td>${m.nama}</td><td class="num">Tgl ${m.tglDaftar} ${namaBulan[m.bulanDaftar-1]}</td><td class="num money">${rupiah(m.biayaBulanan||0)}</td><td><span class="pay-toggle ${st.cls}">${st.label}</span></td>
           <td style="text-align:right"><button class="btn small" data-toggle-lunas="${m.id}">Tandai Lunas</button></td></tr>`;
         }).join("")}</tbody>
       </table></div>` : `<div class="empty"><h3>Semua sudah lunas</h3></div>`}
       <div class="divider"></div>
-      <div class="row between" style="margin-bottom:10px"><h3 style="font-size:15px">Sudah lunas (${lunas.length})</h3></div>
+      <div class="row between" style="margin-bottom:10px"><h3 style="font-size:15px">Sudah lunas (${lunas.length})</h3><span class="kode-tag">${rupiah(totalLunas)}</span></div>
       ${lunas.length? `<div class="table-wrap"><table>
-        <thead><tr><th>Nama</th><th>Jatuh Tempo</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Nama</th><th>Jatuh Tempo</th><th>Biaya/Bulan</th><th>Status</th><th></th></tr></thead>
         <tbody>${lunas.map(m=>{
           const st = statusTagihan(m);
-          return `<tr><td>${m.nama}</td><td class="num">Tgl ${m.tglDaftar} ${namaBulan[m.bulanDaftar-1]}</td><td><span class="pay-toggle paid">Lunas</span>${st.note?`<span class="sub-note">${st.note}</span>`:""}</td>
+          return `<tr><td>${m.nama}</td><td class="num">Tgl ${m.tglDaftar} ${namaBulan[m.bulanDaftar-1]}</td><td class="num money">${rupiah(m.biayaBulanan||0)}</td><td><span class="pay-toggle paid">Lunas</span>${st.note?`<span class="sub-note">${st.note}</span>`:""}</td>
           <td style="text-align:right"><button class="btn small secondary" data-toggle-lunas="${m.id}">Batalkan</button></td></tr>`;
         }).join("")}</tbody>
       </table></div>` : `<div class="empty"><h3>Belum ada yang bayar bulan ini</h3></div>`}
@@ -976,6 +989,7 @@ function openModal(id){
     document.getElementById("fKelas").value = m.kelas || "";
     document.getElementById("fTgl").value = m.tglDaftar || "";
     document.getElementById("fBulan").value = m.bulanDaftar || (new Date().getMonth()+1);
+    document.getElementById("fBiaya").value = (m.biayaBulanan!==undefined && m.biayaBulanan!==null) ? m.biayaBulanan : DEFAULT_BIAYA_BULANAN;
     document.getElementById("fOrtu").value = (m.orangTua && m.orangTua!=="-") ? m.orangTua : "";
     document.getElementById("fWa").value = (m.noWa && m.noWa!=="-") ? m.noWa : "";
   } else {
@@ -985,7 +999,7 @@ function openModal(id){
 }
 function closeModal(){
   document.getElementById("modalBackdrop").classList.remove("open");
-  ["fNama","fTgl","fKelas","fOrtu","fWa"].forEach(id=>document.getElementById(id).value="");
+  ["fNama","fTgl","fKelas","fBiaya","fOrtu","fWa"].forEach(id=>document.getElementById(id).value="");
   muridEditId = null;
 }
 
@@ -1172,6 +1186,7 @@ function bindEvents(){
         if(!data.murid || !data.tentor) throw new Error("Format file tidak sesuai");
         if(!confirm("Pulihkan data dari file ini? Data yang sedang tampil akan ditimpa.")) return;
         murid = data.murid; tentor = data.tentor; absensiLog = data.absensiLog || [];
+        murid.forEach(m=>{ if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN; });
         nextMuridId = data.nextMuridId || (Math.max(0,...murid.map(m=>m.id))+1);
         nextTentorId = data.nextTentorId || (Math.max(0,...tentor.map(t=>t.id))+1);
         nextAbsensiId = data.nextAbsensiId || (absensiLog.length ? Math.max(...absensiLog.map(a=>a.id))+1 : 1);
@@ -1199,6 +1214,7 @@ function bindEvents(){
       if(doc.exists){
         const data = doc.data();
         murid = data.murid || murid; tentor = data.tentor || tentor; absensiLog = data.absensiLog || absensiLog;
+        murid.forEach(m=>{ if(m.biayaBulanan===undefined || m.biayaBulanan===null) m.biayaBulanan = DEFAULT_BIAYA_BULANAN; });
         nextMuridId = data.nextMuridId || nextMuridId; nextTentorId = data.nextTentorId || nextTentorId; nextAbsensiId = data.nextAbsensiId || nextAbsensiId;
         saveState();
         renderMain();
@@ -1229,17 +1245,21 @@ document.getElementById("saveMurid").addEventListener("click", ()=>{
   const kelas = document.getElementById("fKelas").value.trim();
   const tgl = +document.getElementById("fTgl").value;
   const bulan = +document.getElementById("fBulan").value;
+  const biayaRaw = document.getElementById("fBiaya").value;
+  const biaya = biayaRaw ? +biayaRaw : DEFAULT_BIAYA_BULANAN;
   const ortu = document.getElementById("fOrtu").value.trim();
   const wa = document.getElementById("fWa").value.trim();
   if(!nama || !kelas || !tgl){ alert("Nama, kelas, dan tanggal daftar wajib diisi."); return; }
+  if(isNaN(biaya) || biaya<0){ alert("Biaya les per bulan tidak valid."); return; }
   if(muridEditId){
     const m = murid.find(x=>x.id===muridEditId);
     if(m){
       m.nama = nama; m.kelas = kelas; m.tglDaftar = tgl; m.bulanDaftar = bulan;
+      m.biayaBulanan = biaya;
       m.orangTua = ortu || "-"; m.noWa = wa || "-";
     }
   } else {
-    murid.push({ id: nextMuridId++, nama, kelas, tglDaftar: tgl, bulanDaftar: bulan, orangTua: ortu || "-", noWa: wa || "-", status:"aktif", lunasBulanIni:false, tanggalBayar:null });
+    murid.push({ id: nextMuridId++, nama, kelas, tglDaftar: tgl, bulanDaftar: bulan, biayaBulanan: biaya, orangTua: ortu || "-", noWa: wa || "-", status:"aktif", lunasBulanIni:false, tanggalBayar:null });
     muridFilter = "aktif";
   }
   closeModal();
