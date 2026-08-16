@@ -726,7 +726,7 @@
       x.id!==excludeId &&
       x.status!=='nonaktif' &&
       (x.namaSiswa||'').trim().toLowerCase()===nm &&
-      x.tentorId===tentorId
+      (x.familyId===familyId || x.tentorId===tentorId)
     ) || null;
   }
 
@@ -1251,6 +1251,11 @@
     view.appendChild(el(`
       <div>
         <h2 style="margin-bottom:16px;">Tentor</h2>
+        <div class="banner" style="margin-bottom:18px;">
+          <b>🔗 Satu Link Absen untuk Semua Tentor</b><br>
+          Bagikan link yang sama ke semua tentor. Saat dibuka, tentor tinggal pilih nama sendiri, lalu (khusus pertama kali) buat PIN 4 digit sendiri — jadi tidak perlu link berbeda-beda per tentor lagi.
+          <div style="margin-top:10px;"><button class="btn small" id="copySharedAbsenLink">Salin Link Absen Bersama</button></div>
+        </div>
         <div class="form-grid">
           <div><label class="field-label">Nama Tentor Baru</label><input type="text" id="newTentorName" placeholder="mis. Sarah"></div>
         </div>
@@ -1294,6 +1299,18 @@
       storeSet('tentors', tentors);
     });
     bindLiveSearch('searchTentor','tentor');
+
+    const sharedLinkBtn = document.getElementById('copySharedAbsenLink');
+    if(sharedLinkBtn) sharedLinkBtn.addEventListener('click', ()=>{
+      const api = getApiUrl();
+      if(!api){
+        alert('Sambungkan dulu ke Firebase di tab "Cadangan & Sinkron" sebelum membuat link absen — supaya absen dari HP tentor tersimpan ke database yang sama, bukan cuma di HP-nya sendiri.');
+        setActiveTab('cadangan');
+        return;
+      }
+      const link = location.origin + location.pathname + '?absen=all';
+      prompt('Link Absen Bersama (satu link untuk semua tentor) — bagikan link ini ke semua tentor lewat WhatsApp/grup. Saat dibuka, tentor tinggal pilih nama sendiri, lalu (kalau baru pertama kali) buat PIN 4 digit sendiri untuk melindungi absennya dari tentor lain:', link);
+    });
 
     view.querySelectorAll('.copy-absen-link').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -1457,7 +1474,7 @@
     view.appendChild(el(`
       <div>
         <h2 style="margin-bottom:16px;">Siswa &amp; Kelas</h2>
-        <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang. Kalau ada 2 siswa dengan nama sama persis diajar oleh tentor yang sama, isi kolom "Keterangan Pembeda" — sistem akan otomatis mengingatkan Anda saat ini terjadi.</div>
+        <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang. Kalau ada 2 siswa dengan nama sama persis (satu tentor atau satu alamat), isi kolom "Keterangan Pembeda" — sistem akan otomatis mengingatkan Anda saat ini terjadi.</div>
         ${tentors.length===0 ? `<div class="banner">Tambahkan tentor terlebih dahulu di tab "Tentor".</div>` : ''}
         ${families.length===0 ? `<div class="banner">Tambahkan data alamat terlebih dahulu di tab "Orang Tua".</div>` : ''}
         <div class="form-grid" id="newAssignForm">
@@ -1536,8 +1553,8 @@
               <tr data-id="${a.id}">
                 <td><span class="kode-tag" style="${a.status==='nonaktif'?'background:var(--danger-soft);color:var(--danger);':'background:#DFF5E8;color:var(--success);'}">${a.status==='nonaktif'?'Nonaktif':'Aktif'}</span></td>
                 <td>${esc(tentorName(a.tentorId))} <span class="kode-tag">${tentorById(a.tentorId)?tentorById(a.tentorId).kode:''}</span></td>
-                <td>${esc(childLabel(a))}${needsWarning?` <span class="kode-tag" style="background:var(--danger-soft);color:var(--danger);" title="Ada siswa lain dengan nama sama diajar tentor ini — isi Keterangan Pembeda">⚠ nama sama</span>`:''}</td>
-                <td>${esc(familyName(a.familyId))} <span class="kode-tag">${familyById(a.familyId)?familyById(a.familyId).kode:''}</span></td>
+                <td>${esc(childLabel(a))}${needsWarning?` <span class="kode-tag" style="background:var(--danger-soft);color:var(--danger);" title="Ada siswa lain dengan nama sama di tentor/alamat ini — isi Keterangan Pembeda">⚠ nama sama</span>`:''}</td>
+                <td>${esc(familyName(a.familyId))}</td>
                 <td>${esc(a.tingkatan)}</td>
                 <td class="num">${rupiah(a.biayaLes)}</td>
                 <td class="num">${rupiah(a.honorTentor)}</td>
@@ -1590,7 +1607,7 @@
       }
       const clash = findNameClash(namaSiswa, familyId, tentorId, editingAssignmentId);
       if(clash && !keterangan && !(clash.keterangan||'').trim()){
-        const lanjut = confirm(`Ada siswa lain bernama "${namaSiswa}" juga diajar tentor yang sama. Supaya tidak tertukar saat absen dan di rekap, sebaiknya isi "Keterangan Pembeda" dulu (mis. "anak sulung" / "kelas Matematika").\n\nTetap simpan tanpa keterangan?`);
+        const lanjut = confirm(`Ada siswa lain bernama "${namaSiswa}" juga (di alamat/tentor yang sama). Supaya tidak tertukar saat absen dan di rekap, sebaiknya isi "Keterangan Pembeda" dulu (mis. "anak sulung" / "kelas Matematika").\n\nTetap simpan tanpa keterangan?`);
         if(!lanjut) return;
       }
       if(editingAssignmentId){
@@ -2211,10 +2228,9 @@ service cloud.firestore {
     });
   }
 
-  // ---------- MODE ABSEN TENTOR (link mandiri, tanpa login/PIN) ----------
-  async function startAbsenMode(idRaw, tokenRaw){
-    document.title = 'Absen Mengajar — Les Private Banda Aceh';
-    document.body.innerHTML = `
+  // ---------- MODE ABSEN TENTOR (link mandiri, tanpa login admin) ----------
+  function absenShellHtml(){
+    return `
       <div style="max-width:520px;margin:0 auto;padding:26px 16px 60px;">
         <div style="text-align:center;margin-bottom:18px;">
           <img src="${LOGO_DATA_URI}" style="width:52px;height:52px;object-fit:contain;">
@@ -2224,23 +2240,15 @@ service cloud.firestore {
         <div id="absenBody" class="card"><div class="empty"><h3>Memuat…</h3></div></div>
       </div>
     `;
+  }
+
+  // Halaman absen untuk satu tentor tertentu (dipakai baik oleh link
+  // per-tentor lama (?t=..&k=..) maupun oleh link bersama setelah tentor
+  // memilih namanya sendiri). opts.allowSwitch=true menampilkan tombol
+  // "Ganti Tentor" di footer (khusus link bersama).
+  async function runTentorAbsenSession(tentor, opts){
+    opts = opts || {};
     const body = document.getElementById('absenBody');
-    if(!getApiUrl()){
-      body.innerHTML = `<div class="empty"><h3>Link belum aktif</h3><p>Sistem pusat belum tersambung ke link ini. Mohon minta admin membuatkan ulang link absen Anda dari tab Tentor.</p></div>`;
-      return;
-    }
-    await loadCore();
-    const id = (idRaw||'').trim();
-    const token = (tokenRaw||'').trim();
-    const tentor = tentors.find(t=>t.id===id);
-    if(!tentor || !token || tentor.secretToken!==token){
-      body.innerHTML = `<div class="empty"><h3>Link tidak valid</h3><p>Link ini tidak dikenali atau sudah tidak berlaku (mungkin sudah di-reset oleh admin). Hubungi admin untuk mendapatkan link absen yang baru.</p></div>`;
-      return;
-    }
-    if(tentor.status==='nonaktif'){
-      body.innerHTML = `<div class="empty"><h3>Akun tidak aktif</h3><p>Status tentor ini sudah dinonaktifkan oleh admin. Hubungi admin jika ini keliru.</p></div>`;
-      return;
-    }
     let selectedDate = todayStr();
     async function draw(){
       body.innerHTML = `<div class="empty"><h3>Memuat…</h3></div>`;
@@ -2259,6 +2267,9 @@ service cloud.firestore {
         return sum + jumlahNormal*(a.honorTentor||0) + manualHonorSum;
       }, 0);
       const totalSesiBulan = list.reduce((sum,a)=> sum + (sess[a.id]||0), 0);
+      const footerHtml = opts.allowSwitch
+        ? `<div style="text-align:center;margin-top:18px;color:var(--ink-soft);font-size:11.5px;">Bukan ${esc(tentor.nama)}? <button class="icon-btn edit-btn" id="switchTentorBtn" style="padding:2px 6px;">Ganti Tentor</button><br>Tips: simpan link ini di WhatsApp (chat pribadi ke diri sendiri) atau tambahkan ke layar utama HP agar sekali tekan langsung terbuka — nama Anda akan otomatis terbuka lagi.</div>`
+        : `<div style="text-align:center;margin-top:18px;color:var(--ink-soft);font-size:11.5px;">Bukan ${esc(tentor.nama)}? Jangan gunakan link ini — hubungi admin.<br>Tips: simpan link ini di WhatsApp (chat pribadi ke diri sendiri) atau tambahkan ke layar utama HP agar sekali tekan langsung terbuka.</div>`;
       body.innerHTML = `
         <div style="margin-bottom:4px;">
           <div style="font-family:'Poppins',sans-serif;font-weight:700;font-size:17px;color:var(--ink);">${esc(tentor.nama)}</div>
@@ -2300,7 +2311,7 @@ service cloud.firestore {
             </div>
           </div>`;
         }).join('')}
-        <div style="text-align:center;margin-top:18px;color:var(--ink-soft);font-size:11.5px;">Bukan ${esc(tentor.nama)}? Jangan gunakan link ini — hubungi admin.<br>Tips: simpan link ini di WhatsApp (chat pribadi ke diri sendiri) atau tambahkan ke layar utama HP agar sekali tekan langsung terbuka.</div>
+        ${footerHtml}
       `;
       const toggleBtn = document.getElementById('toggleDateBtn');
       if(toggleBtn) toggleBtn.addEventListener('click', ()=>{
@@ -2341,8 +2352,99 @@ service cloud.firestore {
           await draw();
         });
       });
+      if(opts.allowSwitch){
+        const switchBtn = document.getElementById('switchTentorBtn');
+        if(switchBtn) switchBtn.addEventListener('click', ()=>{
+          try{ localStorage.removeItem('absenSharedTentorId'); }catch(e){}
+          showTentorPicker();
+        });
+      }
     }
     await draw();
+  }
+
+  // Link per-tentor lama: ?t=<id>&k=<secretToken> — tetap didukung supaya
+  // link yang sudah pernah dibagikan sebelumnya tidak tiba-tiba rusak.
+  async function startAbsenMode(idRaw, tokenRaw){
+    document.title = 'Absen Mengajar — Les Private Banda Aceh';
+    document.body.innerHTML = absenShellHtml();
+    const body = document.getElementById('absenBody');
+    if(!getApiUrl()){
+      body.innerHTML = `<div class="empty"><h3>Link belum aktif</h3><p>Sistem pusat belum tersambung ke link ini. Mohon minta admin membuatkan ulang link absen Anda dari tab Tentor.</p></div>`;
+      return;
+    }
+    await loadCore();
+    const id = (idRaw||'').trim();
+    const token = (tokenRaw||'').trim();
+    const tentor = tentors.find(t=>t.id===id);
+    if(!tentor || !token || tentor.secretToken!==token){
+      body.innerHTML = `<div class="empty"><h3>Link tidak valid</h3><p>Link ini tidak dikenali atau sudah tidak berlaku (mungkin sudah di-reset oleh admin). Hubungi admin untuk mendapatkan link absen yang baru.</p></div>`;
+      return;
+    }
+    if(tentor.status==='nonaktif'){
+      body.innerHTML = `<div class="empty"><h3>Akun tidak aktif</h3><p>Status tentor ini sudah dinonaktifkan oleh admin. Hubungi admin jika ini keliru.</p></div>`;
+      return;
+    }
+    await runTentorAbsenSession(tentor, {allowSwitch:false});
+  }
+
+  // Link bersama untuk semua tentor: ?absen=all — tentor memilih nama
+  // sendiri, lalu melindungi pilihannya dengan PIN 4 digit pribadi (dibuat
+  // sendiri saat pertama kali pakai). Setelah berhasil, HP tentor tsb akan
+  // "mengingat" pilihannya supaya lain kali langsung terbuka ke namanya.
+  async function startAbsenModeShared(){
+    document.title = 'Absen Mengajar — Les Private Banda Aceh';
+    document.body.innerHTML = absenShellHtml();
+    const body = document.getElementById('absenBody');
+    if(!getApiUrl()){
+      body.innerHTML = `<div class="empty"><h3>Link belum aktif</h3><p>Sistem pusat belum tersambung ke link ini. Mohon minta admin menyambungkan aplikasi ke Firebase dulu di tab "Cadangan &amp; Sinkron".</p></div>`;
+      return;
+    }
+    await loadCore();
+    let rememberedId = null;
+    try{ rememberedId = localStorage.getItem('absenSharedTentorId'); }catch(e){}
+    const remembered = rememberedId ? tentors.find(t=>t.id===rememberedId) : null;
+    if(remembered && remembered.status!=='nonaktif'){
+      await runTentorAbsenSession(remembered, {allowSwitch:true});
+    } else {
+      showTentorPicker();
+    }
+  }
+
+  function showTentorPicker(){
+    const body = document.getElementById('absenBody');
+    const aktif = tentors.filter(t=>t.status!=='nonaktif').slice().sort((a,b)=>a.nama.localeCompare(b.nama,'id'));
+    body.innerHTML = `
+      <div style="margin-bottom:4px;">
+        <div style="font-family:'Poppins',sans-serif;font-weight:700;font-size:15.5px;color:var(--ink);">Pilih Nama Anda</div>
+        <div style="color:var(--ink-soft);font-size:12px;margin-top:4px;">Link ini dipakai bersama oleh semua tentor. Pilih nama Anda sendiri — jangan pilih nama tentor lain.</div>
+      </div>
+      ${aktif.length===0 ? `<div class="empty"><h3>Belum ada tentor</h3></div>` :
+      `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
+        ${aktif.map(t=>`<button class="btn secondary tentor-pick-btn" data-id="${t.id}" style="width:100%;text-align:left;font-size:14px;padding:12px 16px;">${esc(t.nama)}</button>`).join('')}
+      </div>`}
+    `;
+    body.querySelectorAll('.tentor-pick-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ handleTentorPinFlow(tentorById(btn.dataset.id)); });
+    });
+  }
+
+  async function handleTentorPinFlow(t){
+    if(!t) return;
+    if(!t.absenPin){
+      const p1 = prompt('Ini pertama kalinya Anda ('+t.nama+') memakai link ini. Buat PIN 4 digit sendiri (bebas, mudah diingat) — PIN ini melindungi absen Anda supaya tidak diisi tentor lain:');
+      if(!p1) return;
+      const p2 = prompt('Ulangi PIN yang sama untuk konfirmasi:');
+      if(p1!==p2){ alert('PIN tidak sama, coba lagi dari awal.'); return; }
+      t.absenPin = p1;
+      try{ await storeSet('tentors', tentors); }catch(e){ alert('Gagal menyimpan PIN, periksa koneksi internet lalu coba lagi.'); return; }
+    } else {
+      const p = prompt('Masukkan PIN Anda ('+t.nama+'):');
+      if(p===null) return;
+      if(p!==t.absenPin){ alert('PIN salah.'); return; }
+    }
+    try{ localStorage.setItem('absenSharedTentorId', t.id); }catch(e){}
+    await runTentorAbsenSession(t, {allowSwitch:true});
   }
 
   // ---------- boot ----------
@@ -2500,6 +2602,12 @@ service cloud.firestore {
     const urlParams = new URLSearchParams(location.search);
     const absenId = urlParams.get('t') || urlParams.get('absen');
     const absenToken = urlParams.get('k') || '';
+    if(absenId==='all'){
+      const apiParam = urlParams.get('api');
+      if(apiParam){ try{ setApiUrl(decodeURIComponent(apiParam)); }catch(e){} }
+      await startAbsenModeShared();
+      return;
+    }
     if(absenId){
       const apiParam = urlParams.get('api');
       if(apiParam){ try{ setApiUrl(decodeURIComponent(apiParam)); }catch(e){} }
