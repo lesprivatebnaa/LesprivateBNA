@@ -439,6 +439,7 @@ const todayISO = () => toLocalISO(new Date());
 const findTentor = id => tentor.find(t=>t.id===id);
 let muridFilter = "aktif";
 let muridEditId = null;
+let muridSearch = "";
 
 function formatTgl(iso){
   const d = new Date(iso+"T00:00:00");
@@ -606,7 +607,7 @@ let activeTab = "dashboard";
 function renderNav(){
   document.getElementById("nav").innerHTML = tabs.map(t=>`<button data-tab="${t.id}" class="${activeTab===t.id?'active':''}">${t.label}</button>`).join("");
   document.querySelectorAll("nav.tabs button").forEach(b=>{
-    b.addEventListener("click",()=>{ activeTab=b.dataset.tab; renderNav(); renderMain(); });
+    b.addEventListener("click",()=>{ activeTab=b.dataset.tab; muridSearch=""; renderNav(); renderMain(); });
   });
 }
 
@@ -668,7 +669,13 @@ function renderMuridForm(){
 }
 
 function renderMurid(){
-  const list = murid.filter(m=>m.status===muridFilter);
+  const q = muridSearch.trim().toLowerCase();
+  const baseList = murid.filter(m=>m.status===muridFilter);
+  const list = q ? baseList.filter(m=>
+    (m.nama||"").toLowerCase().includes(q) ||
+    (m.kelas||"").toLowerCase().includes(q) ||
+    (m.orangTua||"").toLowerCase().includes(q)
+  ) : baseList;
   const aktifCount = murid.filter(m=>m.status==="aktif").length;
   const nonaktifCount = murid.filter(m=>m.status==="nonaktif").length;
   return `
@@ -680,10 +687,14 @@ function renderMurid(){
         </div>
         <button class="btn" id="addMurid">+ Tambah Murid</button>
       </div>
-      <div class="chip-row">
-        <button class="chip ${muridFilter==='aktif'?'active':''}" data-mfilter="aktif">Aktif (${aktifCount})</button>
-        <button class="chip ${muridFilter==='nonaktif'?'active':''}" data-mfilter="nonaktif">Nonaktif (${nonaktifCount})</button>
+      <div class="row between" style="margin-bottom:12px; align-items:center">
+        <input type="text" id="muridSearchInput" placeholder="🔍 Cari nama, kelas, atau ortu…" value="${muridSearch.replace(/"/g,'&quot;')}" style="max-width:240px">
+        <div class="chip-row" style="margin:0">
+          <button class="chip ${muridFilter==='aktif'?'active':''}" data-mfilter="aktif">Aktif (${aktifCount})</button>
+          <button class="chip ${muridFilter==='nonaktif'?'active':''}" data-mfilter="nonaktif">Nonaktif (${nonaktifCount})</button>
+        </div>
       </div>
+      ${q && !list.length ? `<div class="empty"><h3>Tidak ditemukan</h3><p>Tidak ada murid ${muridFilter} yang cocok dengan "${muridSearch}".</p></div>` : ""}
       ${list.length? `<div class="table-wrap"><table>
         <thead><tr><th>Nama</th><th>Kelas</th><th>Kontak Orang Tua</th><th>Tgl Daftar</th><th>Biaya/Bulan</th><th>Tagihan Bulan Ini</th><th></th></tr></thead>
         <tbody>
@@ -707,7 +718,7 @@ function renderMurid(){
             </tr>`;
           }).join("")}
         </tbody>
-      </table></div>` : `<div class="empty"><h3>Belum ada murid ${muridFilter}</h3><p>Data akan muncul di sini.</p></div>`}
+      </table></div>` : (q ? "" : `<div class="empty"><h3>Belum ada murid ${muridFilter}</h3><p>Data akan muncul di sini.</p></div>`)}
     </div>
   `;
 }
@@ -1048,8 +1059,21 @@ function bindEvents(){
     b.addEventListener("click",()=>{ openModal(+b.dataset.editMurid); });
   });
   document.querySelectorAll("[data-mfilter]").forEach(b=>{
-    b.addEventListener("click",()=>{ muridFilter = b.dataset.mfilter; renderMain(); });
+    b.addEventListener("click",()=>{ muridFilter = b.dataset.mfilter; muridSearch = ""; renderMain(); });
   });
+  const muridSearchInput = document.getElementById("muridSearchInput");
+  if(muridSearchInput){
+    muridSearchInput.addEventListener("input", ()=>{
+      muridSearch = muridSearchInput.value;
+      const caret = muridSearchInput.selectionStart;
+      renderMain();
+      const freshInput = document.getElementById("muridSearchInput");
+      if(freshInput){
+        freshInput.focus();
+        freshInput.setSelectionRange(caret, caret);
+      }
+    });
+  }
   document.querySelectorAll("[data-toggle-gaji]").forEach(b=>{
     b.addEventListener("click",()=>{
       const id = +b.dataset.toggleGaji;
