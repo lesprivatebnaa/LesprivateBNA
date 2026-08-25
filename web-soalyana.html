@@ -423,6 +423,10 @@ async function sDelete(key){
   try{ await window.storage.delete(key, true); return true; }
   catch(e){ toast('Gagal menghapus data. Coba lagi.'); return false; }
 }
+async function sListKeys(prefix){
+  try{ const r = await window.storage.list(prefix, true); return r ? r.keys : []; }
+  catch(e){ return []; }
+}
 
 function toast(msg){
   const t = document.createElement('div');
@@ -879,7 +883,8 @@ async function deleteQuiz(quizId, title){
   if(!ok) return;
 
   await sDelete('ruang-ujian:quiz-'+quizId);
-  await sDelete('ruang-ujian:results-'+quizId);
+  const resultKeys = await sListKeys('ruang-ujian:results-'+quizId+':');
+  await Promise.all(resultKeys.map(k=>sDelete(k)));
 
   toast('Soal berhasil dihapus.');
   loadGuruQuizList();
@@ -915,7 +920,8 @@ async function openResults(quizId, title){
   hide('guru-review-panel');
   document.querySelector('#view-guru > .paper:nth-of-type(4)')?.classList.add('hidden');
 
-  const results = (await sGet('ruang-ujian:results-'+quizId)) || [];
+  const resultKeys = await sListKeys('ruang-ujian:results-'+quizId+':');
+  const results = (await Promise.all(resultKeys.map(k=>sGet(k)))).filter(Boolean);
   document.getElementById('results-sub').textContent = `${results.length} murid sudah mengerjakan`;
   if(results.length===0){ wrap.innerHTML = '<p class="empty">Belum ada murid yang mengerjakan soal ini.</p>'; return; }
 
@@ -1074,9 +1080,9 @@ async function submitMurid(){
 
   const wrong = total - correct;
 
-  const results = (await sGet('ruang-ujian:results-'+currentQuiz.id)) || [];
-  results.push({ studentName: muridName, correct, wrong, total, submittedAt: Date.now() });
-  await sSet('ruang-ujian:results-'+currentQuiz.id, results);
+  const submissionId = uid();
+  await sSet('ruang-ujian:results-'+currentQuiz.id+':'+submissionId,
+    { studentName: muridName, correct, wrong, total, submittedAt: Date.now() });
 
   renderMuridResult(correct, total, detail);
   hide('murid-quiz-panel'); show('murid-result-panel');
