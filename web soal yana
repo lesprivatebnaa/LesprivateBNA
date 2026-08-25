@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ruang Ujian</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --bg:#16301f;
+    --bg-soft:#1c3a25;
+    --chalk-line:#3a5a44;
+    --paper:#f6f1e4;
+    --paper-shadow:#d8cfb4;
+    --ink:#22201a;
+    --ink-soft:#5c5648;
+    --pencil:#f4c542;
+    --pencil-dark:#c99a1c;
+    --red:#b53e2f;
+    --red-dark:#7f2c21;
+    --green:#2f7a4f;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 27px, var(--chalk-line) 28px),
+      var(--bg);
+    color:var(--chalk-line);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:28px 16px 60px;
+  }
+  .wrap{max-width:880px;margin:0 auto;}
+  .hidden{display:none !important;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0;}
+  .brand{
+    display:flex;align-items:center;gap:10px;justify-content:center;
+    color:#f4f1e8;margin-bottom:26px;
+  }
+  .brand .chalk-underline{
+    text-decoration:none;position:relative;
+  }
+  .brand h1{font-size:26px;letter-spacing:.5px;}
+  .brand svg{flex-shrink:0;}
+  .paper{
+    background:var(--paper);
+    border-radius:var(--radius);
+    box-shadow:0 14px 0 -6px var(--paper-shadow), 0 18px 30px rgba(0,0,0,.35);
+    padding:28px 26px;
+    color:var(--ink);
+    position:relative;
+    margin-bottom:22px;
+  }
+  .paper::before{
+    content:'';position:absolute;left:0;top:18px;bottom:18px;width:2px;
+    background:repeating-linear-gradient(0deg, transparent, transparent 6px, #e3c8c8 6px, #e3c8c8 12px);
+    margin-left:38px;
+    opacity:.6;
+  }
+  .paper-inner{margin-left:14px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:6px;display:block;
+  }
+  .gate-buttons{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:8px;}
+  .role-card{
+    background:var(--paper);border-radius:var(--radius);
+    padding:26px 30px;width:230px;text-align:center;cursor:pointer;
+    border:2px solid transparent;
+    box-shadow:0 10px 0 -4px var(--paper-shadow), 0 14px 24px rgba(0,0,0,.3);
+    transition:transform .15s ease, border-color .15s ease;
+  }
+  .role-card:hover{transform:translateY(-3px);border-color:var(--pencil);}
+  .role-card .emoji{font-size:34px;display:block;margin-bottom:10px;}
+  .role-card h3{font-size:18px;color:var(--ink);}
+  .role-card p{font-size:12.5px;color:var(--ink-soft);margin:6px 0 0;}
+  label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px;color:var(--ink);}
+  input[type=text],input[type=number],textarea,select{
+    width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #d8cfb4;
+    font-family:'Inter',sans-serif;font-size:14px;background:#fffdf7;color:var(--ink);
+  }
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--pencil-dark);outline-offset:1px;}
+  textarea{resize:vertical;min-height:60px;}
+  .btn{
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;
+    border:none;border-radius:9px;padding:11px 20px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn-primary{background:var(--pencil);color:#2a2007;box-shadow:0 3px 0 var(--pencil-dark);}
+  .btn-primary:hover{filter:brightness(1.04);}
+  .btn-primary:active{box-shadow:0 1px 0 var(--pencil-dark);transform:translateY(2px);}
+  .btn-primary:disabled{opacity:.55;cursor:not-allowed;box-shadow:0 3px 0 var(--pencil-dark);}
+  .btn-outline{background:transparent;border:1.5px solid var(--ink-soft);color:var(--ink);}
+  .btn-danger{background:transparent;color:var(--red);border:1.5px solid var(--red);}
+  .btn-small{padding:6px 12px;font-size:12px;}
+  .btn-link{background:none;border:none;color:var(--ink-soft);text-decoration:underline;cursor:pointer;font-size:13px;padding:0;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .row > *{flex:1;min-width:140px;}
+  .quiz-card{
+    background:#fffdf7;border:1.5px solid #e6ddc4;border-radius:11px;
+    padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;
+    align-items:center;gap:10px;flex-wrap:wrap;
+  }
+  .quiz-card .meta{font-size:12px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+  .qedit{border:1.5px solid #e6ddc4;border-radius:11px;padding:14px 16px;margin-bottom:12px;background:#fffdf7;}
+  .qedit .opt-row{display:flex;gap:8px;align-items:center;margin-top:6px;}
+  .qedit .opt-row input[type=radio]{accent-color:var(--red);width:16px;height:16px;flex:0;}
+  .bubble{
+    width:34px;height:34px;border-radius:50%;border:2.4px solid var(--ink);
+    display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;
+    font-weight:600;font-size:14px;cursor:pointer;flex-shrink:0;background:#fffdf7;
+    transition:background .12s, transform .1s;
+  }
+  .bubble:hover{transform:scale(1.06);}
+  .bubble.selected{background:var(--pencil);border-color:var(--pencil-dark);}
+  .opt-line{display:flex;align-items:center;gap:12px;padding:9px 4px;border-radius:8px;cursor:pointer;}
+  .opt-line:hover{background:#efe8d3;}
+  .opt-text{font-size:14.5px;}
+  .q-block{margin-bottom:22px;}
+  .q-block .q-title{font-size:15px;font-weight:600;margin-bottom:10px;}
+  .q-num{font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);font-size:12px;}
+  .stamp{
+    width:96px;height:96px;border-radius:50%;border:3.5px solid var(--red);
+    color:var(--red);display:flex;flex-direction:column;align-items:center;justify-content:center;
+    transform:rotate(-8deg);font-family:'Space Grotesk',sans-serif;font-weight:700;
+    flex-shrink:0;
+  }
+  .stamp .num{font-size:28px;line-height:1;}
+  .stamp .lbl{font-size:9px;letter-spacing:1px;margin-top:2px;}
+  .stamp.small{width:56px;height:56px;border-width:2.5px;}
+  .stamp.small .num{font-size:16px;}
+  .stamp.small .lbl{font-size:6.5px;}
+  table{width:100%;border-collapse:collapse;margin-top:6px;}
+  th,td{text-align:left;padding:9px 8px;font-size:13.5px;border-bottom:1px solid #e6ddc4;}
+  th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;color:#f4f1e8;}
+  .topbar .who{font-family:'IBM Plex Mono',monospace;font-size:12px;opacity:.8;}
+  .empty{color:var(--ink-soft);font-size:13.5px;font-style:italic;padding:6px 0;}
+  .toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#f6f1e4;padding:10px 18px;border-radius:9px;font-size:13.5px;
+    box-shadow:0 8px 20px rgba(0,0,0,.4);z-index:50;max-width:90vw;
+  }
+  .spin{
+    width:16px;height:16px;border:2.5px solid rgba(0,0,0,.2);border-top-color:var(--ink);
+    border-radius:50%;animation:sp .7s linear infinite;display:inline-block;
+  }
+  @keyframes sp{to{transform:rotate(360deg);}}
+  .divider{border:none;border-top:1.5px dashed #d8cfb4;margin:20px 0;}
+  .center{text-align:center;}
+  .muted{color:var(--ink-soft);font-size:13px;}
+  .result-item{display:flex;align-items:center;gap:14px;padding:10px 6px;border-bottom:1px solid #ece4cc;}
+  .result-item:last-child{border-bottom:none;}
+  .qa-line{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed #e6ddc4;font-size:13.5px;}
+  .qa-line:last-child{border-bottom:none;}
+  .tag-ok{color:var(--green);font-weight:700;}
+  .tag-bad{color:var(--red);font-weight:700;}
+  .qimg{max-width:100%;display:block;border-radius:10px;border:1.5px solid #e6ddc4;margin-bottom:10px;background:#fff;}
+  .ans-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
+  .ans-hint{font-size:12.5px;color:var(--ink-soft);margin-bottom:4px;}
+  .qedit.unmarked{border-color:var(--red);}
+  .qedit .warn{color:var(--red);font-size:12px;margin-top:4px;font-weight:600;}
+
+  /* --- crop tool --- */
+  .crop-instructions{font-size:13px;color:var(--ink-soft);background:#fbf6e6;border:1.5px dashed #d8cfb4;border-radius:10px;padding:10px 12px;margin-bottom:14px;}
+  #crop-pages{max-height:560px;overflow:auto;border:1.5px solid #e6ddc4;border-radius:11px;padding:12px;background:#efe8d3;}
+  .crop-page{position:relative;margin-bottom:14px;user-select:none;-webkit-user-select:none;}
+  .crop-page:last-child{margin-bottom:0;}
+  .crop-page .crop-page-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);margin-bottom:4px;}
+  .crop-img{width:100%;display:block;border-radius:8px;border:1.5px solid #d8cfb4;background:#fff;pointer-events:none;}
+  .crop-overlay{position:absolute;left:0;right:0;top:22px;bottom:0;cursor:crosshair;touch-action:none;}
+  .crop-selbox{position:absolute;border:2px dashed var(--red);background:rgba(244,197,66,.28);pointer-events:none;}
+  .crop-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;}
+  .crop-thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  .crop-thumb{position:relative;width:78px;}
+  .crop-thumb img{width:78px;height:78px;object-fit:cover;border-radius:8px;border:1.5px solid #d8cfb4;background:#fff;display:block;}
+  .crop-thumb .num{position:absolute;top:-6px;left:-6px;background:var(--ink);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:10.5px;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;}
+  .crop-thumb .del{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;}
+
+  /* --- type toggle & benar/salah poin --- */
+  .type-toggle{display:flex;gap:8px;margin:6px 0 10px;}
+  .type-btn{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:8px;border:1.5px solid var(--ink-soft);background:#fffdf7;color:var(--ink);cursor:pointer;}
+  .type-btn.active{background:var(--ink);color:#fffdf7;border-color:var(--ink);}
+  .point-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed #e6ddc4;}
+  .point-row:last-child{border-bottom:none;}
+  .point-label{font-size:13px;font-weight:600;width:70px;flex-shrink:0;}
+  .bs-btn{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:7px;border:1.5px solid var(--ink-soft);background:#fffdf7;color:var(--ink);cursor:pointer;}
+  .bs-btn.sel-benar{background:var(--green);border-color:var(--green);color:#fff;}
+  .bs-btn.sel-salah{background:var(--red);border-color:var(--red);color:#fff;}
+  .point-actions{margin-top:8px;display:flex;gap:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none"><rect x="2" y="2" width="26" height="26" rx="5" stroke="#f4c542" stroke-width="2"/><path d="M9 15l4 4 8-9" stroke="#f4c542" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>Ruang Ujian</h1>
+  </div>
+
+  <!-- GATE -->
+  <div id="view-gate">
+    <p class="center muted" style="color:#cfe4d6;margin-bottom:18px;">Unggah file berisi soal, potong manual tiap nomor jadi gambar, tandai jawaban benarnya — anak-anak tinggal masuk dan menjawab.</p>
+    <div class="gate-buttons">
+      <div class="role-card" onclick="goGuru()">
+        <span class="emoji">🧑‍🏫</span>
+        <h3>Saya Guru</h3>
+        <p>Unggah PDF/Word, potong tiap soal, tandai jawaban benar, lihat nilai murid</p>
+      </div>
+      <div class="role-card" onclick="goMuridGate()">
+        <span class="emoji">🧑‍🎓</span>
+        <h3>Saya Murid</h3>
+        <p>Isi nama, pilih soal, dan jawab</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- GURU -->
+  <div id="view-guru" class="hidden">
+    <div class="topbar">
+      <button class="btn-link" style="color:#f4f1e8;" onclick="goGate()">← kembali</button>
+      <span class="who">MODE GURU</span>
+    </div>
+
+    <div class="paper" id="guru-upload-panel">
+      <div class="paper-inner">
+        <span class="eyebrow">Langkah 1</span>
+        <h2>Unggah materi soal</h2>
+        <p class="muted">Format PDF atau Word (.docx). Dokumennya akan ditampilkan di layar apa adanya — <b>tidak dibaca atau diubah oleh AI</b> — lalu Ibu/Bapak tinggal tarik kotak seleksi manual di sekitar tiap nomor soal untuk memotongnya jadi gambar, satu per satu, sesuai urutan yang dipilih sendiri.</p>
+        <label for="file-input">File materi</label>
+        <input type="file" id="file-input" accept=".pdf,.docx">
+        <label for="quiz-title">Judul soal</label>
+        <input type="text" id="quiz-title" placeholder="Contoh: Ulangan IPA Bab 3 - Ekosistem">
+        <div style="margin-top:16px;">
+          <button class="btn btn-primary" id="btn-load-doc" onclick="startCropFlow()">📄 Tampilkan dokumen untuk dipotong</button>
+        </div>
+        <p class="muted" id="load-status" style="margin-top:10px;"></p>
+      </div>
+    </div>
+
+    <div class="paper hidden" id="guru-crop-panel">
+      <div class="paper-inner">
+        <span class="eyebrow">Langkah 2</span>
+        <h2>Potong tiap nomor soal</h2>
+        <div class="crop-instructions">Klik lalu <b>tarik (drag)</b> kotak seleksi di atas gambar dokumen untuk menandai area 1 nomor soal (boleh mencakup teks + gambar + pilihan sekaligus), lepas untuk menyimpannya sebagai satu nomor. Ulangi untuk tiap nomor, boleh dari halaman manapun dan urutan bebas — urutan penyimpanan menentukan nomor soalnya.</div>
+        <div id="crop-pages"></div>
+        <div class="crop-thumbs" id="crop-thumbs"></div>
+        <div class="crop-toolbar">
+          <button class="btn btn-primary" id="btn-to-review" onclick="goToReview()" disabled>Lanjut: tandai jawaban →</button>
+          <button class="btn btn-outline" onclick="cancelCrop()">Batal, mulai ulang</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="paper hidden" id="guru-review-panel">
+      <div class="paper-inner">
+        <span class="eyebrow">Langkah 3</span>
+        <h2>Tandai jawaban benar</h2>
+        <p class="muted">Untuk tiap soal, pilih dulu jenisnya: <b>Pilihan Ganda (A-E)</b> atau <b>Benar-Salah per Poin</b> (kalau di dalam satu nomor ada beberapa pernyataan yang masing-masing dinilai benar/salah sendiri). Lalu tandai jawaban yang benar sebelum diterbitkan ke murid.</p>
+        <div id="qedit-list"></div>
+        <div class="row" style="margin-top:6px;">
+          <button class="btn btn-primary" onclick="publishQuiz()">📌 Terbitkan soal ke murid</button>
+          <button class="btn btn-outline" onclick="backToCropFromReview()">← kembali potong soal</button>
+          <button class="btn btn-outline" onclick="cancelReview()">Batal</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="paper">
+      <div class="paper-inner">
+        <span class="eyebrow">Soal yang sudah diterbitkan</span>
+        <h2 style="margin-bottom:12px;">Daftar soal</h2>
+        <div id="guru-quiz-list"></div>
+      </div>
+    </div>
+
+    <div class="paper hidden" id="guru-results-panel">
+      <div class="paper-inner">
+        <button class="btn-link" onclick="closeResults()">← tutup hasil</button>
+        <h2 id="results-title" style="margin:10px 0 4px;"></h2>
+        <p class="muted" id="results-sub"></p>
+        <div id="results-table-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MURID -->
+  <div id="view-murid" class="hidden">
+    <div class="topbar">
+      <button class="btn-link" style="color:#f4f1e8;" onclick="goGate()">← kembali</button>
+      <span class="who" id="murid-who">MODE MURID</span>
+    </div>
+
+    <div class="paper" id="murid-name-panel">
+      <div class="paper-inner">
+        <span class="eyebrow">Sebelum mulai</span>
+        <h2>Siapa nama kamu?</h2>
+        <label for="murid-name">Nama lengkap</label>
+        <input type="text" id="murid-name" placeholder="Tulis namamu di sini">
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="confirmMuridName()">Lanjut →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="paper hidden" id="murid-list-panel">
+      <div class="paper-inner">
+        <span class="eyebrow">Halo!</span>
+        <h2 style="margin-bottom:12px;">Pilih soal yang mau dikerjakan</h2>
+        <div id="murid-quiz-list"></div>
+      </div>
+    </div>
+
+    <div class="paper hidden" id="murid-quiz-panel">
+      <div class="paper-inner">
+        <h2 id="murid-quiz-title"></h2>
+        <p class="muted" id="murid-quiz-sub" style="margin-bottom:10px;"></p>
+        <div id="murid-questions"></div>
+        <button class="btn btn-primary" onclick="submitMurid()">✅ Selesai & kumpulkan</button>
+      </div>
+    </div>
+
+    <div class="paper hidden" id="murid-result-panel">
+      <div class="paper-inner center" id="murid-result-inner"></div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+  // --- Koneksi Firebase (project: Web Soal Yana) ---
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDj1i_QmZ8Ndk-yJ9KASPtGX7DFnSglIVs",
+    authDomain: "web-soal-yana.firebaseapp.com",
+    projectId: "web-soal-yana",
+    storageBucket: "web-soal-yana.firebasestorage.app",
+    messagingSenderId: "75353107201",
+    appId: "1:75353107201:web:5d0d57a0f9398237b88900"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const COLLECTION = 'ruangUjianStorage';
+
+  // window.storage dibuat di sini supaya sGet/sSet di bawah (yang sudah ada)
+  // tidak perlu diubah sama sekali — cukup ganti "otaknya" jadi Firestore.
+  window.storage = {
+    async get(key){
+      try{
+        const snap = await getDoc(doc(db, COLLECTION, key));
+        if(!snap.exists()) return null;
+        return { key, value: snap.data().value, shared: true };
+      }catch(e){
+        console.error('Firestore get error:', e);
+        return null;
+      }
+    },
+    async set(key, value){
+      try{
+        await setDoc(doc(db, COLLECTION, key), { value, updatedAt: Date.now() });
+        return { key, value, shared: true };
+      }catch(e){
+        console.error('Firestore set error:', e);
+        return null;
+      }
+    },
+    async delete(key){
+      try{
+        await deleteDoc(doc(db, COLLECTION, key));
+        return { key, deleted: true, shared: true };
+      }catch(e){
+        console.error('Firestore delete error:', e);
+        return null;
+      }
+    }
+  };
+</script>
+
+<script>
+/* ---------------- storage helpers ---------------- */
+async function sGet(key){
+  try{ const r = await window.storage.get(key, true); return r ? JSON.parse(r.value) : null; }
+  catch(e){ return null; }
+}
+async function sSet(key, value){
+  try{ await window.storage.set(key, JSON.stringify(value), true); return true; }
+  catch(e){ toast('Gagal menyimpan data. Coba lagi.'); return false; }
+}
+
+function toast(msg){
+  const t = document.createElement('div');
+  t.className='toast'; t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3200);
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function show(id){ document.getElementById(id).classList.remove('hidden'); }
+function hide(id){ document.getElementById(id).classList.add('hidden'); }
+function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+function escapeHtml(s){ return (s||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+/* ---------------- navigation ---------------- */
+function goGate(){
+  hide('view-guru'); hide('view-murid'); show('view-gate');
+}
+function goGuru(){
+  hide('view-gate'); show('view-guru');
+  loadGuruQuizList();
+}
+function goMuridGate(){
+  hide('view-gate'); show('view-murid');
+  hide('murid-list-panel'); hide('murid-quiz-panel'); hide('murid-result-panel');
+  show('murid-name-panel');
+}
+
+/* ---------------- GURU: manual crop workflow ---------------- */
+// No AI involved here at all — the document is only rendered on screen so the
+// teacher can see it and manually drag a selection box around each numbered
+// question. Nothing about the question content is read, parsed or rewritten;
+// the selection is simply screenshotted as-is into one image per question,
+// in whatever order the teacher chooses to crop them.
+let generatedQuestions = []; // {id, image, type:'pilihan'|'benarsalah', correctIndex, points:[{correct:null|true|false}]}
+const ANSWER_LETTERS = ['A','B','C','D','E'];
+
+async function startCropFlow(){
+  const fileInput = document.getElementById('file-input');
+  const statusEl = document.getElementById('load-status');
+  const btn = document.getElementById('btn-load-doc');
+
+  const file = fileInput.files[0];
+  if(!file){ toast('Pilih file PDF atau Word dulu ya.'); return; }
+  if(!document.getElementById('quiz-title').value.trim()){ toast('Isi judul soal dulu ya.'); return; }
+
+  const name = file.name.toLowerCase();
+  const isPdf = name.endsWith('.pdf');
+  const isDocx = name.endsWith('.docx');
+  if(!isPdf && !isDocx){ toast('Format file belum didukung. Pakai PDF atau .docx ya.'); return; }
+
+  btn.disabled = true;
+  statusEl.innerHTML = '<span class="spin"></span> Menyiapkan tampilan dokumen...';
+
+  try{
+    let pages;
+    if(isPdf){ pages = await renderPdfPages(file); }
+    else{ pages = await renderDocxPages(file); }
+
+    if(!pages || pages.length===0){
+      throw new Error('Gagal menampilkan isi dokumen. Coba file lain, atau pastikan filenya tidak rusak.');
+    }
+
+    generatedQuestions = [];
+    buildCropViewer(pages);
+    renderCropThumbs();
+    statusEl.textContent = '';
+    hide('guru-upload-panel'); show('guru-crop-panel');
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = '';
+    toast((err && err.message) || 'Gagal memuat file. Coba lagi.');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function renderPdfPages(file){
+  if(!window.pdfjsLib) throw new Error('Modul pembaca PDF gagal dimuat. Muat ulang halaman lalu coba lagi, atau pakai file Word (.docx).');
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }catch(e){ /* pdf.js falls back to main-thread mode if workers are blocked */ }
+
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pages = [];
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.6 });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    pages.push(canvas.toDataURL('image/jpeg', 0.9));
+  }
+  return pages;
+}
+
+async function renderDocxPages(file){
+  const buf = await file.arrayBuffer();
+  const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+  const stage = document.createElement('div');
+  stage.style.cssText = 'position:absolute;left:-99999px;top:0;width:760px;padding:20px 24px;background:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#111;';
+  stage.innerHTML = result.value || '<p>(dokumen kosong)</p>';
+  document.body.appendChild(stage);
+  const pages = [];
+  try{
+    const canvas = await html2canvas(stage, { backgroundColor:'#ffffff', scale:1.3, useCORS:true });
+    const chunkH = 1700;
+    for(let y=0; y<canvas.height; y+=chunkH){
+      const h = Math.min(chunkH, canvas.height - y);
+      const sub = document.createElement('canvas');
+      sub.width = canvas.width; sub.height = h;
+      sub.getContext('2d').drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+      pages.push(sub.toDataURL('image/jpeg', 0.85));
+    }
+  } finally { stage.remove(); }
+  return pages;
+}
+
+function buildCropViewer(pages){
+  const wrap = document.getElementById('crop-pages');
+  wrap.innerHTML = '';
+  pages.forEach((dataUrl, pi)=>{
+    const pageDiv = document.createElement('div');
+    pageDiv.className = 'crop-page';
+    pageDiv.innerHTML = `
+      <div class="crop-page-label">Halaman ${pi+1}</div>
+      <img class="crop-img" src="${dataUrl}" draggable="false">
+      <div class="crop-overlay"></div>
+      <div class="crop-selbox hidden"></div>
+    `;
+    wrap.appendChild(pageDiv);
+  });
+}
+
+/* pointer-drag selection */
+let cropState = { active:false, pageEl:null, overlayEl:null, selBoxEl:null, startX:0, startY:0, rect:null };
+
+function bindCropEvents(){
+  const wrap = document.getElementById('crop-pages');
+  wrap.addEventListener('pointerdown', (e)=>{
+    const overlay = e.target.closest('.crop-overlay');
+    if(!overlay) return;
+    const pageDiv = overlay.parentElement;
+    const rect = overlay.getBoundingClientRect();
+    cropState.active = true;
+    cropState.pageEl = pageDiv;
+    cropState.overlayEl = overlay;
+    cropState.selBoxEl = pageDiv.querySelector('.crop-selbox');
+    cropState.rect = rect;
+    cropState.startX = clamp(e.clientX - rect.left, 0, rect.width);
+    cropState.startY = clamp(e.clientY - rect.top, 0, rect.height);
+    cropState.selBoxEl.classList.remove('hidden');
+    setSelBox(cropState.startX, cropState.startY, 0, 0);
+    try{ overlay.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault();
+  });
+  document.addEventListener('pointermove', (e)=>{
+    if(!cropState.active) return;
+    const rect = cropState.rect;
+    const x = clamp(e.clientX - rect.left, 0, rect.width);
+    const y = clamp(e.clientY - rect.top, 0, rect.height);
+    const left = Math.min(x, cropState.startX), top = Math.min(y, cropState.startY);
+    const w = Math.abs(x - cropState.startX), h = Math.abs(y - cropState.startY);
+    setSelBox(left, top, w, h);
+  });
+  document.addEventListener('pointerup', async (e)=>{
+    if(!cropState.active) return;
+    cropState.active = false;
+    const box = cropState.selBoxEl;
+    const left = parseFloat(box.style.left)||0, top = parseFloat(box.style.top)||0;
+    const w = parseFloat(box.style.width)||0, h = parseFloat(box.style.height)||0;
+    box.classList.add('hidden');
+    if(w < 14 || h < 14) return;
+    await saveCropAsQuestion(cropState.pageEl, left, top, w, h);
+  });
+}
+function setSelBox(left, top, w, h){
+  const box = cropState.selBoxEl;
+  box.style.left = left+'px'; box.style.top = top+'px';
+  box.style.width = w+'px'; box.style.height = h+'px';
+}
+
+async function saveCropAsQuestion(pageDiv, left, top, w, h){
+  const img = pageDiv.querySelector('.crop-img');
+  const scaleX = img.naturalWidth / img.clientWidth;
+  const scaleY = img.naturalHeight / img.clientHeight;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w*scaleX));
+  canvas.height = Math.max(1, Math.round(h*scaleY));
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img, left*scaleX, top*scaleY, w*scaleX, h*scaleY, 0, 0, canvas.width, canvas.height);
+  const raw = canvas.toDataURL('image/jpeg', 0.9);
+  const compressed = await compressImage(raw);
+  generatedQuestions.push({ id: uid(), image: compressed, type:'pilihan', correctIndex:null, points:[] });
+  renderCropThumbs();
+  toast(`Tersimpan sebagai Soal ${generatedQuestions.length}`);
+}
+
+// Downscales/recompresses each cropped question image so a whole quiz (many images)
+// comfortably fits under the per-key storage size limit.
+function compressImage(dataUrl, maxWidth=1000, quality=0.75){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let w = img.naturalWidth || maxWidth, h = img.naturalHeight || maxWidth;
+      if(w > maxWidth){ h = Math.round(h * (maxWidth / w)); w = maxWidth; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = ()=> reject(new Error('Gagal memproses potongan gambar soal.'));
+    img.src = dataUrl;
+  });
+}
+
+function renderCropThumbs(){
+  const wrap = document.getElementById('crop-thumbs');
+  wrap.innerHTML = '';
+  generatedQuestions.forEach((q, qi)=>{
+    const div = document.createElement('div');
+    div.className = 'crop-thumb';
+    div.innerHTML = `
+      <span class="num">${qi+1}</span>
+      <img src="${q.image}" alt="Soal ${qi+1}">
+      <button class="del" title="Hapus" onclick="removeCroppedQuestion(${qi})">×</button>
+    `;
+    wrap.appendChild(div);
+  });
+  document.getElementById('btn-to-review').disabled = generatedQuestions.length===0;
+}
+function removeCroppedQuestion(qi){
+  generatedQuestions.splice(qi,1);
+  renderCropThumbs();
+}
+
+function cancelCrop(){
+  generatedQuestions = [];
+  document.getElementById('crop-pages').innerHTML = '';
+  document.getElementById('crop-thumbs').innerHTML = '';
+  document.getElementById('file-input').value = '';
+  document.getElementById('quiz-title').value = '';
+  hide('guru-crop-panel'); show('guru-upload-panel');
+}
+
+function goToReview(){
+  if(generatedQuestions.length===0){ toast('Potong minimal 1 soal dulu ya.'); return; }
+  renderQEdit();
+  hide('guru-crop-panel'); show('guru-review-panel');
+}
+function backToCropFromReview(){
+  hide('guru-review-panel'); show('guru-crop-panel');
+}
+function cancelReview(){
+  generatedQuestions = [];
+  hide('guru-review-panel'); show('guru-upload-panel');
+  document.getElementById('crop-pages').innerHTML = '';
+  document.getElementById('crop-thumbs').innerHTML = '';
+  document.getElementById('load-status').textContent = '';
+}
+
+/* ---------------- Langkah 3: tandai jenis soal & jawaban ---------------- */
+function renderQEdit(){
+  const wrap = document.getElementById('qedit-list');
+  wrap.innerHTML = '';
+  generatedQuestions.forEach((q, qi)=>{
+    const unmarked = isQuestionUnmarked(q);
+    const div = document.createElement('div');
+    div.className = 'qedit' + (unmarked ? ' unmarked' : '');
+    div.innerHTML = `
+      <div class="q-num">Soal ${qi+1}</div>
+      <img class="qimg" src="${q.image}" alt="Soal ${qi+1}">
+      <div class="type-toggle">
+        <button type="button" class="type-btn ${q.type==='pilihan'?'active':''}" onclick="setQType(${qi},'pilihan')">Pilihan Ganda (A-E)</button>
+        <button type="button" class="type-btn ${q.type==='benarsalah'?'active':''}" onclick="setQType(${qi},'benarsalah')">Benar-Salah per Poin</button>
+      </div>
+      <div id="qbody-${qi}"></div>
+      ${unmarked ? '<div class="warn">Belum ditandai lengkap</div>' : ''}
+      <div style="margin-top:10px;"><button class="btn btn-danger btn-small" onclick="deleteQ(${qi})">Hapus soal ini</button></div>
+    `;
+    wrap.appendChild(div);
+    renderQBody(qi);
+  });
+}
+
+function isQuestionUnmarked(q){
+  if(q.type==='pilihan') return q.correctIndex===null;
+  return q.points.length===0 || q.points.some(p=>p.correct===null);
+}
+
+function setQType(qi, type){
+  const q = generatedQuestions[qi];
+  q.type = type;
+  if(type==='benarsalah' && q.points.length===0){
+    q.points = [{correct:null}];
+  }
+  renderQEdit();
+}
+
+function renderQBody(qi){
+  const q = generatedQuestions[qi];
+  const body = document.getElementById(`qbody-${qi}`);
+  if(!body) return;
+  if(q.type==='pilihan'){
+    body.innerHTML = `<div class="ans-hint">Jawaban benar:</div><div class="ans-row" id="ans-${qi}"></div>`;
+    const ansWrap = body.querySelector(`#ans-${qi}`);
+    ANSWER_LETTERS.forEach((letter, oi)=>{
+      const b = document.createElement('div');
+      b.className = 'bubble' + (q.correctIndex===oi ? ' selected' : '');
+      b.textContent = letter;
+      b.onclick = ()=>setCorrect(qi, oi);
+      ansWrap.appendChild(b);
+    });
+  } else {
+    let rows = q.points.map((p,pi)=>`
+      <div class="point-row">
+        <div class="point-label">Poin ${pi+1}</div>
+        <button type="button" class="bs-btn ${p.correct===true?'sel-benar':''}" onclick="setPointCorrect(${qi},${pi},true)">Benar</button>
+        <button type="button" class="bs-btn ${p.correct===false?'sel-salah':''}" onclick="setPointCorrect(${qi},${pi},false)">Salah</button>
+      </div>`).join('');
+    body.innerHTML = `
+      <div class="ans-hint">Jawaban benar tiap poin (sesuai isi gambar soal):</div>
+      ${rows}
+      <div class="point-actions">
+        <button class="btn btn-outline btn-small" onclick="addPoint(${qi})">+ Tambah poin</button>
+        <button class="btn btn-outline btn-small" onclick="removePoint(${qi})" ${q.points.length<=1?'disabled':''}>- Hapus poin terakhir</button>
+      </div>
+    `;
+  }
+}
+
+function setCorrect(qi, oi){
+  generatedQuestions[qi].correctIndex = oi;
+  renderQEdit();
+}
+function setPointCorrect(qi, pi, val){
+  generatedQuestions[qi].points[pi].correct = val;
+  renderQEdit();
+}
+function addPoint(qi){
+  if(generatedQuestions[qi].points.length>=12){ toast('Maksimal 12 poin per soal.'); return; }
+  generatedQuestions[qi].points.push({correct:null});
+  renderQEdit();
+}
+function removePoint(qi){
+  if(generatedQuestions[qi].points.length<=1) return;
+  generatedQuestions[qi].points.pop();
+  renderQEdit();
+}
+function deleteQ(qi){ generatedQuestions.splice(qi,1); renderQEdit(); }
+
+async function publishQuiz(){
+  if(generatedQuestions.length===0){ toast('Soalnya kosong.'); return; }
+  const missing = generatedQuestions.map((q,i)=> isQuestionUnmarked(q) ? (i+1) : null).filter(n=>n!==null);
+  if(missing.length>0){ toast('Tandai dulu jawaban benar untuk soal nomor: ' + missing.join(', ')); return; }
+  const title = document.getElementById('quiz-title').value.trim() || 'Tanpa judul';
+  const id = uid();
+  const quiz = { id, title, questions: generatedQuestions, createdAt: Date.now() };
+
+  const ok1 = await sSet('ruang-ujian:quiz-'+id, quiz);
+  if(!ok1) return;
+
+  const index = (await sGet('ruang-ujian:quiz-index')) || [];
+  index.unshift({id, title, questionCount: quiz.questions.length, createdAt: quiz.createdAt});
+  await sSet('ruang-ujian:quiz-index', index);
+
+  toast('Soal berhasil diterbitkan!');
+  generatedQuestions=[];
+  document.getElementById('quiz-title').value='';
+  document.getElementById('file-input').value='';
+  document.getElementById('load-status').textContent='';
+  document.getElementById('crop-pages').innerHTML='';
+  document.getElementById('crop-thumbs').innerHTML='';
+  hide('guru-review-panel'); show('guru-upload-panel');
+  loadGuruQuizList();
+}
+
+async function loadGuruQuizList(){
+  const wrap = document.getElementById('guru-quiz-list');
+  wrap.innerHTML = '<p class="empty">Memuat...</p>';
+  const index = (await sGet('ruang-ujian:quiz-index')) || [];
+  if(index.length===0){ wrap.innerHTML = '<p class="empty">Belum ada soal yang diterbitkan.</p>'; return; }
+  wrap.innerHTML = '';
+  index.forEach(q=>{
+    const div = document.createElement('div');
+    div.className='quiz-card';
+    div.innerHTML = `
+      <div>
+        <div style="font-weight:600;">${escapeHtml(q.title)}</div>
+        <div class="meta">${q.questionCount} soal · dibuat ${new Date(q.createdAt).toLocaleDateString('id-ID')}</div>
+      </div>
+      <button class="btn btn-outline btn-small" onclick="openResults('${q.id}','${escapeAttr(q.title)}')">Lihat hasil murid</button>
+    `;
+    wrap.appendChild(div);
+  });
+}
+
+async function openResults(quizId, title){
+  document.getElementById('results-title').textContent = title;
+  const wrap = document.getElementById('results-table-wrap');
+  wrap.innerHTML = '<p class="empty">Memuat...</p>';
+  show('guru-results-panel');
+  document.getElementById('guru-upload-panel').classList.add('hidden');
+  hide('guru-crop-panel');
+  hide('guru-review-panel');
+  document.querySelector('#view-guru > .paper:nth-of-type(4)')?.classList.add('hidden');
+
+  const results = (await sGet('ruang-ujian:results-'+quizId)) || [];
+  document.getElementById('results-sub').textContent = `${results.length} murid sudah mengerjakan`;
+  if(results.length===0){ wrap.innerHTML = '<p class="empty">Belum ada murid yang mengerjakan soal ini.</p>'; return; }
+
+  const sorted = [...results].sort((a,b)=>b.correct-a.correct || a.studentName.localeCompare(b.studentName));
+  let rows = sorted.map((r,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${escapeHtml(r.studentName)}</td>
+      <td style="color:var(--green);font-weight:600;">${r.correct}</td>
+      <td style="color:var(--red);font-weight:600;">${r.wrong}</td>
+      <td>${r.total}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;">${Math.round((r.correct/r.total)*100)}</td>
+    </tr>`).join('');
+  wrap.innerHTML = `<table>
+    <thead><tr><th>No</th><th>Nama</th><th>Betul (poin)</th><th>Salah (poin)</th><th>Total poin</th><th>Nilai</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+function closeResults(){
+  hide('guru-results-panel');
+  document.getElementById('guru-upload-panel').classList.remove('hidden');
+  document.querySelector('#view-guru > .paper:nth-of-type(4)')?.classList.remove('hidden');
+}
+
+/* ---------------- MURID ---------------- */
+let muridName = '';
+let currentQuiz = null;
+let muridAnswers = []; // per question: number (pilihan) OR array of true/false/null (benarsalah)
+
+function confirmMuridName(){
+  const val = document.getElementById('murid-name').value.trim();
+  if(!val){ toast('Isi nama dulu ya.'); return; }
+  muridName = val;
+  document.getElementById('murid-who').textContent = 'MURID · ' + muridName;
+  hide('murid-name-panel'); show('murid-list-panel');
+  loadMuridQuizList();
+}
+
+async function loadMuridQuizList(){
+  const wrap = document.getElementById('murid-quiz-list');
+  wrap.innerHTML = '<p class="empty">Memuat...</p>';
+  const index = (await sGet('ruang-ujian:quiz-index')) || [];
+  if(index.length===0){ wrap.innerHTML = '<p class="empty">Belum ada soal dari guru. Coba cek lagi nanti.</p>'; return; }
+  wrap.innerHTML = '';
+  index.forEach(q=>{
+    const div = document.createElement('div');
+    div.className='quiz-card';
+    div.innerHTML = `
+      <div>
+        <div style="font-weight:600;">${escapeHtml(q.title)}</div>
+        <div class="meta">${q.questionCount} soal</div>
+      </div>
+      <button class="btn btn-primary btn-small" onclick="openMuridQuiz('${q.id}')">Kerjakan →</button>
+    `;
+    wrap.appendChild(div);
+  });
+}
+
+async function openMuridQuiz(quizId){
+  const quiz = await sGet('ruang-ujian:quiz-'+quizId);
+  if(!quiz){ toast('Soal tidak ditemukan.'); return; }
+  currentQuiz = quiz;
+  muridAnswers = quiz.questions.map(q => q.type==='benarsalah' ? new Array(q.points.length).fill(null) : null);
+  document.getElementById('murid-quiz-title').textContent = quiz.title;
+  document.getElementById('murid-quiz-sub').textContent = `${quiz.questions.length} soal · jawab tiap soal sesuai jenisnya`;
+
+  const wrap = document.getElementById('murid-questions');
+  wrap.innerHTML = '';
+  quiz.questions.forEach((q, qi)=>{
+    const block = document.createElement('div');
+    block.className='q-block';
+    block.innerHTML = `
+      <div class="q-num" style="margin-bottom:8px;">Soal ${qi+1}</div>
+      <img class="qimg" src="${q.image}" alt="Soal ${qi+1}">
+      <div id="opts-${qi}"></div>
+    `;
+    wrap.appendChild(block);
+    const optsWrap = block.querySelector(`#opts-${qi}`);
+    if(q.type==='pilihan'){
+      optsWrap.className = 'opts ans-row';
+      ANSWER_LETTERS.forEach((letter, oi)=>{
+        const b = document.createElement('div');
+        b.className='bubble';
+        b.id = `bub-${qi}-${oi}`;
+        b.textContent = letter;
+        b.onclick = ()=>selectAnswer(qi, oi);
+        optsWrap.appendChild(b);
+      });
+    } else {
+      q.points.forEach((p, pi)=>{
+        const row = document.createElement('div');
+        row.className = 'point-row';
+        row.innerHTML = `
+          <div class="point-label">Poin ${pi+1}</div>
+          <button type="button" class="bs-btn" id="pt-${qi}-${pi}-benar" onclick="selectPointAnswer(${qi},${pi},true)">Benar</button>
+          <button type="button" class="bs-btn" id="pt-${qi}-${pi}-salah" onclick="selectPointAnswer(${qi},${pi},false)">Salah</button>
+        `;
+        optsWrap.appendChild(row);
+      });
+    }
+  });
+
+  hide('murid-list-panel'); show('murid-quiz-panel');
+}
+
+function selectAnswer(qi, oi){
+  muridAnswers[qi] = oi;
+  ANSWER_LETTERS.forEach((_,i)=>{
+    document.getElementById(`bub-${qi}-${i}`).classList.toggle('selected', i===oi);
+  });
+}
+function selectPointAnswer(qi, pi, val){
+  muridAnswers[qi][pi] = val;
+  const bBenar = document.getElementById(`pt-${qi}-${pi}-benar`);
+  const bSalah = document.getElementById(`pt-${qi}-${pi}-salah`);
+  bBenar.classList.toggle('sel-benar', val===true);
+  bSalah.classList.toggle('sel-salah', val===false);
+}
+
+async function submitMurid(){
+  let unanswered = 0;
+  currentQuiz.questions.forEach((q, qi)=>{
+    if(q.type==='pilihan'){ if(muridAnswers[qi]===null) unanswered++; }
+    else { unanswered += muridAnswers[qi].filter(v=>v===null).length; }
+  });
+  if(unanswered>0){
+    if(!confirm(`Masih ada ${unanswered} bagian jawaban yang belum diisi. Yakin mau dikumpulkan?`)) return;
+  }
+
+  let correct=0, total=0;
+  const detail = currentQuiz.questions.map((q,qi)=>{
+    if(q.type==='pilihan'){
+      total += 1;
+      const isCorrect = muridAnswers[qi]===q.correctIndex;
+      if(isCorrect) correct++;
+      return { type:'pilihan', image:q.image, isCorrect,
+        selectedLetter: muridAnswers[qi]===null?'(tidak dijawab)':ANSWER_LETTERS[muridAnswers[qi]],
+        correctLetter: ANSWER_LETTERS[q.correctIndex] };
+    } else {
+      const pts = q.points.map((p, pi)=>{
+        total += 1;
+        const studentVal = muridAnswers[qi][pi];
+        const isCorrect = studentVal===p.correct;
+        if(isCorrect) correct++;
+        return {
+          label: 'Poin '+(pi+1),
+          studentLabel: studentVal===true?'Benar':studentVal===false?'Salah':'(tidak dijawab)',
+          correctLabel: p.correct?'Benar':'Salah',
+          isCorrect
+        };
+      });
+      const pointsCorrect = pts.filter(p=>p.isCorrect).length;
+      return { type:'benarsalah', image:q.image, points: pts, pointsCorrect, pointsTotal: pts.length };
+    }
+  });
+
+  const wrong = total - correct;
+
+  const results = (await sGet('ruang-ujian:results-'+currentQuiz.id)) || [];
+  results.push({ studentName: muridName, correct, wrong, total, submittedAt: Date.now() });
+  await sSet('ruang-ujian:results-'+currentQuiz.id, results);
+
+  renderMuridResult(correct, total, detail);
+  hide('murid-quiz-panel'); show('murid-result-panel');
+}
+
+function renderMuridResult(correct, total, detail){
+  const nilai = Math.round((correct/total)*100);
+  const inner = document.getElementById('murid-result-inner');
+  const rows = detail.map((d,i)=>{
+    if(d.type==='pilihan'){
+      return `
+        <div class="qa-line">
+          <span class="${d.isCorrect?'tag-ok':'tag-bad'}">${d.isCorrect?'✓':'✗'}</span>
+          <div>
+            <div>Soal ${i+1}</div>
+            <div class="muted">Jawabanmu: ${d.selectedLetter}${d.isCorrect?'':' · Jawaban benar: '+d.correctLetter}</div>
+          </div>
+        </div>`;
+    } else {
+      const ptsHtml = d.points.map(p=>`
+        <div class="qa-line" style="padding-left:18px;">
+          <span class="${p.isCorrect?'tag-ok':'tag-bad'}">${p.isCorrect?'✓':'✗'}</span>
+          <div>
+            <div>${p.label}</div>
+            <div class="muted">Jawabanmu: ${p.studentLabel}${p.isCorrect?'':' · Jawaban benar: '+p.correctLabel}</div>
+          </div>
+        </div>`).join('');
+      return `
+        <div class="qa-line" style="flex-direction:column;align-items:stretch;">
+          <div style="font-weight:600;">Soal ${i+1} <span class="muted" style="font-weight:400;">(${d.pointsCorrect}/${d.pointsTotal} poin benar)</span></div>
+          ${ptsHtml}
+        </div>`;
+    }
+  }).join('');
+  inner.innerHTML = `
+    <div class="stamp" style="margin:0 auto 14px;">
+      <div class="num">${nilai}</div>
+      <div class="lbl">NILAI</div>
+    </div>
+    <h2>Selesai, ${escapeHtml(muridName)}!</h2>
+    <p class="muted">Betul ${correct} dari ${total} poin.</p>
+    <hr class="divider">
+    <div style="text-align:left;">
+      ${rows}
+    </div>
+    <div style="margin-top:18px;">
+      <button class="btn btn-outline" onclick="backToMuridList()">Kerjakan soal lain</button>
+    </div>
+  `;
+}
+function backToMuridList(){
+  hide('murid-result-panel'); show('murid-list-panel');
+  loadMuridQuizList();
+}
+
+bindCropEvents();
+</script>
+</body>
+</html>
