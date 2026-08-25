@@ -3,197 +3,211 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ruang Ujian</title>
+<title>Ruang Kelas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
-    --bg:#16301f;
-    --bg-soft:#1c3a25;
-    --chalk-line:#3a5a44;
-    --paper:#f6f1e4;
-    --paper-shadow:#d8cfb4;
-    --ink:#22201a;
-    --ink-soft:#5c5648;
-    --pencil:#f4c542;
-    --pencil-dark:#c99a1c;
-    --red:#b53e2f;
-    --red-dark:#7f2c21;
-    --green:#2f7a4f;
-    --radius:14px;
+    --bg-deep:#7C5CD6;
+    --card:#ffffff;
+    --card-shadow:#dccdf7;
+    --ink:#362B54;
+    --ink-soft:#8A7FAE;
+    --yellow:#FFD34D;
+    --yellow-dark:#E8A916;
+    --pink:#FF4D8D;
+    --pink-dark:#D62E6C;
+    --green:#31C48D;
+    --green-dark:#1F9C6D;
+    --red:#FF5C6C;
+    --red-dark:#E23C4C;
+    --line:#ECE1FB;
+    --radius:22px;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
     background:
-      repeating-linear-gradient(0deg, transparent, transparent 27px, var(--chalk-line) 28px),
-      var(--bg);
-    color:var(--chalk-line);
-    font-family:'Inter',sans-serif;
+      radial-gradient(1100px 560px at 12% -8%, rgba(255,211,77,.35), transparent 60%),
+      radial-gradient(900px 520px at 108% 6%, rgba(255,77,141,.22), transparent 60%),
+      linear-gradient(180deg, #F4EEFE 0%, #ECE1FB 100%);
+    background-attachment:fixed;
+    color:var(--ink);
+    font-family:'Nunito',sans-serif;
     min-height:100vh;
     padding:28px 16px 60px;
   }
   .wrap{max-width:880px;margin:0 auto;}
   .hidden{display:none !important;}
-  h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0;}
+  h1,h2,h3{font-family:'Baloo 2',sans-serif;margin:0;}
   .brand{
     display:flex;align-items:center;gap:10px;justify-content:center;
-    color:#f4f1e8;margin-bottom:26px;
+    color:var(--ink);margin-bottom:26px;
   }
-  .brand .chalk-underline{
-    text-decoration:none;position:relative;
-  }
-  .brand h1{font-size:26px;letter-spacing:.5px;}
+  .brand h1{font-size:28px;letter-spacing:.2px;color:var(--bg-deep);}
   .brand svg{flex-shrink:0;}
   .paper{
-    background:var(--paper);
+    background:var(--card);
     border-radius:var(--radius);
-    box-shadow:0 14px 0 -6px var(--paper-shadow), 0 18px 30px rgba(0,0,0,.35);
+    box-shadow:0 10px 0 -4px var(--card-shadow), 0 18px 34px rgba(124,92,214,.18);
     padding:28px 26px;
     color:var(--ink);
     position:relative;
     margin-bottom:22px;
   }
-  .paper::before{
-    content:'';position:absolute;left:0;top:18px;bottom:18px;width:2px;
-    background:repeating-linear-gradient(0deg, transparent, transparent 6px, #e3c8c8 6px, #e3c8c8 12px);
-    margin-left:38px;
-    opacity:.6;
-  }
-  .paper-inner{margin-left:14px;}
+  .paper-inner{margin-left:0;}
   .eyebrow{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
-    color:var(--ink-soft);margin-bottom:6px;display:block;
+    font-family:'Nunito',sans-serif;font-weight:800;
+    font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--pink-dark);margin-bottom:6px;display:block;
   }
   .gate-buttons{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:8px;}
   .role-card{
-    background:var(--paper);border-radius:var(--radius);
-    padding:26px 30px;width:230px;text-align:center;cursor:pointer;
-    border:2px solid transparent;
-    box-shadow:0 10px 0 -4px var(--paper-shadow), 0 14px 24px rgba(0,0,0,.3);
+    background:var(--card);border-radius:var(--radius);
+    padding:28px 30px;width:230px;text-align:center;cursor:pointer;
+    border:3px solid transparent;
+    box-shadow:0 10px 0 -4px var(--card-shadow), 0 16px 28px rgba(124,92,214,.22);
     transition:transform .15s ease, border-color .15s ease;
   }
-  .role-card:hover{transform:translateY(-3px);border-color:var(--pencil);}
-  .role-card .emoji{font-size:34px;display:block;margin-bottom:10px;}
-  .role-card h3{font-size:18px;color:var(--ink);}
-  .role-card p{font-size:12.5px;color:var(--ink-soft);margin:6px 0 0;}
-  label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px;color:var(--ink);}
-  input[type=text],input[type=number],textarea,select{
-    width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #d8cfb4;
-    font-family:'Inter',sans-serif;font-size:14px;background:#fffdf7;color:var(--ink);
+  .role-card:hover{transform:translateY(-4px) scale(1.015);}
+  .gate-buttons .role-card:nth-child(1):hover{border-color:var(--pink);}
+  .gate-buttons .role-card:nth-child(2):hover{border-color:var(--yellow-dark);}
+  .role-card .emoji{
+    font-size:32px;display:flex;align-items:center;justify-content:center;
+    width:64px;height:64px;border-radius:50%;margin:0 auto 12px;
   }
-  input:focus,textarea:focus,select:focus{outline:2px solid var(--pencil-dark);outline-offset:1px;}
+  .gate-buttons .role-card:nth-child(1) .emoji{background:#FFE1EC;}
+  .gate-buttons .role-card:nth-child(2) .emoji{background:#FFF3D0;}
+  .role-card h3{font-size:19px;color:var(--ink);}
+  .role-card p{font-size:12.5px;color:var(--ink-soft);margin:6px 0 0;}
+  label{display:block;font-size:13px;font-weight:800;margin:14px 0 6px;color:var(--ink);}
+  input[type=text],input[type=number],textarea,select{
+    width:100%;padding:11px 14px;border-radius:14px;border:2px solid var(--line);
+    font-family:'Nunito',sans-serif;font-size:14px;background:#fbf8ff;color:var(--ink);
+  }
+  input:focus,textarea:focus,select:focus{outline:2.5px solid var(--pink);outline-offset:1px;}
   textarea{resize:vertical;min-height:60px;}
   .btn{
-    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;
-    border:none;border-radius:9px;padding:11px 20px;cursor:pointer;
+    font-family:'Baloo 2',sans-serif;font-weight:700;font-size:14.5px;
+    border:none;border-radius:14px;padding:12px 22px;cursor:pointer;
     display:inline-flex;align-items:center;gap:8px;
   }
-  .btn-primary{background:var(--pencil);color:#2a2007;box-shadow:0 3px 0 var(--pencil-dark);}
-  .btn-primary:hover{filter:brightness(1.04);}
-  .btn-primary:active{box-shadow:0 1px 0 var(--pencil-dark);transform:translateY(2px);}
-  .btn-primary:disabled{opacity:.55;cursor:not-allowed;box-shadow:0 3px 0 var(--pencil-dark);}
-  .btn-outline{background:transparent;border:1.5px solid var(--ink-soft);color:var(--ink);}
-  .btn-danger{background:transparent;color:var(--red);border:1.5px solid var(--red);}
-  .btn-small{padding:6px 12px;font-size:12px;}
-  .btn-link{background:none;border:none;color:var(--ink-soft);text-decoration:underline;cursor:pointer;font-size:13px;padding:0;}
+  .btn-primary{background:var(--pink);color:#fff;box-shadow:0 4px 0 var(--pink-dark);}
+  .btn-primary:hover{filter:brightness(1.05);}
+  .btn-primary:active{box-shadow:0 1px 0 var(--pink-dark);transform:translateY(3px);}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:0 4px 0 var(--pink-dark);}
+  .btn-outline{background:#fff;border:2px solid var(--ink-soft);color:var(--ink);}
+  .btn-danger{background:#fff;color:var(--red);border:2px solid var(--red);}
+  .btn-small{padding:8px 14px;font-size:12.5px;border-radius:12px;}
+  .btn-link{background:none;border:none;color:var(--ink-soft);text-decoration:underline;cursor:pointer;font-size:13px;padding:0;font-family:'Nunito',sans-serif;font-weight:700;}
+  .btn-back{
+    font-family:'Baloo 2',sans-serif;font-weight:700;font-size:13.5px;
+    border:none;border-radius:14px;padding:9px 18px 9px 15px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;color:#fff;
+    background:linear-gradient(135deg, #9B82EA 0%, var(--bg-deep) 100%);
+    box-shadow:0 4px 0 #5A3FAE, 0 8px 16px rgba(124,92,214,.4);
+    transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;
+  }
+  .btn-back:hover{filter:brightness(1.07);}
+  .btn-back:active{box-shadow:0 1px 0 #5A3FAE, 0 6px 12px rgba(124,92,214,.35);transform:translateY(3px);}
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
   .row > *{flex:1;min-width:140px;}
   .quiz-card{
-    background:#fffdf7;border:1.5px solid #e6ddc4;border-radius:11px;
-    padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;
+    background:#fff;border:2px solid var(--line);border-radius:16px;
+    padding:15px 18px;margin-bottom:10px;display:flex;justify-content:space-between;
     align-items:center;gap:10px;flex-wrap:wrap;
+    box-shadow:0 4px 14px rgba(124,92,214,.08);
   }
-  .quiz-card .meta{font-size:12px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
-  .qedit{border:1.5px solid #e6ddc4;border-radius:11px;padding:14px 16px;margin-bottom:12px;background:#fffdf7;}
+  .quiz-card .meta{font-size:12px;color:var(--ink-soft);font-family:'Nunito',sans-serif;font-weight:800;}
+  .qedit{border:2px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:12px;background:#fff;}
   .qedit .opt-row{display:flex;gap:8px;align-items:center;margin-top:6px;}
-  .qedit .opt-row input[type=radio]{accent-color:var(--red);width:16px;height:16px;flex:0;}
+  .qedit .opt-row input[type=radio]{accent-color:var(--pink);width:16px;height:16px;flex:0;}
   .bubble{
-    width:34px;height:34px;border-radius:50%;border:2.4px solid var(--ink);
-    display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;
-    font-weight:600;font-size:14px;cursor:pointer;flex-shrink:0;background:#fffdf7;
-    transition:background .12s, transform .1s;
+    width:40px;height:40px;border-radius:14px;border:2.5px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;
+    font-weight:700;font-size:15px;cursor:pointer;flex-shrink:0;background:#fff;color:var(--ink);
+    transition:transform .12s, background .12s, border-color .12s;
   }
-  .bubble:hover{transform:scale(1.06);}
-  .bubble.selected{background:var(--pencil);border-color:var(--pencil-dark);}
-  .opt-line{display:flex;align-items:center;gap:12px;padding:9px 4px;border-radius:8px;cursor:pointer;}
-  .opt-line:hover{background:#efe8d3;}
+  .bubble:hover{transform:scale(1.08);border-color:var(--pink);}
+  .bubble.selected{background:var(--yellow);border-color:var(--yellow-dark);color:var(--ink);}
+  .opt-line{display:flex;align-items:center;gap:12px;padding:9px 4px;border-radius:12px;cursor:pointer;}
+  .opt-line:hover{background:#F6F0FE;}
   .opt-text{font-size:14.5px;}
   .q-block{margin-bottom:22px;}
-  .q-block .q-title{font-size:15px;font-weight:600;margin-bottom:10px;}
-  .q-num{font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);font-size:12px;}
+  .q-block .q-title{font-size:15px;font-weight:700;margin-bottom:10px;}
+  .q-num{font-family:'Baloo 2',sans-serif;color:var(--bg-deep);font-size:13px;font-weight:700;}
   .stamp{
-    width:96px;height:96px;border-radius:50%;border:3.5px solid var(--red);
-    color:var(--red);display:flex;flex-direction:column;align-items:center;justify-content:center;
-    transform:rotate(-8deg);font-family:'Space Grotesk',sans-serif;font-weight:700;
-    flex-shrink:0;
+    width:104px;height:104px;border-radius:50%;border:none;
+    background:linear-gradient(135deg, var(--pink), var(--yellow));
+    color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    transform:rotate(-6deg);font-family:'Baloo 2',sans-serif;font-weight:800;
+    flex-shrink:0;box-shadow:0 10px 22px rgba(255,77,141,.35);
   }
-  .stamp .num{font-size:28px;line-height:1;}
-  .stamp .lbl{font-size:9px;letter-spacing:1px;margin-top:2px;}
-  .stamp.small{width:56px;height:56px;border-width:2.5px;}
-  .stamp.small .num{font-size:16px;}
+  .stamp .num{font-size:30px;line-height:1;}
+  .stamp .lbl{font-size:9.5px;letter-spacing:1px;margin-top:2px;}
+  .stamp.small{width:58px;height:58px;}
+  .stamp.small .num{font-size:17px;}
   .stamp.small .lbl{font-size:6.5px;}
   table{width:100%;border-collapse:collapse;margin-top:6px;}
-  th,td{text-align:left;padding:9px 8px;font-size:13.5px;border-bottom:1px solid #e6ddc4;}
-  th{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);}
-  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;color:#f4f1e8;}
-  .topbar .who{font-family:'IBM Plex Mono',monospace;font-size:12px;opacity:.8;}
+  th,td{text-align:left;padding:9px 8px;font-size:13.5px;border-bottom:1px solid var(--line);}
+  th{font-family:'Nunito',sans-serif;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;color:var(--ink);}
+  .topbar .who{font-family:'Baloo 2',sans-serif;font-size:12.5px;font-weight:700;color:var(--bg-deep);background:#fff;padding:5px 12px;border-radius:999px;}
   .empty{color:var(--ink-soft);font-size:13.5px;font-style:italic;padding:6px 0;}
   .toast{
     position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
-    background:var(--ink);color:#f6f1e4;padding:10px 18px;border-radius:9px;font-size:13.5px;
-    box-shadow:0 8px 20px rgba(0,0,0,.4);z-index:50;max-width:90vw;
+    background:var(--bg-deep);color:#fff;padding:12px 20px;border-radius:999px;font-size:13.5px;font-weight:700;
+    font-family:'Nunito',sans-serif;box-shadow:0 10px 26px rgba(124,92,214,.4);z-index:50;max-width:90vw;
   }
   .spin{
-    width:16px;height:16px;border:2.5px solid rgba(0,0,0,.2);border-top-color:var(--ink);
+    width:16px;height:16px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;
     border-radius:50%;animation:sp .7s linear infinite;display:inline-block;
   }
   @keyframes sp{to{transform:rotate(360deg);}}
-  .divider{border:none;border-top:1.5px dashed #d8cfb4;margin:20px 0;}
+  .divider{border:none;border-top:2px dashed var(--line);margin:22px 0;}
   .center{text-align:center;}
   .muted{color:var(--ink-soft);font-size:13px;}
-  .result-item{display:flex;align-items:center;gap:14px;padding:10px 6px;border-bottom:1px solid #ece4cc;}
+  .result-item{display:flex;align-items:center;gap:14px;padding:10px 6px;border-bottom:1px solid var(--line);}
   .result-item:last-child{border-bottom:none;}
-  .qa-line{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed #e6ddc4;font-size:13.5px;}
+  .qa-line{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13.5px;}
   .qa-line:last-child{border-bottom:none;}
-  .tag-ok{color:var(--green);font-weight:700;}
-  .tag-bad{color:var(--red);font-weight:700;}
-  .qimg{max-width:100%;display:block;border-radius:10px;border:1.5px solid #e6ddc4;margin-bottom:10px;background:#fff;}
+  .tag-ok{color:var(--green-dark);font-weight:800;}
+  .tag-bad{color:var(--red-dark);font-weight:800;}
+  .qimg{max-width:100%;display:block;border-radius:16px;border:2px solid var(--line);margin-bottom:10px;background:#fff;}
   .ans-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
   .ans-hint{font-size:12.5px;color:var(--ink-soft);margin-bottom:4px;}
   .qedit.unmarked{border-color:var(--red);}
-  .qedit .warn{color:var(--red);font-size:12px;margin-top:4px;font-weight:600;}
+  .qedit .warn{color:var(--red-dark);font-size:12px;margin-top:4px;font-weight:700;}
 
   /* --- crop tool --- */
-  .crop-instructions{font-size:13px;color:var(--ink-soft);background:#fbf6e6;border:1.5px dashed #d8cfb4;border-radius:10px;padding:10px 12px;margin-bottom:14px;}
-  #crop-pages{max-height:560px;overflow:auto;border:1.5px solid #e6ddc4;border-radius:11px;padding:12px;background:#efe8d3;}
+  .crop-instructions{font-size:13px;color:var(--ink-soft);background:#FFF6DC;border:2px dashed var(--yellow-dark);border-radius:14px;padding:10px 12px;margin-bottom:14px;}
+  #crop-pages{max-height:560px;overflow:auto;border:2px solid var(--line);border-radius:16px;padding:12px;background:#F6F0FE;}
   .crop-page{position:relative;margin-bottom:14px;user-select:none;-webkit-user-select:none;}
   .crop-page:last-child{margin-bottom:0;}
-  .crop-page .crop-page-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);margin-bottom:4px;}
-  .crop-img{width:100%;display:block;border-radius:8px;border:1.5px solid #d8cfb4;background:#fff;pointer-events:none;}
+  .crop-page .crop-page-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;color:var(--ink-soft);margin-bottom:4px;}
+  .crop-img{width:100%;display:block;border-radius:12px;border:2px solid var(--line);background:#fff;pointer-events:none;}
   .crop-overlay{position:absolute;left:0;right:0;top:22px;bottom:0;cursor:crosshair;touch-action:none;}
-  .crop-selbox{position:absolute;border:2px dashed var(--red);background:rgba(244,197,66,.28);pointer-events:none;}
+  .crop-selbox{position:absolute;border:2px dashed var(--pink);background:rgba(255,211,77,.32);pointer-events:none;}
   .crop-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;}
   .crop-thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
   .crop-thumb{position:relative;width:78px;}
-  .crop-thumb img{width:78px;height:78px;object-fit:cover;border-radius:8px;border:1.5px solid #d8cfb4;background:#fff;display:block;}
-  .crop-thumb .num{position:absolute;top:-6px;left:-6px;background:var(--ink);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:10.5px;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;}
+  .crop-thumb img{width:78px;height:78px;object-fit:cover;border-radius:12px;border:2px solid var(--line);background:#fff;display:block;}
+  .crop-thumb .num{position:absolute;top:-6px;left:-6px;background:var(--bg-deep);color:#fff;font-family:'Baloo 2',sans-serif;font-size:10.5px;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;}
   .crop-thumb .del{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;}
 
   /* --- type toggle & benar/salah poin --- */
   .type-toggle{display:flex;gap:8px;margin:6px 0 10px;}
-  .type-btn{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:8px;border:1.5px solid var(--ink-soft);background:#fffdf7;color:var(--ink);cursor:pointer;}
-  .type-btn.active{background:var(--ink);color:#fffdf7;border-color:var(--ink);}
-  .point-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed #e6ddc4;}
+  .type-btn{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:12.5px;padding:9px 16px;border-radius:999px;border:2px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .type-btn.active{background:var(--bg-deep);color:#fff;border-color:var(--bg-deep);}
+  .point-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);}
   .point-row:last-child{border-bottom:none;}
-  .point-label{font-size:13px;font-weight:600;width:70px;flex-shrink:0;}
-  .bs-btn{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:7px;border:1.5px solid var(--ink-soft);background:#fffdf7;color:var(--ink);cursor:pointer;}
-  .bs-btn.sel-benar{background:var(--green);border-color:var(--green);color:#fff;}
-  .bs-btn.sel-salah{background:var(--red);border-color:var(--red);color:#fff;}
+  .point-label{font-size:13px;font-weight:700;width:70px;flex-shrink:0;}
+  .bs-btn{font-family:'Baloo 2',sans-serif;font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:999px;border:2px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .bs-btn.sel-benar{background:var(--green);border-color:var(--green-dark);color:#fff;}
+  .bs-btn.sel-salah{background:var(--red);border-color:var(--red-dark);color:#fff;}
   .point-actions{margin-top:8px;display:flex;gap:8px;}
 </style>
 </head>
@@ -201,13 +215,22 @@
 <div class="wrap">
 
   <div class="brand">
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none"><rect x="2" y="2" width="26" height="26" rx="5" stroke="#f4c542" stroke-width="2"/><path d="M9 15l4 4 8-9" stroke="#f4c542" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <h1>Ruang Ujian</h1>
+    <svg width="46" height="46" viewBox="0 0 46 46" fill="none">
+      <circle cx="23" cy="26" r="17" fill="#FFD34D"/>
+      <circle cx="10" cy="15" r="5.2" fill="#FFD34D"/>
+      <circle cx="36" cy="15" r="5.2" fill="#FFD34D"/>
+      <circle cx="16" cy="24" r="3.1" fill="#362B54"/>
+      <circle cx="30" cy="24" r="3.1" fill="#362B54"/>
+      <circle cx="13.5" cy="30.5" r="3" fill="#FF9EC4" opacity=".8"/>
+      <circle cx="32.5" cy="30.5" r="3" fill="#FF9EC4" opacity=".8"/>
+      <path d="M17 33.5c2 2.6 10 2.6 12 0" stroke="#362B54" stroke-width="2.3" stroke-linecap="round" fill="none"/>
+    </svg>
+    <h1>Ruang Kelas</h1>
   </div>
 
   <!-- GATE -->
   <div id="view-gate">
-    <p class="center muted" style="color:#cfe4d6;margin-bottom:18px;">Unggah file berisi soal, potong manual tiap nomor jadi gambar, tandai jawaban benarnya — anak-anak tinggal masuk dan menjawab.</p>
+    <p class="center muted" style="margin-bottom:18px;">Unggah file berisi soal, potong manual tiap nomor jadi gambar, tandai jawaban benarnya — anak-anak tinggal masuk dan menjawab.</p>
     <div class="gate-buttons">
       <div class="role-card" onclick="goGuru()">
         <span class="emoji">🧑‍🏫</span>
@@ -225,7 +248,7 @@
   <!-- GURU -->
   <div id="view-guru" class="hidden">
     <div class="topbar">
-      <button class="btn-link" style="color:#f4f1e8;" onclick="goGate()">← kembali</button>
+      <button class="btn-back" onclick="goGate()">← kembali</button>
       <span class="who">MODE GURU</span>
     </div>
 
@@ -266,8 +289,8 @@
         <p class="muted">Untuk tiap soal, pilih dulu jenisnya: <b>Pilihan Ganda (A-E)</b> atau <b>Benar-Salah per Poin</b> (kalau di dalam satu nomor ada beberapa pernyataan yang masing-masing dinilai benar/salah sendiri). Lalu tandai jawaban yang benar sebelum diterbitkan ke murid.</p>
         <div id="qedit-list"></div>
         <div class="row" style="margin-top:6px;">
-          <button class="btn btn-primary" onclick="publishQuiz()">📌 Terbitkan soal ke murid</button>
-          <button class="btn btn-outline" onclick="backToCropFromReview()">← kembali potong soal</button>
+          <button class="btn btn-primary" id="btn-publish-quiz" onclick="publishQuiz()">📌 Terbitkan soal ke murid</button>
+          <button class="btn btn-outline" id="btn-back-to-crop" onclick="backToCropFromReview()">← kembali potong soal</button>
           <button class="btn btn-outline" onclick="cancelReview()">Batal</button>
         </div>
       </div>
@@ -283,7 +306,7 @@
 
     <div class="paper hidden" id="guru-results-panel">
       <div class="paper-inner">
-        <button class="btn-link" onclick="closeResults()">← tutup hasil</button>
+        <button class="btn-back" onclick="closeResults()">← tutup hasil</button>
         <h2 id="results-title" style="margin:10px 0 4px;"></h2>
         <p class="muted" id="results-sub"></p>
         <div id="results-table-wrap"></div>
@@ -294,7 +317,7 @@
   <!-- MURID -->
   <div id="view-murid" class="hidden">
     <div class="topbar">
-      <button class="btn-link" style="color:#f4f1e8;" onclick="goGate()">← kembali</button>
+      <button class="btn-back" onclick="goGate()">← kembali</button>
       <span class="who" id="murid-who">MODE MURID</span>
     </div>
 
@@ -396,6 +419,10 @@ async function sSet(key, value){
   try{ await window.storage.set(key, JSON.stringify(value), true); return true; }
   catch(e){ toast('Gagal menyimpan data. Coba lagi.'); return false; }
 }
+async function sDelete(key){
+  try{ await window.storage.delete(key, true); return true; }
+  catch(e){ toast('Gagal menghapus data. Coba lagi.'); return false; }
+}
 
 function toast(msg){
   const t = document.createElement('div');
@@ -414,7 +441,11 @@ function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
 function goGate(){
   hide('view-guru'); hide('view-murid'); show('view-gate');
 }
+const GURU_PIN = '123321';
 function goGuru(){
+  const pin = prompt('Masukkan PIN Guru:');
+  if(pin === null) return; // batal
+  if(pin !== GURU_PIN){ toast('PIN salah. Coba lagi.'); return; }
   hide('view-gate'); show('view-guru');
   loadGuruQuizList();
 }
@@ -432,6 +463,7 @@ function goMuridGate(){
 // in whatever order the teacher chooses to crop them.
 let generatedQuestions = []; // {id, image, type:'pilihan'|'benarsalah', correctIndex, points:[{correct:null|true|false}]}
 const ANSWER_LETTERS = ['A','B','C','D','E'];
+let editingQuizId = null; // null = soal baru, terisi id = sedang edit soal yang sudah terbit
 
 async function startCropFlow(){
   const fileInput = document.getElementById('file-input');
@@ -655,11 +687,16 @@ function backToCropFromReview(){
   hide('guru-review-panel'); show('guru-crop-panel');
 }
 function cancelReview(){
+  const wasEditing = !!editingQuizId;
   generatedQuestions = [];
+  resetReviewPanelToCreateMode();
   hide('guru-review-panel'); show('guru-upload-panel');
   document.getElementById('crop-pages').innerHTML = '';
   document.getElementById('crop-thumbs').innerHTML = '';
   document.getElementById('load-status').textContent = '';
+  document.getElementById('quiz-title').value = '';
+  document.getElementById('file-input').value = '';
+  if(wasEditing) toast('Edit dibatalkan.');
 }
 
 /* ---------------- Langkah 3: tandai jenis soal & jawaban ---------------- */
@@ -757,17 +794,40 @@ async function publishQuiz(){
   const missing = generatedQuestions.map((q,i)=> isQuestionUnmarked(q) ? (i+1) : null).filter(n=>n!==null);
   if(missing.length>0){ toast('Tandai dulu jawaban benar untuk soal nomor: ' + missing.join(', ')); return; }
   const title = document.getElementById('quiz-title').value.trim() || 'Tanpa judul';
-  const id = uid();
-  const quiz = { id, title, questions: generatedQuestions, createdAt: Date.now() };
 
-  const ok1 = await sSet('ruang-ujian:quiz-'+id, quiz);
-  if(!ok1) return;
+  if(editingQuizId){
+    // --- mode edit: update soal yang sudah ada, id & waktu dibuat tetap ---
+    const id = editingQuizId;
+    const existing = await sGet('ruang-ujian:quiz-'+id);
+    const createdAt = existing ? existing.createdAt : Date.now();
+    const quiz = { id, title, questions: generatedQuestions, createdAt };
 
-  const index = (await sGet('ruang-ujian:quiz-index')) || [];
-  index.unshift({id, title, questionCount: quiz.questions.length, createdAt: quiz.createdAt});
-  await sSet('ruang-ujian:quiz-index', index);
+    const ok1 = await sSet('ruang-ujian:quiz-'+id, quiz);
+    if(!ok1) return;
 
-  toast('Soal berhasil diterbitkan!');
+    const index = (await sGet('ruang-ujian:quiz-index')) || [];
+    const idx = index.findIndex(q=>q.id===id);
+    const entry = {id, title, questionCount: quiz.questions.length, createdAt};
+    if(idx>=0) index[idx] = entry; else index.unshift(entry);
+    await sSet('ruang-ujian:quiz-index', index);
+
+    toast('Perubahan soal berhasil disimpan!');
+  } else {
+    // --- mode buat soal baru ---
+    const id = uid();
+    const quiz = { id, title, questions: generatedQuestions, createdAt: Date.now() };
+
+    const ok1 = await sSet('ruang-ujian:quiz-'+id, quiz);
+    if(!ok1) return;
+
+    const index = (await sGet('ruang-ujian:quiz-index')) || [];
+    index.unshift({id, title, questionCount: quiz.questions.length, createdAt: quiz.createdAt});
+    await sSet('ruang-ujian:quiz-index', index);
+
+    toast('Soal berhasil diterbitkan!');
+  }
+
+  resetReviewPanelToCreateMode();
   generatedQuestions=[];
   document.getElementById('quiz-title').value='';
   document.getElementById('file-input').value='';
@@ -776,6 +836,14 @@ async function publishQuiz(){
   document.getElementById('crop-thumbs').innerHTML='';
   hide('guru-review-panel'); show('guru-upload-panel');
   loadGuruQuizList();
+}
+
+function resetReviewPanelToCreateMode(){
+  editingQuizId = null;
+  document.querySelector('#guru-review-panel .eyebrow').textContent = 'Langkah 3';
+  document.querySelector('#guru-review-panel h2').textContent = 'Tandai jawaban benar';
+  document.getElementById('btn-publish-quiz').textContent = '📌 Terbitkan soal ke murid';
+  document.getElementById('btn-back-to-crop').classList.remove('hidden');
 }
 
 async function loadGuruQuizList(){
@@ -792,10 +860,49 @@ async function loadGuruQuizList(){
         <div style="font-weight:600;">${escapeHtml(q.title)}</div>
         <div class="meta">${q.questionCount} soal · dibuat ${new Date(q.createdAt).toLocaleDateString('id-ID')}</div>
       </div>
-      <button class="btn btn-outline btn-small" onclick="openResults('${q.id}','${escapeAttr(q.title)}')">Lihat hasil murid</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-small" onclick="openResults('${q.id}','${escapeAttr(q.title)}')">Lihat hasil murid</button>
+        <button class="btn btn-outline btn-small" onclick="editQuiz('${q.id}')">✏️ Edit</button>
+        <button class="btn btn-danger btn-small" onclick="deleteQuiz('${q.id}','${escapeAttr(q.title)}')">🗑️ Hapus</button>
+      </div>
     `;
     wrap.appendChild(div);
   });
+}
+
+async function deleteQuiz(quizId, title){
+  if(!confirm(`Yakin hapus soal "${title}"? Hasil jawaban murid untuk soal ini juga akan ikut terhapus dan tidak bisa dikembalikan.`)) return;
+
+  const index = (await sGet('ruang-ujian:quiz-index')) || [];
+  const newIndex = index.filter(q=>q.id!==quizId);
+  const ok = await sSet('ruang-ujian:quiz-index', newIndex);
+  if(!ok) return;
+
+  await sDelete('ruang-ujian:quiz-'+quizId);
+  await sDelete('ruang-ujian:results-'+quizId);
+
+  toast('Soal berhasil dihapus.');
+  loadGuruQuizList();
+}
+
+async function editQuiz(quizId){
+  const quiz = await sGet('ruang-ujian:quiz-'+quizId);
+  if(!quiz){ toast('Soal tidak ditemukan.'); return; }
+
+  editingQuizId = quizId;
+  generatedQuestions = quiz.questions.map(q=>({
+    ...q,
+    points: q.points ? q.points.map(p=>({...p})) : []
+  }));
+  document.getElementById('quiz-title').value = quiz.title;
+
+  document.querySelector('#guru-review-panel .eyebrow').textContent = 'Edit soal';
+  document.querySelector('#guru-review-panel h2').textContent = 'Ubah soal & jawaban';
+  document.getElementById('btn-publish-quiz').textContent = '💾 Simpan perubahan';
+  document.getElementById('btn-back-to-crop').classList.add('hidden');
+
+  renderQEdit();
+  hide('guru-upload-panel'); show('guru-review-panel');
 }
 
 async function openResults(quizId, title){
