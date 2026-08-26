@@ -360,7 +360,7 @@
 <script type="module">
   // --- Koneksi Firebase (project: Web Soal Yana) ---
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, orderBy, documentId, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDj1i_QmZ8Ndk-yJ9KASPtGX7DFnSglIVs",
@@ -403,6 +403,27 @@
         return { key, deleted: true, shared: true };
       }catch(e){
         console.error('Firestore delete error:', e);
+        return null;
+      }
+    },
+    async list(prefix){
+      try{
+        // Firestore tidak punya "prefix search" bawaan, jadi disiasati
+        // dengan range query pada document ID: [prefix, prefix + '\uf8ff']
+        const p = prefix || '';
+        const colRef = collection(db, COLLECTION);
+        const q = query(
+          colRef,
+          where(documentId(), '>=', p),
+          where(documentId(), '<', p + '\uf8ff'),
+          orderBy(documentId())
+        );
+        const snap = await getDocs(q);
+        const keys = [];
+        snap.forEach(d => keys.push(d.id));
+        return { keys, prefix, shared: true };
+      }catch(e){
+        console.error('Firestore list error:', e);
         return null;
       }
     }
