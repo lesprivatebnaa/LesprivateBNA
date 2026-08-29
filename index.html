@@ -610,6 +610,7 @@
   let filters = {tentor:'', keluarga:'', kelas:'', honor:'', tagihan:'', absensi:''};
   let role = null; // 'admin' | null
   let payments = {}; // {familyId: true/false} untuk bulan berjalan
+  let honorPayments = {}; // {tentorId: true/false} untuk bulan berjalan — status honor tentor sudah dibayar atau belum
   let honorVisible = {}; // {bulan: true/false} — dibuka manual oleh Owner per bulan, dilihat tentor lewat link absen
   let expandedTentors = new Set();
 
@@ -637,10 +638,12 @@
     sessionsNoHonor = (await storeGet('sessionsNoHonor:'+month)) || {};
     kehadiran = (await storeGet('kehadiran:'+month)) || [];
     payments = (await storeGet('payments:'+month)) || {};
+    honorPayments = (await storeGet('honorPayments:'+month)) || {};
   }
   async function saveSessions(){ await storeSet('sessions:'+currentMonth, sessions); }
   async function saveKehadiran(){ await storeSet('kehadiran:'+currentMonth, kehadiran); }
   async function savePayments(){ await storeSet('payments:'+currentMonth, payments); }
+  async function saveHonorPayments(){ await storeSet('honorPayments:'+currentMonth, honorPayments); }
   function todayStr(){
     const d = new Date();
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -1793,15 +1796,31 @@
         ${monthPickerHtml()}
         <p style="color:var(--ink-soft); margin:8px 0 14px;">Total honor untuk tiap tentor pada ${monthLabel(currentMonth)}. Setiap tentor punya slip terpisah yang bisa dicetak atau disimpan sebagai PDF.</p>
         <div class="row" style="margin-bottom:16px;">${searchInputHtml('searchHonor','Cari kode atau nama tentor…', filters.honor)}</div>
-        <div class="group-list-scroll10"><div id="honorGroups"></div></div>
+        <h3 style="margin:4px 0 10px; color:var(--danger);">Belum Bayar</h3>
+        <div class="group-list-scroll10"><div id="honorUnpaid"></div></div>
+        <div class="divider"></div>
+        <h3 style="margin:4px 0 10px; color:var(--success);">Sudah Bayar</h3>
+        <div class="group-list-scroll10"><div id="honorPaid"></div></div>
       </div>
     `));
     bindMonthPicker();
     bindLiveSearch('searchHonor','honor');
 
-    const container = document.getElementById('honorGroups');
-    if(tentorIds.length===0){ container.appendChild(el(`<div class="empty"><h3>Tidak ditemukan</h3></div>`)); return; }
-    tentorIds.forEach(tid=>{
+    const containerUnpaid = document.getElementById('honorUnpaid');
+    const containerPaid = document.getElementById('honorPaid');
+
+    if(tentorIds.length===0){
+      containerUnpaid.appendChild(el(`<div class="empty"><h3>Tidak ditemukan</h3></div>`));
+      containerPaid.appendChild(el(`<div class="empty"><h3>Tidak ditemukan</h3></div>`));
+      return;
+    }
+
+    const unpaidIds = tentorIds.filter(tid=>!honorPayments[tid]);
+    const paidIds = tentorIds.filter(tid=>!!honorPayments[tid]);
+    if(unpaidIds.length===0) containerUnpaid.appendChild(el(`<div class="empty"><h3>Tidak ada honor yang belum dibayar</h3></div>`));
+    if(paidIds.length===0) containerPaid.appendChild(el(`<div class="empty"><h3>Belum ada yang sudah dibayar</h3></div>`));
+
+    function buildTentorCard(tid){
       const list = groups[tid];
       let total = 0;
       const rowsHtml = list.map(a=>{
@@ -1813,13 +1832,18 @@
       }).join('');
       const t = tentorById(tid);
       const isOpen = expandedTentors.has(tid);
-      const card = el(`
+      const paid = !!honorPayments[tid];
+      return el(`
         <div class="group-card">
           <div class="group-head">
             <span class="name name-toggle tentor-toggle" data-id="${tid}">
               <span class="toggle-arrow">${isOpen?'▼':'▶'}</span>${esc(tentorName(tid))} <span class="kode-tag">${t?t.kode:''}</span>
             </span>
             <div class="right">
+              <label class="pay-toggle ${paid?'paid':'unpaid'}">
+                <input type="checkbox" class="honor-pay-checkbox" data-id="${tid}" ${paid?'checked':''}>
+                <span>${paid?'Sudah Bayar':'Belum Bayar'}</span>
+              </label>
               <span class="total">${rupiah(total)}</span>
               <button class="btn secondary small print-tentor" data-id="${tid}">Cetak Invoice</button>
             </div>
@@ -1834,15 +1858,26 @@
           </div>
         </div>
       `);
-      container.appendChild(card);
-    });
-    container.querySelectorAll('.print-tentor').forEach(btn=>{
+    }
+
+    unpaidIds.forEach(tid=> containerUnpaid.appendChild(buildTentorCard(tid)));
+    paidIds.forEach(tid=> containerPaid.appendChild(buildTentorCard(tid)));
+
+    view.querySelectorAll('.print-tentor').forEach(btn=>{
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); showInvoice(buildTentorInvoice(btn.dataset.id)); });
     });
-    container.querySelectorAll('.tentor-toggle').forEach(elm=>{
+    view.querySelectorAll('.tentor-toggle').forEach(elm=>{
       elm.addEventListener('click', ()=>{
         const id = elm.dataset.id;
         if(expandedTentors.has(id)) expandedTentors.delete(id); else expandedTentors.add(id);
+        render();
+      });
+    });
+    view.querySelectorAll('.honor-pay-checkbox').forEach(cb=>{
+      cb.addEventListener('click', (e)=> e.stopPropagation());
+      cb.addEventListener('change', ()=>{
+        honorPayments[cb.dataset.id] = cb.checked;
+        saveHonorPayments();
         render();
       });
     });
