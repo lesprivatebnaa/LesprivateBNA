@@ -611,7 +611,6 @@
   let role = null; // 'admin' | null
   let payments = {}; // {familyId: true/false} untuk bulan berjalan
   let honorVisible = {}; // {bulan: true/false} — dibuka manual oleh Owner per bulan, dilihat tentor lewat link absen
-  let expandedFamilies = new Set();
   let expandedTentors = new Set();
 
   // ---------- akses Admin ----------
@@ -1850,6 +1849,12 @@
   }
 
   // ---------- INVOICE ORANG TUA ----------
+  // Catatan: setiap kartu keluarga defaultnya TERBUKA (breakdown langsung
+  // kelihatan tanpa perlu diklik dulu). "collapsedFamilies" menyimpan
+  // familyId yang sengaja DITUTUP oleh admin — kebalikan dari sebelumnya
+  // (yang defaultnya tertutup dan harus diklik untuk membuka).
+  let collapsedFamilies = new Set();
+
   function renderTagihan(view){
     const q = filters.tagihan.trim().toLowerCase();
     const groups = {};
@@ -1857,7 +1862,11 @@
     let familyIds = Object.keys(groups).sort((x,y)=>familyName(x).localeCompare(familyName(y)));
     if(q) familyIds = familyIds.filter(fid=>{
       const f = familyById(fid);
-      return f && (f.kode+' '+f.alamat).toLowerCase().includes(q);
+      const list = groups[fid] || [];
+      const childNames = list.map(a=>a.namaSiswa||'').join(' ');
+      const tentorNames = list.map(a=>tentorName(a.tentorId)).join(' ');
+      const haystack = (f?f.kode:'')+' '+(f?f.alamat:'')+' '+childNames+' '+tentorNames;
+      return haystack.toLowerCase().includes(q);
     });
 
     view.appendChild(el(`
@@ -1865,16 +1874,32 @@
         <h2 style="margin-bottom:16px;">Invoice Orang Tua</h2>
         ${monthPickerHtml()}
         <p style="color:var(--ink-soft); margin:8px 0 14px;">Total biaya les untuk ${monthLabel(currentMonth)}, digabung per keluarga — jika satu rumah punya 2–3 anak, semuanya masuk ke satu invoice yang sama.</p>
-        <div class="row" style="margin-bottom:16px;">${searchInputHtml('searchTagihan','Cari kode, nama, atau alamat keluarga…', filters.tagihan)}</div>
-        <div class="group-list-scroll10"><div id="tagihanGroups"></div></div>
+        <div class="row" style="margin-bottom:16px;">${searchInputHtml('searchTagihan','Cari kode, alamat, nama anak, atau nama tentor…', filters.tagihan)}</div>
+        <h3 style="margin:4px 0 10px; color:var(--danger);">Belum Bayar</h3>
+        <div class="group-list-scroll10"><div id="tagihanUnpaid"></div></div>
+        <div class="divider"></div>
+        <h3 style="margin:4px 0 10px; color:var(--success);">Sudah Bayar</h3>
+        <div class="group-list-scroll10"><div id="tagihanPaid"></div></div>
       </div>
     `));
     bindMonthPicker();
     bindLiveSearch('searchTagihan','tagihan');
 
-    const container = document.getElementById('tagihanGroups');
-    if(familyIds.length===0){ container.appendChild(el(`<div class="empty"><h3>Tidak ditemukan</h3></div>`)); return; }
-    familyIds.forEach(fid=>{
+    const containerUnpaid = document.getElementById('tagihanUnpaid');
+    const containerPaid = document.getElementById('tagihanPaid');
+
+    if(familyIds.length===0){
+      containerUnpaid.appendChild(el(`<div class="empty"><h3>Tidak ditemukan</h3></div>`));
+      containerPaid.appendChild(el(`<div class="empty"><h3>Tidak ditemukan</h3></div>`));
+      return;
+    }
+
+    const unpaidIds = familyIds.filter(fid=>!payments[fid]);
+    const paidIds = familyIds.filter(fid=>!!payments[fid]);
+    if(unpaidIds.length===0) containerUnpaid.appendChild(el(`<div class="empty"><h3>Tidak ada tagihan yang belum dibayar</h3></div>`));
+    if(paidIds.length===0) containerPaid.appendChild(el(`<div class="empty"><h3>Belum ada yang sudah bayar</h3></div>`));
+
+    function buildFamilyCard(fid){
       const list = groups[fid];
       let total = 0;
       const rowsHtml = list.map(a=>{
@@ -1885,13 +1910,16 @@
         return mainRow + catatanRow;
       }).join('');
       const f = familyById(fid);
-      const isOpen = expandedFamilies.has(fid);
+      const isOpen = !collapsedFamilies.has(fid);
       const paid = !!payments[fid];
-      const card = el(`
+      const childrenNames = [...new Set(list.map(a=>childLabel(a)))].join(', ');
+      return el(`
         <div class="group-card">
           <div class="group-head">
             <span class="name name-toggle fam-toggle" data-id="${fid}">
-              <span class="toggle-arrow">${isOpen?'▼':'▶'}</span>${esc(familyName(fid))} <span class="kode-tag">${f?f.kode:''}</span>
+              <span class="toggle-arrow">${isOpen?'▼':'▶'}</span>${esc(familyName(fid))}
+              ${childrenNames ? `<span class="sub">— Anak: ${esc(childrenNames)}</span>` : ''}
+              <span class="kode-tag">${f?f.kode:''}</span>
             </span>
             <div class="right">
               <label class="pay-toggle ${paid?'paid':'unpaid'}">
@@ -1912,19 +1940,22 @@
           </div>
         </div>
       `);
-      container.appendChild(card);
-    });
-    container.querySelectorAll('.print-family').forEach(btn=>{
+    }
+
+    unpaidIds.forEach(fid=> containerUnpaid.appendChild(buildFamilyCard(fid)));
+    paidIds.forEach(fid=> containerPaid.appendChild(buildFamilyCard(fid)));
+
+    view.querySelectorAll('.print-family').forEach(btn=>{
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); showInvoice(buildFamilyInvoice(btn.dataset.id)); });
     });
-    container.querySelectorAll('.fam-toggle').forEach(elm=>{
+    view.querySelectorAll('.fam-toggle').forEach(elm=>{
       elm.addEventListener('click', ()=>{
         const id = elm.dataset.id;
-        if(expandedFamilies.has(id)) expandedFamilies.delete(id); else expandedFamilies.add(id);
+        if(collapsedFamilies.has(id)) collapsedFamilies.delete(id); else collapsedFamilies.add(id);
         render();
       });
     });
-    container.querySelectorAll('.pay-checkbox').forEach(cb=>{
+    view.querySelectorAll('.pay-checkbox').forEach(cb=>{
       cb.addEventListener('click', (e)=> e.stopPropagation());
       cb.addEventListener('change', ()=>{
         payments[cb.dataset.id] = cb.checked;
