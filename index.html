@@ -111,6 +111,9 @@
   .table-wrap.scroll10{max-height:440px; overflow-y:auto;}
   .table-wrap.scroll10 table thead th{position:sticky; top:0; z-index:2;}
   .pill-input{width:64px; text-align:center; padding:6px 4px;}
+  .sesi-input.filled{background:var(--green-50); border-color:var(--success); color:var(--success); font-weight:700;}
+  .sesi-input.empty{background:var(--danger-soft); border-color:var(--danger); color:var(--danger); font-weight:700;}
+  .catatan-note-text{font-size:11px; color:var(--ink-soft); margin-top:3px; line-height:1.4;}
   .money{color:var(--blue-700); font-weight:700;}
   tr.catatan-row td{background:var(--blue-50);}
   tr.catatan-row:hover td{background:var(--blue-100);}
@@ -213,13 +216,14 @@
     display:flex; align-items:center; justify-content:space-between; gap:6px;
   }
   .rekap-section .rekap-title .kode-tag{font-size:9px; padding:1px 6px;}
-  .rekap-section table{width:100%; border-collapse:collapse; font-size:9.5px;}
+  .rekap-section table{width:100%; border-collapse:collapse; font-size:11px;}
   .rekap-section thead th{
-    text-align:left; padding:3px 3px; border-bottom:1.3px solid var(--blue-100); font-size:8px;
-    text-transform:uppercase; letter-spacing:.02em; color:var(--ink-soft); white-space:nowrap;
+    text-align:left; padding:4px 3px; border-bottom:1.3px solid var(--blue-100); font-size:9.5px;
+    text-transform:uppercase; letter-spacing:.02em; color:var(--ink); font-weight:700; white-space:nowrap;
   }
-  .rekap-section tbody td{padding:2.5px 3px; border-bottom:1px solid var(--line); line-height:1.25;}
+  .rekap-section tbody td{padding:3.5px 3px; border-bottom:1px solid var(--line); line-height:1.3; color:var(--ink);}
   .rekap-section tbody tr:last-child td{border-bottom:none;}
+  .rekap-section .rekap-total{display:flex; justify-content:space-between; align-items:center; margin-top:3px; padding-top:3px; border-top:1.3px solid var(--blue-100); font-size:10.5px; font-weight:700; color:var(--ink);}
 
   .role-badge{
     font-family:'Inter',sans-serif; font-weight:700; font-size:11px; letter-spacing:.03em; text-transform:uppercase;
@@ -247,9 +251,14 @@
 
   @media print{
     @page{margin:10mm;}
+    html, body{-webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important;}
     body > *:not(#invoiceOverlay){display:none !important;}
     #invoiceOverlay{position:static !important; background:#fff !important; padding:0 !important; display:block !important;}
-    #invoiceOverlay .invoice-sheet{box-shadow:none !important; max-width:100% !important; padding:0 !important;}
+    #invoiceOverlay .invoice-sheet{box-shadow:none !important; max-width:100% !important; padding:0 !important; color:#000 !important;}
+    #invoiceOverlay .invoice-sheet, #invoiceOverlay .invoice-sheet td, #invoiceOverlay .invoice-sheet th, #invoiceOverlay .invoice-sheet div, #invoiceOverlay .invoice-sheet span{
+      -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important;
+    }
+    #invoiceOverlay .invoice-sheet .money, #invoiceOverlay .invoice-sheet .num{font-weight:700 !important;}
     .no-print{display:none !important;}
     .rekap-grid{column-count:2; column-gap:14px;}
     .rekap-section{margin-bottom:8px;}
@@ -979,7 +988,7 @@
                 <td>${esc(childLabel(a))}</td>
                 <td class="num">${rupiah(a.biayaLes)}</td>
                 <td class="num">${rupiah(a.honorTentor)}</td>
-                <td><input type="number" min="0" class="pill-input sesi-input num" data-id="${a.id}" data-catatan="${c.jumlahCatatan}" value="${c.jumlahNormal}"></td>
+                <td><input type="number" min="0" class="pill-input sesi-input num ${c.jumlah>0?'filled':'empty'}" data-id="${a.id}" data-catatan="${c.jumlahCatatan}" value="${c.jumlahNormal}"></td>
                 <td class="num">${rupiah(c.feePertemuan)}</td>
                 ${isOwner() ? `
                 <td class="num money">${rupiah(c.totalBiaya)}</td>
@@ -1667,6 +1676,15 @@
     if(e.target.id==='invoiceOverlay') e.target.style.display='none';
   });
 
+  // Cegah scroll (mis. dua jari di touchpad) tidak sengaja mengubah angka
+  // pada input angka manapun (terutama "Jumlah Pertemuan" di Rekap Bulanan) —
+  // begitu ada scroll saat input angka sedang fokus, langsung lepas fokusnya
+  // supaya angka tidak berubah, tapi halaman tetap bisa discroll seperti biasa.
+  document.addEventListener('wheel', function(e){
+    const ae = document.activeElement;
+    if(ae && ae.tagName==='INPUT' && ae.type==='number'){ ae.blur(); }
+  }, {passive:true});
+
   function buildTentorInvoice(tid){
     const list = assignments.filter(a=>a.tentorId===tid && a.status!=='nonaktif');
     let total = 0;
@@ -1674,8 +1692,8 @@
       const c = calcRow(a);
       total += c.totalHonor;
       const cd = catatanRowData(a);
-      const mainRow = `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(familyName(a.familyId))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.honorTentor)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalHonor-(cd?cd.totalHonor:0))}</td></tr>`;
-      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(childLabel(a))} <span class="catatan-label">Catatan</span></td><td style="padding:6px 4px;">${esc(familyName(a.familyId))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td><td class="num" style="padding:6px 4px;text-align:right;">${moneyOrBelum(cd.honorRate,cd.belum)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${moneyOrBelum(cd.totalHonor,cd.belum)}</td></tr>` : '';
+      const mainRow = `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td></tr>`;
+      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(childLabel(a))} <span class="catatan-label">Catatan</span></td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td></tr>` : '';
       return mainRow + catatanRow;
     }).join('');
     const t = tentorById(tid);
@@ -1686,9 +1704,9 @@
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
         <thead><tr style="border-bottom:2px solid var(--blue-100);">
-          <th style="text-align:left;padding:6px 4px;">Siswa</th><th style="text-align:left;padding:6px 4px;">Alamat</th><th style="text-align:left;padding:6px 4px;">Tingkatan</th><th style="text-align:right;padding:6px 4px;">Pertemuan</th><th style="text-align:right;padding:6px 4px;">Honor/Pertemuan</th><th style="text-align:right;padding:6px 4px;">Subtotal</th>
+          <th style="text-align:left;padding:6px 4px;">Siswa</th><th style="text-align:right;padding:6px 4px;">Pertemuan</th>
         </tr></thead>
-        <tbody>${rows || `<tr><td colspan="6" style="padding:14px 4px;color:var(--ink-soft);">Belum ada data pertemuan bulan ini.</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="2" style="padding:14px 4px;color:var(--ink-soft);">Belum ada data pertemuan bulan ini.</td></tr>`}</tbody>
       </table>
       <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--blue-500);padding-top:12px;">
         <div style="font-weight:700;">Total Honor Diterima</div>
@@ -1780,6 +1798,53 @@
   }
 
   // ---------- SLIP HONOR TENTOR ----------
+  function buildHonorRekapPrintable(tentorIds, groups){
+    let grandTotal = 0;
+    const sections = tentorIds.map(tid=>{
+      const t = tentorById(tid);
+      const list = groups[tid] || [];
+      let sectionTotal = 0;
+      const body = list.map(a=>{
+        const c = calcRow(a);
+        const totalPertemuan = c.jumlahNormal + c.jumlahCatatan;
+        sectionTotal += c.totalHonor;
+        return `
+        <tr>
+          <td>${esc(childLabel(a))}</td>
+          <td class="num" style="text-align:right;">${totalPertemuan}x</td>
+        </tr>`;
+      }).join('');
+      grandTotal += sectionTotal;
+      return `
+      <div class="rekap-section">
+        <div class="rekap-title">
+          <span>${esc(t?t.nama:tentorName(tid))}</span> <span class="kode-tag">${t?t.kode:''}</span>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Anak</th><th style="text-align:right;">Prtm</th>
+          </tr></thead>
+          <tbody>${body || `<tr><td colspan="2" style="color:var(--ink);">Belum ada data.</td></tr>`}</tbody>
+        </table>
+        <div class="rekap-total"><span>Total Gaji ${esc(t?t.nama:tentorName(tid))}</span><span class="num money">${rupiah(sectionTotal)}</span></div>
+      </div>`;
+    }).join('');
+    return `
+      ${invoiceHeader('Rekap Slip Honor Tentor — Semua Tentor')}
+      <div class="rekap-grid">
+        ${sections || `<div style="padding:14px 4px;color:var(--ink);">Belum ada data.</div>`}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--blue-500);padding-top:12px;margin-top:16px;">
+        <div style="font-weight:700;">Total Gaji Semua Tentor</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:var(--blue-700);">${rupiah(grandTotal)}</div>
+      </div>
+      <div class="no-print" style="margin-top:24px;display:flex;gap:10px;">
+        <button class="btn small print-invoice">Cetak / Simpan PDF</button>
+        <button class="btn secondary small close-invoice">Tutup</button>
+      </div>
+    `;
+  }
+
   function renderHonor(view){
     const q = filters.honor.trim().toLowerCase();
     const groups = {};
@@ -1792,9 +1857,12 @@
 
     view.appendChild(el(`
       <div>
-        <h2 style="margin-bottom:16px;">Slip Honor Tentor</h2>
+        <div class="row between toolbar">
+          <h2 style="margin-bottom:0;">Slip Honor Tentor</h2>
+          <button class="btn secondary small" id="printHonorRekap">Cetak Rekap Semua / PDF</button>
+        </div>
         ${monthPickerHtml()}
-        <p style="color:var(--ink-soft); margin:8px 0 14px;">Total honor untuk tiap tentor pada ${monthLabel(currentMonth)}. Setiap tentor punya slip terpisah yang bisa dicetak atau disimpan sebagai PDF.</p>
+        <p style="color:var(--ink-soft); margin:8px 0 14px;">Total honor untuk tiap tentor pada ${monthLabel(currentMonth)}. Setiap tentor punya slip terpisah yang bisa dicetak atau disimpan sebagai PDF, atau cetak rekap gabungan semua tentor sekaligus lewat tombol di atas (berisi nama tentor, nama anak, jumlah pertemuan, dan total gaji).</p>
         <div class="row" style="margin-bottom:16px;">${searchInputHtml('searchHonor','Cari kode atau nama tentor…', filters.honor)}</div>
         <h3 style="margin:4px 0 10px; color:var(--danger);">Belum Bayar</h3>
         <div class="group-list-scroll10"><div id="honorUnpaid"></div></div>
@@ -1862,6 +1930,9 @@
 
     unpaidIds.forEach(tid=> containerUnpaid.appendChild(buildTentorCard(tid)));
     paidIds.forEach(tid=> containerPaid.appendChild(buildTentorCard(tid)));
+
+    const printHonorRekapBtn = document.getElementById('printHonorRekap');
+    if(printHonorRekapBtn) printHonorRekapBtn.addEventListener('click', ()=> showInvoice(buildHonorRekapPrintable(tentorIds, groups)));
 
     view.querySelectorAll('.print-tentor').forEach(btn=>{
       btn.addEventListener('click', (e)=>{ e.stopPropagation(); showInvoice(buildTentorInvoice(btn.dataset.id)); });
@@ -1941,7 +2012,9 @@
         const c = calcRow(a); total += c.totalBiaya;
         const cd = catatanRowData(a);
         const mainRow = `<tr><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))}</td><td class="num">${c.jumlahNormal}x</td><td class="num">${rupiah(a.biayaLes)}</td><td class="num money">${rupiah(c.totalBiaya-(cd?cd.totalBiaya:0))}</td></tr>`;
-        const catatanRow = cd ? `<tr class="catatan-row"><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span></td><td class="num">${cd.count}x</td><td class="num">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num money">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
+        const notes = cd ? kehadiran.filter(r=>r.assignmentId===a.id && r.catatan).map(r=>r.catatan) : [];
+        const notesHtml = notes.length ? `<div class="catatan-note-text">${notes.map(n=>`📝 ${esc(n)}`).join('<br>')}</div>` : '';
+        const catatanRow = cd ? `<tr class="catatan-row"><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span>${notesHtml}</td><td class="num">${cd.count}x</td><td class="num">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num money">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
         return mainRow + catatanRow;
       }).join('');
       const f = familyById(fid);
