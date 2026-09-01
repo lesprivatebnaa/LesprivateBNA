@@ -6,6 +6,7 @@
 <title>Buku Kas — Les Private BNA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --bg:#EEF3FF;
@@ -1676,6 +1677,42 @@
     if(e.target.id==='invoiceOverlay') e.target.style.display='none';
   });
 
+  // ---------- DOWNLOAD INVOICE LANGSUNG JADI JPG (tanpa PDF, tanpa dialog print) ----------
+  // Invoice dirender diam-diam di luar layar (posisinya digeser jauh ke kiri),
+  // difoto pakai html2canvas, lalu langsung didownload sebagai file .jpg.
+  // Elemen dengan class "no-print" (tombol Cetak/Tutup) otomatis tidak ikut terfoto.
+  async function downloadInvoiceAsJpg(sheetHtml, filename){
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed; left:-9999px; top:0; z-index:-1;';
+    wrapper.innerHTML = `<div class="invoice-sheet" style="max-width:680px;width:680px;background:#fff;padding:32px;color:#000;">${sheetHtml}</div>`;
+    document.body.appendChild(wrapper);
+    const target = wrapper.firstElementChild;
+    try{
+      // Tunggu font selesai dimuat supaya hasil foto tidak pakai font fallback.
+      if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+      const canvas = await html2canvas(target, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        ignoreElements: (elm)=> elm.classList && elm.classList.contains('no-print')
+      });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }catch(err){
+      alert('Gagal membuat file JPG invoice: ' + (err && err.message ? err.message : err));
+    }finally{
+      wrapper.remove();
+    }
+  }
+  function safeFileName(s){
+    return String(s||'').trim().replace(/[\\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').slice(0,80) || 'invoice';
+  }
+
   // Cegah scroll (mis. dua jari di touchpad) tidak sengaja mengubah angka
   // pada input angka manapun (terutama "Jumlah Pertemuan" di Rekap Bulanan) —
   // begitu ada scroll saat input angka sedang fokus, langsung lepas fokusnya
@@ -1724,11 +1761,13 @@
       total += c.totalBiaya;
       const cd = catatanRowData(a);
       const mainRow = `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(a.biayaLes)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalBiaya-(cd?cd.totalBiaya:0))}</td></tr>`;
-      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span></td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td><td class="num" style="padding:6px 4px;text-align:right;">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
+      const notes = cd ? kehadiran.filter(r=>r.assignmentId===a.id && r.catatan).map(r=>r.catatan) : [];
+      const notesHtml = notes.length ? `<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;line-height:1.4;">${notes.map(n=>`📝 ${esc(n)}`).join('<br>')}</div>` : '';
+      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span>${notesHtml}</td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td><td class="num" style="padding:6px 4px;text-align:right;">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
       return mainRow + catatanRow;
     }).join('');
     const f = familyById(fid);
-    const childNames = list.map(a=>childLabel(a)).join(', ') || (f?f.alamat:'');
+    const childNames = [...new Set(list.map(a=>childLabel(a)))].join(', ') || (f?f.alamat:'');
     return `
       ${invoiceHeader('Invoice Biaya Les')}
       <div style="margin-bottom:16px;">
@@ -2035,7 +2074,7 @@
                 <span>${paid?'Sudah Bayar':'Belum Bayar'}</span>
               </label>
               <span class="total">${rupiah(total)}</span>
-              <button class="btn secondary small print-family" data-id="${fid}">Cetak Invoice</button>
+              <button class="btn secondary small print-family" data-id="${fid}">⬇ Download JPG</button>
             </div>
           </div>
           <div class="group-body" style="${isOpen?'':'display:none;'}">
@@ -2054,7 +2093,21 @@
     paidIds.forEach(fid=> containerPaid.appendChild(buildFamilyCard(fid)));
 
     view.querySelectorAll('.print-family').forEach(btn=>{
-      btn.addEventListener('click', (e)=>{ e.stopPropagation(); showInvoice(buildFamilyInvoice(btn.dataset.id)); });
+      btn.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        const fid = btn.dataset.id;
+        const f = familyById(fid);
+        const nama = safeFileName(f ? f.alamat : fid);
+        const bulan = safeFileName(monthLabel(currentMonth));
+        const filename = `Invoice - ${nama} - ${bulan}.jpg`;
+        const oldText = btn.textContent;
+        btn.disabled = true; btn.textContent = 'Menyiapkan…';
+        try{
+          await downloadInvoiceAsJpg(buildFamilyInvoice(fid), filename);
+        } finally {
+          btn.disabled = false; btn.textContent = oldText;
+        }
+      });
     });
     view.querySelectorAll('.fam-toggle').forEach(elm=>{
       elm.addEventListener('click', ()=>{
