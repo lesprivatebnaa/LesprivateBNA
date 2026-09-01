@@ -95,6 +95,8 @@
   .btn:hover{filter:brightness(1.06); box-shadow:0 6px 16px rgba(76,111,245,0.32);}
   .btn.secondary{background:#fff; color:var(--blue-700); border-color:var(--blue-300); box-shadow:none;}
   .btn.secondary:hover{background:var(--blue-50);}
+  .btn.secondary.downloaded{background:var(--ink); border-color:var(--ink); color:#fff;}
+  .btn.secondary.downloaded:hover{background:#0F1430; border-color:#0F1430;}
   .btn.danger{background:#fff; border-color:var(--danger); color:var(--danger); box-shadow:none;}
   .btn.danger:hover{background:var(--danger-soft);}
   .btn.small{padding:6px 12px; font-size:12px; border-radius:7px;}
@@ -2000,6 +2002,20 @@
   // (yang defaultnya tertutup dan harus diklik untuk membuka).
   let collapsedFamilies = new Set();
 
+  // Menyimpan alamat mana saja yang invoice-nya sudah pernah didownload
+  // (per bulan), supaya tombolnya tetap terlihat gelap walau halaman
+  // di-refresh. Disimpan di penyimpanan lokal perangkat ini saja.
+  let downloadedInvoices = new Set();
+  try{
+    const saved = JSON.parse(localStorage.getItem('downloadedInvoices') || '[]');
+    downloadedInvoices = new Set(saved);
+  }catch(e){}
+  function downloadedKey(fid){ return `${fid}__${currentMonth}`; }
+  function markInvoiceDownloaded(fid){
+    downloadedInvoices.add(downloadedKey(fid));
+    try{ localStorage.setItem('downloadedInvoices', JSON.stringify([...downloadedInvoices])); }catch(e){}
+  }
+
   function renderTagihan(view){
     const q = filters.tagihan.trim().toLowerCase();
     const groups = {};
@@ -2074,7 +2090,7 @@
                 <span>${paid?'Sudah Bayar':'Belum Bayar'}</span>
               </label>
               <span class="total">${rupiah(total)}</span>
-              <button class="btn secondary small print-family" data-id="${fid}">⬇ Download JPG</button>
+              <button class="btn secondary small print-family${downloadedInvoices.has(downloadedKey(fid))?' downloaded':''}" data-id="${fid}">${downloadedInvoices.has(downloadedKey(fid))?'✓ Sudah Didownload':'⬇ Download JPG'}</button>
             </div>
           </div>
           <div class="group-body" style="${isOpen?'':'display:none;'}">
@@ -2104,8 +2120,13 @@
         btn.disabled = true; btn.textContent = 'Menyiapkan…';
         try{
           await downloadInvoiceAsJpg(buildFamilyInvoice(fid), filename);
+          markInvoiceDownloaded(fid);
+          btn.classList.add('downloaded');
+          btn.textContent = '✓ Sudah Didownload';
+        } catch(err){
+          btn.textContent = oldText;
         } finally {
-          btn.disabled = false; btn.textContent = oldText;
+          btn.disabled = false;
         }
       });
     });
