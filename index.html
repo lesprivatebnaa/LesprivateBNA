@@ -2039,10 +2039,10 @@
         ${monthPickerHtml()}
         <p style="color:var(--ink-soft); margin:8px 0 14px;">Total biaya les untuk ${monthLabel(currentMonth)}, digabung per keluarga — jika satu rumah punya 2–3 anak, semuanya masuk ke satu invoice yang sama.</p>
         <div class="row" style="margin-bottom:16px;">${searchInputHtml('searchTagihan','Cari kode, alamat, nama anak, atau nama tentor…', filters.tagihan)}</div>
-        <h3 style="margin:4px 0 10px; color:var(--danger);">Belum Bayar</h3>
+        <h3 style="margin:4px 0 10px; color:var(--danger); display:flex; justify-content:space-between; align-items:baseline; gap:10px;"><span>Belum Bayar</span><span class="num" id="tagihanUnpaidTotal" style="font-size:15px;">Rp0</span></h3>
         <div class="group-list-scroll10"><div id="tagihanUnpaid"></div></div>
         <div class="divider"></div>
-        <h3 style="margin:4px 0 10px; color:var(--success);">Sudah Bayar</h3>
+        <h3 style="margin:4px 0 10px; color:var(--success); display:flex; justify-content:space-between; align-items:baseline; gap:10px;"><span>Sudah Bayar</span><span class="num" id="tagihanPaidTotal" style="font-size:15px;">Rp0</span></h3>
         <div class="group-list-scroll10"><div id="tagihanPaid"></div></div>
       </div>
     `));
@@ -2062,6 +2062,20 @@
     const paidIds = familyIds.filter(fid=>!!payments[fid]);
     if(unpaidIds.length===0) containerUnpaid.appendChild(el(`<div class="empty"><h3>Tidak ada tagihan yang belum dibayar</h3></div>`));
     if(paidIds.length===0) containerPaid.appendChild(el(`<div class="empty"><h3>Belum ada yang sudah bayar</h3></div>`));
+
+    // Total biaya per keluarga (dipakai buat kartu maupun buat totalan
+    // "Belum Bayar" / "Sudah Bayar" di atas — ikut berubah otomatis tiap
+    // kali status bayar sebuah keluarga di-toggle, karena renderTagihan()
+    // dipanggil ulang oleh render().
+    function familyTotal(fid){
+      return groups[fid].reduce((sum,a)=> sum + calcRow(a).totalBiaya, 0);
+    }
+    const totalUnpaid = unpaidIds.reduce((sum,fid)=> sum + familyTotal(fid), 0);
+    const totalPaid = paidIds.reduce((sum,fid)=> sum + familyTotal(fid), 0);
+    const unpaidHeader = document.getElementById('tagihanUnpaidTotal');
+    const paidHeader = document.getElementById('tagihanPaidTotal');
+    if(unpaidHeader) unpaidHeader.textContent = rupiah(totalUnpaid);
+    if(paidHeader) paidHeader.textContent = rupiah(totalPaid);
 
     function buildFamilyCard(fid){
       const list = groups[fid];
