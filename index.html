@@ -97,6 +97,9 @@
   .btn.secondary:hover{background:var(--blue-50);}
   .btn.secondary.downloaded{background:var(--ink); border-color:var(--ink); color:#fff;}
   .btn.secondary.downloaded:hover{background:#0F1430; border-color:#0F1430;}
+  .btn.absen-done{background:var(--success); border-color:var(--success); color:#fff; box-shadow:none; cursor:default; opacity:0.95;}
+  .btn.absen-done:hover{filter:none; box-shadow:none;}
+  .btn.absen-done:disabled{opacity:0.95;}
   .btn.danger{background:#fff; border-color:var(--danger); color:var(--danger); box-shadow:none;}
   .btn.danger:hover{background:var(--danger-soft);}
   .btn.small{padding:6px 12px; font-size:12px; border-radius:7px;}
@@ -2482,7 +2485,13 @@ service cloud.firestore {
         </div>
         ${list.length===0 ? `<div class="empty"><h3>Belum ada kelas</h3><p>Anda belum terdaftar mengajar kelas manapun. Hubungi admin.</p></div>` :
         list.map(a=>{
-          const sudah = kLog.filter(r=>r.assignmentId===a.id).length;
+          const ABSEN_COOLDOWN_MS = 2*60*60*1000; // 2 jam
+          const recsA = kLog.filter(r=>r.assignmentId===a.id);
+          const lastRec = recsA.reduce((max,r)=> (!max || new Date(r.waktu) > new Date(max.waktu)) ? r : max, null);
+          const elapsedMs = lastRec ? (Date.now() - new Date(lastRec.waktu).getTime()) : Infinity;
+          const cooldownActive = !!lastRec && elapsedMs < ABSEN_COOLDOWN_MS && isToday;
+          const jamAbsen = lastRec ? new Date(lastRec.waktu).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
+          const jamBoleh = lastRec ? new Date(new Date(lastRec.waktu).getTime()+ABSEN_COOLDOWN_MS).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : '';
           const bulanIni = sess[a.id]||0;
           return `
           <div class="group-card">
@@ -2491,12 +2500,13 @@ service cloud.firestore {
               <div class="right"><span class="kode-tag">${bulanIni}x bulan ini</span></div>
             </div>
             <div class="group-body" style="padding-top:12px;">
-              ${sudah>0 ? `<div class="banner" style="background:#DFF5E8;border-color:#BFE8D2;color:var(--success);">✓ Sudah dicatat ${sudah}x pada tanggal ini</div>` : ''}
               <div style="display:flex;flex-direction:column;gap:8px;">
-                <button class="btn absen-mark" data-id="${a.id}" style="width:100%;font-size:15px;padding:14px 18px;">${sudah>0?'Catat Sesi Tambahan':'✓ Tandai Sudah Mengajar'}</button>
-                <button class="btn secondary absen-note" data-id="${a.id}" style="width:100%;font-size:13.5px;padding:11px 16px;">📝 Tandai dengan Catatan</button>
+                <button class="btn ${cooldownActive?'absen-done':'absen-mark'}" data-id="${a.id}" ${cooldownActive?'disabled':''} style="width:100%;font-size:15px;padding:14px 18px;">${cooldownActive?'✓ Sudah Absen':'✓ Tandai Sudah Mengajar'}</button>
+                <button class="btn ${cooldownActive?'absen-done':'secondary absen-note'}" data-id="${a.id}" ${cooldownActive?'disabled':''} style="width:100%;font-size:13.5px;padding:11px 16px;">${cooldownActive?'✓ Sudah Absen':'📝 Tandai dengan Catatan'}</button>
               </div>
-              <div style="font-size:11px;color:var(--ink-soft);margin-top:8px;">"Tandai dengan Catatan" dipakai kalau ada kejadian di luar biasa (mis. cuma 1 murid hadir) — tetap tercatat mengajar, tapi honornya diisi manual oleh admin sesuai kejadian, bukan otomatis.</div>
+              ${cooldownActive
+                ? `<div style="font-size:11px;color:var(--ink-soft);margin-top:8px;">Sudah absen jam ${jamAbsen}. Bisa absen lagi mulai jam ${jamBoleh} (2 jam kemudian) — mis. kalau memang mengajar 2x hari ini. Kalau ada kejadian khusus lain, hubungi admin.</div>`
+                : `<div style="font-size:11px;color:var(--ink-soft);margin-top:8px;">"Tandai dengan Catatan" dipakai kalau ada kejadian di luar biasa (mis. cuma 1 murid hadir) — tetap tercatat mengajar, tapi honornya diisi manual oleh admin sesuai kejadian, bukan otomatis.${lastRec && isToday?` Terakhir ditandai jam ${jamAbsen}.`:''}</div>`}
             </div>
           </div>`;
         }).join('')}
