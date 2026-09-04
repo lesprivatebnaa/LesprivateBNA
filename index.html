@@ -622,6 +622,7 @@
   let activeTab = 'rekap';
   let loaded = false;
   let editingAssignmentId = null;
+  let openHistoryIds = new Set(); // id kelas yang panel "Riwayat status"-nya sedang terbuka
   let filters = {tentor:'', keluarga:'', kelas:'', honor:'', tagihan:'', absensi:''};
   let role = null; // 'admin' | null
   let payments = {}; // {familyId: true/false} untuk bulan berjalan
@@ -714,6 +715,26 @@
     assignments.forEach(a=>{
       if(!a.status){ a.status='aktif'; changed=true; }
       if(a.mulaiBulan===undefined){ a.mulaiBulan=''; changed=true; }
+      if(a.nonaktifBulan===undefined){ a.nonaktifBulan=''; changed=true; }
+      // Migrasi ke riwayat status per-bulan (statusHistory) — supaya kelas
+      // yang naik-turun aktif/nonaktif berkali-kali tetap tercatat lengkap,
+      // bukan cuma "titik nonaktif terakhir" saja.
+      if(!Array.isArray(a.statusHistory)){
+        a.statusHistory = [];
+        if(a.status==='nonaktif'){
+          // data lama: kalau ada nonaktifBulan, anggap aktif sebelum bulan itu;
+          // kalau tidak ada info sama sekali, anggap nonaktif sejak awal (bulan '').
+          if(a.nonaktifBulan){
+            a.statusHistory.push({bulan:'', status:'aktif'});
+            a.statusHistory.push({bulan:a.nonaktifBulan, status:'nonaktif'});
+          } else {
+            a.statusHistory.push({bulan:'', status:'nonaktif'});
+          }
+        } else {
+          a.statusHistory.push({bulan:'', status:'aktif'});
+        }
+        changed = true;
+      }
     });
     if(changed){
       await storeSet('tentors', tentors);
@@ -728,6 +749,37 @@
   function tentorName(id){ const t=tentorById(id); return t? t.nama : '(tentor dihapus)'; }
   function familyName(id){ const f=familyById(id); return f? (f.alamat||'(tanpa alamat)') : '(alamat dihapus)'; }
   function childKey(a){ return (a.familyId||'')+'|'+(a.namaSiswa||'').trim().toLowerCase(); }
+  // Status aktif/nonaktif sebuah kelas dicatat sebagai RIWAYAT per-bulan
+  // (a.statusHistory = [{bulan:'YYYY-MM', status:'aktif'|'nonaktif'}, ...]),
+  // bukan cuma satu nilai global — supaya kelas yang naik-turun aktif/nonaktif
+  // berkali-kali (mis. off sebentar lalu aktif lagi) tetap akurat per bulan,
+  // dan rekap bulan-bulan yang sudah lewat tidak pernah ikut berubah.
+  // Aturannya: status yang berlaku di suatu bulan = entri riwayat TERAKHIR
+  // yang bulannya <= bulan tersebut (bulan kosong '' berarti "sejak awal").
+  function sortedHistory(a){
+    return (a.statusHistory||[]).slice().sort((x,y)=> x.bulan<y.bulan?-1:(x.bulan>y.bulan?1:0));
+  }
+  function statusAtMonth(a, month){
+    const hist = sortedHistory(a).filter(h=>h.bulan<=month);
+    if(hist.length===0) return 'aktif'; // belum ada riwayat -> anggap aktif secara default
+    return hist[hist.length-1].status;
+  }
+  function isActiveInMonth(a, month){
+    if(a.mulaiBulan && a.mulaiBulan > month) return false; // belum mulai di bulan ini
+    return statusAtMonth(a, month) !== 'nonaktif';
+  }
+  // Tambah/ubah satu titik riwayat status untuk bulan tertentu. Kalau sudah
+  // ada entri di bulan yang sama, nilainya ditimpa (bukan menumpuk duplikat).
+  function setStatusAtMonth(a, month, status){
+    if(!Array.isArray(a.statusHistory)) a.statusHistory = [];
+    const existing = a.statusHistory.find(h=>h.bulan===month);
+    if(existing) existing.status = status;
+    else a.statusHistory.push({bulan:month, status});
+    // status "ringkas" dipakai di beberapa tempat non-bulanan (mis. daftar
+    // pilihan kelas) -> selalu ikuti status riwayat paling akhir/terkini.
+    const hist = sortedHistory(a);
+    a.status = hist.length ? hist[hist.length-1].status : 'aktif';
+  }
   function childLabel(a){
     const nama = (a.namaSiswa||'').trim();
     const ket = (a.keterangan||'').trim();
@@ -908,8 +960,8 @@
   // ---------- REKAP BULANAN ----------
   function renderRekap(view){
     const q = filters.kelas.trim().toLowerCase();
-    const activeAssignments = assignments.filter(a=>a.status!=='nonaktif');
-    const inactiveAssignments = assignments.filter(a=>a.status==='nonaktif');
+    const activeAssignments = assignments.filter(a=>isActiveInMonth(a, currentMonth));
+    const inactiveAssignments = assignments.filter(a=>!isActiveInMonth(a, currentMonth));
     const rows = activeAssignments.map(a=>({a, c:calcRow(a)}));
     const totBiaya = rows.reduce((s,r)=>s+r.c.totalBiaya,0);
     const totHonor = rows.reduce((s,r)=>s+r.c.totalHonor,0);
@@ -947,7 +999,7 @@
           </div>
         </div>
         ${monthPickerHtml()}
-        <div class="banner">Data tentor, alamat, dan kelas tersimpan permanen — bulan berikutnya Anda hanya perlu mengisi ulang kolom "Jumlah Pertemuan" di bawah ini. Hanya kelas berstatus <b>Aktif</b> yang tampil di rekap ini.</div>
+        <div class="banner">Data tentor, alamat, dan kelas tersimpan permanen — bulan berikutnya Anda hanya perlu mengisi ulang kolom "Jumlah Pertemuan" di bawah ini. Hanya kelas yang aktif <b>pada bulan ${monthLabel(currentMonth)}</b> yang tampil di rekap ini — kalau sebuah kelas dinonaktifkan bulan lain, rekap bulan ini tidak ikut berubah.</div>
         ${isOwner() ? `
         <div class="stat-grid">
           <div class="stat"><div class="label">Total Biaya Les — ${monthLabel(currentMonth)}</div><div class="value">${rupiah(totBiaya)}</div></div>
@@ -1180,7 +1232,7 @@
     const manKelasSel = document.getElementById('manKelas');
     manTentorSel.addEventListener('change', ()=>{
       const tid = manTentorSel.value;
-      const opts = assignments.filter(a=>a.tentorId===tid && a.status!=='nonaktif');
+      const opts = assignments.filter(a=>a.tentorId===tid && isActiveInMonth(a, currentMonth));
       manKelasSel.innerHTML = !tid ? `<option value="">Pilih tentor dahulu…</option>` :
         opts.length ? `<option value="">Pilih kelas…</option>`+opts.map(a=>`<option value="${a.id}">${esc(childLabel(a))} — ${esc(familyName(a.familyId))}</option>`).join('')
         : `<option value="">(tentor ini belum punya kelas aktif)</option>`;
@@ -1457,8 +1509,9 @@
     const honorOptions = RATE_OPTIONS.map(v=>({value:String(v), label:rupiah(v)})).concat([rateManualOption]);
 
     const filteredList = assignments.filter(a=>{
-      if(statusFilter==='aktif' && a.status==='nonaktif') return false;
-      if(statusFilter==='nonaktif' && a.status!=='nonaktif') return false;
+      const activeNow = isActiveInMonth(a, currentMonth);
+      if(statusFilter==='aktif' && !activeNow) return false;
+      if(statusFilter==='nonaktif' && activeNow) return false;
       if(!q) return true;
       const hay = (tentorName(a.tentorId)+' '+familyName(a.familyId)+' '+a.namaSiswa+' '+(a.keterangan||'')).toLowerCase();
       return hay.includes(q);
@@ -1467,7 +1520,7 @@
     view.appendChild(el(`
       <div>
         <h2 style="margin-bottom:16px;">Siswa &amp; Kelas</h2>
-        <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang. Kalau ada 2 siswa dengan nama sama persis yang diajar tentor yang sama, isi kolom "Keterangan Pembeda" — sistem akan otomatis mengingatkan Anda saat ini terjadi.</div>
+        <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang. <b>Rekap bulan-bulan sebelum kelas dinonaktifkan tidak akan berubah/terkunci</b> — kolom "sejak" menandai mulai bulan mana kelas ini hilang dari rekap; ubah manual kalau perlu bulan lain. Kalau ada 2 siswa dengan nama sama persis yang diajar tentor yang sama, isi kolom "Keterangan Pembeda" — sistem akan otomatis mengingatkan Anda saat ini terjadi.</div>
         ${tentors.length===0 ? `<div class="banner">Tambahkan tentor terlebih dahulu di tab "Tentor".</div>` : ''}
         ${families.length===0 ? `<div class="banner">Tambahkan data alamat terlebih dahulu di tab "Orang Tua".</div>` : ''}
         <div class="form-grid" id="newAssignForm">
@@ -1537,14 +1590,19 @@
         filteredList.length===0 ? `<div class="empty"><h3>Tidak ditemukan</h3></div>` : `
         <div class="table-wrap scroll10">
         <table>
-          <thead><tr><th>Status</th><th>Tentor</th><th>Siswa</th><th>Alamat</th><th>Tingkatan</th><th>Biaya/Pertemuan</th><th>Honor/Pertemuan</th><th>Fee/Pertemuan</th><th></th></tr></thead>
+          <thead><tr><th>Status — ${monthLabel(currentMonth)}</th><th>Tentor</th><th>Siswa</th><th>Alamat</th><th>Tingkatan</th><th>Biaya/Pertemuan</th><th>Honor/Pertemuan</th><th>Fee/Pertemuan</th><th></th></tr></thead>
           <tbody>
             ${filteredList.map(a=>{
               const clash = findNameClash(a.namaSiswa, a.familyId, a.tentorId, a.id);
               const needsWarning = clash && !(a.keterangan||'').trim() && !(clash.keterangan||'').trim();
-              return `
+              const activeNow = isActiveInMonth(a, currentMonth);
+              const historyOpen = openHistoryIds.has(a.id);
+              const mainRow = `
               <tr data-id="${a.id}">
-                <td><span class="kode-tag" style="${a.status==='nonaktif'?'background:var(--danger-soft);color:var(--danger);':'background:#DFF5E8;color:var(--success);'}">${a.status==='nonaktif'?'Nonaktif':'Aktif'}</span></td>
+                <td>
+                  <span class="kode-tag" style="${activeNow?'background:#DFF5E8;color:var(--success);':'background:var(--danger-soft);color:var(--danger);'}">${activeNow?'Aktif':'Nonaktif'}</span>
+                  <div><button class="icon-btn toggle-history" data-id="${a.id}" style="margin-top:4px;font-size:10.5px;padding:2px 6px;">${historyOpen?'Tutup riwayat':'Riwayat status'}${(a.statusHistory||[]).length>1?` (${a.statusHistory.length})`:''}</button></div>
+                </td>
                 <td>${esc(tentorName(a.tentorId))} <span class="kode-tag">${tentorById(a.tentorId)?tentorById(a.tentorId).kode:''}</span></td>
                 <td>${esc(childLabel(a))}${needsWarning?` <span class="kode-tag" style="background:var(--danger-soft);color:var(--danger);" title="Ada siswa lain dengan nama sama diajar tentor yang sama ini — isi Keterangan Pembeda">⚠ nama sama</span>`:''}</td>
                 <td>${esc(familyName(a.familyId))} <span class="kode-tag">${familyById(a.familyId)?familyById(a.familyId).kode:''}</span></td>
@@ -1553,11 +1611,43 @@
                 <td class="num">${rupiah(a.honorTentor)}</td>
                 <td class="num">${rupiah(Math.max(0,(a.biayaLes||0)-(a.honorTentor||0)))}</td>
                 <td>
-                  <button class="icon-btn edit-btn toggle-status" data-id="${a.id}">${a.status==='nonaktif'?'Aktifkan':'Nonaktifkan'}</button>
+                  <button class="icon-btn edit-btn toggle-status" data-id="${a.id}">${activeNow?'Nonaktifkan':'Aktifkan'}</button>
                   <button class="icon-btn edit-btn edit-assign" data-id="${a.id}">Ubah</button>
                   <button class="icon-btn del-assign" data-id="${a.id}">Hapus</button>
                 </td>
-              </tr>`;}).join('')}
+              </tr>`;
+              const historyRow = historyOpen ? `
+              <tr class="catatan-row" data-history-for="${a.id}">
+                <td colspan="9" style="padding:12px 14px;">
+                  <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">Riwayat naik-turun status kelas ${esc(childLabel(a))}. Status yang berlaku di suatu bulan = titik riwayat terakhir yang bulannya ≤ bulan itu. Bulan kosong berarti "sejak awal". Tombol Nonaktifkan/Aktifkan di atas otomatis menambah titik baru di bulan ${monthLabel(currentMonth)}.</div>
+                  <table style="width:100%;font-size:12.5px;margin-bottom:8px;">
+                    <thead><tr><th style="text-align:left;">Berlaku mulai</th><th style="text-align:left;">Status</th><th></th></tr></thead>
+                    <tbody>
+                      ${sortedHistory(a).map((h,idx)=>`
+                        <tr>
+                          <td><input type="month" class="hist-bulan-input" data-id="${a.id}" data-idx="${idx}" value="${h.bulan||''}" placeholder="(sejak awal)" style="font-size:12px;padding:3px 5px;"></td>
+                          <td>
+                            <select class="hist-status-input" data-id="${a.id}" data-idx="${idx}" style="font-size:12px;padding:3px 5px;">
+                              <option value="aktif" ${h.status==='aktif'?'selected':''}>Aktif</option>
+                              <option value="nonaktif" ${h.status==='nonaktif'?'selected':''}>Nonaktif</option>
+                            </select>
+                          </td>
+                          <td><button class="icon-btn del-history" data-id="${a.id}" data-idx="${idx}" style="font-size:11px;padding:2px 6px;">Hapus</button></td>
+                        </tr>`).join('')}
+                    </tbody>
+                  </table>
+                  <div class="row" style="gap:6px;align-items:center;">
+                    <input type="month" id="newHistBulan_${a.id}" style="font-size:12px;padding:3px 5px;">
+                    <select id="newHistStatus_${a.id}" style="font-size:12px;padding:3px 5px;">
+                      <option value="aktif">Aktif</option>
+                      <option value="nonaktif">Nonaktif</option>
+                    </select>
+                    <button class="icon-btn edit-btn add-history" data-id="${a.id}" style="font-size:12px;">+ Tambah titik status</button>
+                  </div>
+                </td>
+              </tr>` : '';
+              return mainRow + historyRow;
+            }).join('')}
           </tbody>
         </table>
         </div>`}
@@ -1625,7 +1715,76 @@
     view.querySelectorAll('.toggle-status').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const a = assignments.find(x=>x.id===btn.dataset.id);
-        a.status = a.status==='nonaktif' ? 'aktif' : 'nonaktif';
+        const turningOff = isActiveInMonth(a, currentMonth);
+        // Titik riwayat baru berlaku MULAI bulan yang sedang dilihat (currentMonth)
+        // — bulan-bulan SEBELUMNYA tetap seperti semula (terkunci). Kalau perlu
+        // titik status di bulan lain, pakai panel "Riwayat status".
+        setStatusAtMonth(a, currentMonth, turningOff ? 'nonaktif' : 'aktif');
+        render();
+        storeSet('assignments', assignments);
+      });
+    });
+    view.querySelectorAll('.toggle-history').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.dataset.id;
+        if(openHistoryIds.has(id)) openHistoryIds.delete(id); else openHistoryIds.add(id);
+        render();
+      });
+    });
+    view.querySelectorAll('.hist-bulan-input').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const a = assignments.find(x=>x.id===inp.dataset.id);
+        if(!a) return;
+        const hist = sortedHistory(a);
+        const entry = hist[Number(inp.dataset.idx)];
+        if(!entry) return;
+        // cari entri asli di a.statusHistory (belum di-sort) berdasarkan referensi bulan+status lama
+        const idx2 = a.statusHistory.findIndex(h=>h.bulan===entry.bulan && h.status===entry.status);
+        if(idx2>-1) a.statusHistory[idx2].bulan = inp.value || '';
+        const hist2 = sortedHistory(a);
+        a.status = hist2.length ? hist2[hist2.length-1].status : 'aktif';
+        render();
+        storeSet('assignments', assignments);
+      });
+    });
+    view.querySelectorAll('.hist-status-input').forEach(sel=>{
+      sel.addEventListener('change', ()=>{
+        const a = assignments.find(x=>x.id===sel.dataset.id);
+        if(!a) return;
+        const hist = sortedHistory(a);
+        const entry = hist[Number(sel.dataset.idx)];
+        if(!entry) return;
+        const idx2 = a.statusHistory.findIndex(h=>h.bulan===entry.bulan && h.status===entry.status);
+        if(idx2>-1) a.statusHistory[idx2].status = sel.value;
+        const hist2 = sortedHistory(a);
+        a.status = hist2.length ? hist2[hist2.length-1].status : 'aktif';
+        render();
+        storeSet('assignments', assignments);
+      });
+    });
+    view.querySelectorAll('.del-history').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const a = assignments.find(x=>x.id===btn.dataset.id);
+        if(!a) return;
+        const hist = sortedHistory(a);
+        const entry = hist[Number(btn.dataset.idx)];
+        if(!entry) return;
+        if(!confirm('Hapus titik riwayat status ini?')) return;
+        const idx2 = a.statusHistory.findIndex(h=>h.bulan===entry.bulan && h.status===entry.status);
+        if(idx2>-1) a.statusHistory.splice(idx2,1);
+        const hist2 = sortedHistory(a);
+        a.status = hist2.length ? hist2[hist2.length-1].status : 'aktif';
+        render();
+        storeSet('assignments', assignments);
+      });
+    });
+    view.querySelectorAll('.add-history').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const a = assignments.find(x=>x.id===btn.dataset.id);
+        if(!a) return;
+        const bulanInp = document.getElementById('newHistBulan_'+a.id);
+        const statusSel = document.getElementById('newHistStatus_'+a.id);
+        setStatusAtMonth(a, bulanInp.value || '', statusSel.value);
         render();
         storeSet('assignments', assignments);
       });
@@ -1728,7 +1887,7 @@
   }, {passive:true});
 
   function buildTentorInvoice(tid){
-    const list = assignments.filter(a=>a.tentorId===tid && a.status!=='nonaktif');
+    const list = assignments.filter(a=>a.tentorId===tid && isActiveInMonth(a, currentMonth));
     let total = 0;
     const rows = list.map(a=>{
       const c = calcRow(a);
@@ -1759,7 +1918,7 @@
   }
 
   function buildFamilyInvoice(fid){
-    const list = assignments.filter(a=>a.familyId===fid && a.status!=='nonaktif');
+    const list = assignments.filter(a=>a.familyId===fid && isActiveInMonth(a, currentMonth));
     let total = 0;
     const rows = list.map(a=>{
       const c = calcRow(a);
@@ -1892,7 +2051,7 @@
   function renderHonor(view){
     const q = filters.honor.trim().toLowerCase();
     const groups = {};
-    assignments.filter(a=>a.status!=='nonaktif').forEach(a=>{ (groups[a.tentorId] = groups[a.tentorId]||[]).push(a); });
+    assignments.filter(a=>isActiveInMonth(a, currentMonth)).forEach(a=>{ (groups[a.tentorId] = groups[a.tentorId]||[]).push(a); });
     let tentorIds = Object.keys(groups).sort((x,y)=>tentorName(x).localeCompare(tentorName(y)));
     if(q) tentorIds = tentorIds.filter(tid=>{
       const t = tentorById(tid);
@@ -2022,7 +2181,7 @@
   function renderTagihan(view){
     const q = filters.tagihan.trim().toLowerCase();
     const groups = {};
-    assignments.filter(a=>a.status!=='nonaktif').forEach(a=>{ (groups[a.familyId] = groups[a.familyId]||[]).push(a); });
+    assignments.filter(a=>isActiveInMonth(a, currentMonth)).forEach(a=>{ (groups[a.familyId] = groups[a.familyId]||[]).push(a); });
     let familyIds = Object.keys(groups).sort((x,y)=>familyName(x).localeCompare(familyName(y)));
     if(q) familyIds = familyIds.filter(fid=>{
       const f = familyById(fid);
@@ -2462,7 +2621,7 @@ service cloud.firestore {
       const sess = (await storeGet('sessions:'+month)) || {};
       const sessNoHonor = (await storeGet('sessionsNoHonor:'+month)) || {};
       const kLog = (await storeGet('kehadiran:'+month)) || [];
-      const list = assignments.filter(a=>a.tentorId===tentor.id && a.status!=='nonaktif');
+      const list = assignments.filter(a=>a.tentorId===tentor.id && isActiveInMonth(a, month));
       const isToday = selectedDate===todayStr();
       const honorTerbuka = !!honorVisible[month];
       const totalHonorBulan = list.reduce((sum,a)=>{
