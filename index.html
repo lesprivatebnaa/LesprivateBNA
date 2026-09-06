@@ -130,6 +130,12 @@
     font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--blue-700); background:var(--blue-100);
     padding:2px 8px; border-radius:12px; white-space:nowrap;
   }
+  .lock-status-badge{
+    font-family:'Poppins',sans-serif; font-weight:700; font-size:14px; letter-spacing:.02em;
+    padding:8px 18px; border-radius:12px; white-space:nowrap; display:inline-block; border:2px solid transparent;
+  }
+  .lock-status-badge.locked{ background:var(--danger-soft); color:var(--danger); border-color:var(--danger); }
+  .lock-status-badge.unlocked{ background:var(--green-50); color:var(--success); border-color:var(--success); }
   .stat-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:12px; margin-bottom:20px;}
   .stat{border:1px solid var(--blue-100); border-radius:14px; padding:15px 17px; background:var(--blue-50);}
   .stat .label{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin-bottom:6px;}
@@ -174,6 +180,10 @@
     background:#fff; color:var(--ink-soft); cursor:pointer;
   }
   .chip.active{background:var(--grad-primary); color:#fff; border-color:transparent;}
+  .chip.month-chip.locked-month{border-color:var(--danger); color:var(--danger);}
+  .chip.month-chip.locked-month.active{background:var(--danger); border-color:var(--danger); color:#fff;}
+  .chip.month-chip.unlocked-month{border-color:var(--success); color:var(--success);}
+  .chip.month-chip.unlocked-month.active{background:var(--success); border-color:var(--success); color:#fff;}
 
   .welcome-card{
     position:relative; overflow:hidden; border-radius:20px; margin-bottom:20px;
@@ -629,12 +639,13 @@
   let honorPayments = {}; // {tentorId: true/false} untuk bulan berjalan — status honor tentor sudah dibayar atau belum
   let honorVisible = {}; // {bulan: true/false} — dibuka manual oleh Owner per bulan, dilihat tentor lewat link absen
   let expandedTentors = new Set();
-  // { bulan: true/false } — sekali dikunci, rekap bulan itu (tarif, jumlah
-  // pertemuan, total biaya/honor) DIBEKUKAN memakai rekapSnapshot, sehingga
-  // tidak ikut berubah lagi kalau tarif/kelas diedit untuk bulan berikutnya.
-  // Bisa dibuka kunci lagi kapan saja kalau memang perlu dikoreksi.
+  // { bulan: true/false } — sekali dikunci, admin tidak bisa menambah/
+  // mengubah/menghapus data tentor, alamat, atau kelas untuk bulan itu, dan
+  // kolom "Jumlah Pertemuan" tidak bisa diketik manual (lihat
+  // requireMonthUnlocked). Rekap, honor, dan invoice TETAP dihitung live
+  // dari data terkini — tidak dibekukan — jadi absen tentor tetap langsung
+  // berpengaruh ke angka walau bulan ini terkunci.
   let rekapLocked = {};
-  let rekapSnapshot = null; // snapshot hasil calcRow per assignment, khusus currentMonth, hanya dipakai kalau rekapLocked[currentMonth]===true
 
   // ---------- akses Admin ----------
   // Ini gerbang sederhana di sisi tampilan saja (bukan keamanan tingkat server).
@@ -662,7 +673,6 @@
     kehadiran = (await storeGet('kehadiran:'+month)) || [];
     payments = (await storeGet('payments:'+month)) || {};
     honorPayments = (await storeGet('honorPayments:'+month)) || {};
-    rekapSnapshot = (await storeGet('rekapSnapshot:'+month)) || null;
   }
   async function saveSessions(){ await storeSet('sessions:'+currentMonth, sessions); }
   async function saveKehadiran(){ await storeSet('kehadiran:'+currentMonth, kehadiran); }
@@ -825,36 +835,70 @@
     const totalHonor = jumlahNormal*honorTentor + manualHonorSum;
     const totalFee = Math.max(0, totalBiaya - totalHonor);
     const feePertemuan = jumlah>0 ? Math.round(totalFee/jumlah) : Math.max(0,biayaLes-honorTentor);
+    // Selain angka, ikut disertakan juga "identitas" kelas ini saat itu
+    // (nama tentor, kode tentor, alamat & kode keluarga, tingkatan, nama
+    // siswa, keterangan, label anak). Ini dipakai supaya saat bulan
+    // dikunci (lihat lockRekapBulan), bukan cuma angka yang dibekukan,
+    // tapi juga nama-nama ini — jadi kalau nanti nama tentor/tarif/alamat
+    // diedit untuk bulan berikutnya, tampilan bulan yang sudah terkunci
+    // benar-benar tidak ikut berubah sama sekali.
+    const tentorObj = tentorById(a.tentorId);
+    const familyObj = familyById(a.familyId);
     return {
       biayaLes, honorTentor,
       jumlah, feePertemuan, jumlahNormal, jumlahCatatan,
-      totalBiaya, totalHonor, totalFee
+      totalBiaya, totalHonor, totalFee,
+      tentorNama: tentorObj ? tentorObj.nama : '(tentor dihapus)',
+      tentorKode: tentorObj ? tentorObj.kode : '',
+      familyAlamat: familyObj ? (familyObj.alamat||'(tanpa alamat)') : '(alamat dihapus)',
+      familyKode: familyObj ? familyObj.kode : '',
+      tingkatan: a.tingkatan || '',
+      namaSiswa: a.namaSiswa || '',
+      keterangan: a.keterangan || '',
+      childLabelText: childLabel(a)
     };
   }
   // Ini yang dipakai di semua tampilan. Kalau bulan yang sedang dilihat
-  // sudah DIKUNCI dan kelas ini ada di snapshot-nya, pakai angka beku dari
-  // snapshot itu (tarif & total tidak akan ikut berubah walau a.biayaLes /
-  // a.honorTentor diedit belakangan untuk bulan lain). Kalau belum
-  // dikunci (atau kelasnya baru muncul setelah dikunci), hitung seperti biasa.
+  // sudah DIKUNCI dan kelas ini ada di snapshot-nya, pakai angka + identitas
+  // beku dari snapshot itu (tarif, nama, alamat, dan total tidak akan ikut
+  // berubah walau data master diedit belakangan untuk bulan lain). Snapshot
+  // digabung DI ATAS hasil hitung terkini (bukan dipakai sendirian) supaya
+  // kunci LAMA yang dibuat sebelum fitur pembekuan nama ini tetap aman
+  // jalan seperti biasa — field yang belum ada di snapshot lama otomatis
+  // terisi dari data terkini, tidak error dan tidak kehilangan apa pun.
+  // Kalau belum dikunci (atau kelasnya baru muncul setelah dikunci),
+  // hitung seperti biasa dari data terkini.
+  // Ini yang dipakai di semua tampilan. SELALU pakai angka & identitas
+  // TERKINI (langsung dari data tentor/tarif/absen sekarang) — supaya rekap
+  // bulanan, honor tentor, dan invoice orang tua selalu ikut berubah live
+  // begitu ada absen baru, walaupun bulan itu sedang dikunci. Kunci bulan
+  // (rekapLocked) TIDAK membekukan angka apa pun lagi — kunci hanya jadi
+  // gerbang keamanan yang mencegah admin menambah/mengubah/menghapus data
+  // master (tentor, alamat, kelas) selama bulan itu masih terkunci; lihat
+  // requireMonthUnlocked().
   function calcRow(a){
-    if(isMonthLocked(currentMonth) && rekapSnapshot && rekapSnapshot[a.id]){
-      return rekapSnapshot[a.id];
-    }
     return calcRowRaw(a);
   }
   function isMonthLocked(month){ return !!rekapLocked[month]; }
-  // Mengunci rekap satu bulan: bekukan tarif + total setiap kelas yang
-  // tampil di rekap bulan itu ke dalam snapshot, lalu tandai bulan itu
-  // terkunci. Setelah ini, mengedit tarif/kelas di tab "Siswa & Kelas"
-  // TIDAK akan mengubah angka yang sudah tampil untuk bulan yang dikunci.
+  // Gerbang tambahan: dipanggil di awal setiap aksi "Tambah" (tentor, alamat,
+  // siswa/kelas). Kalau bulan yang sedang aktif (currentMonth) masih terkunci,
+  // aksi dibatalkan dan admin diminta buka kunci bulan itu dulu lewat tab
+  // "Rekap Bulanan". Ini supaya nambah data baru tidak bisa dilakukan sembarang
+  // waktu — harus sadar dulu sedang mengedit untuk bulan mana.
+  function requireMonthUnlocked(actionLabel){
+    if(isMonthLocked(currentMonth)){
+      alert(`Rekap bulan ${monthLabel(currentMonth)} sedang TERKUNCI 🔒.\n\nBuka kunci dulu lewat tab "Rekap Bulanan" sebelum ${actionLabel}. Kalau mau data baru ini masuk ke bulan lain, pindah dulu ke bulan itu (dan pastikan bulan itu dalam keadaan terbuka) sebelum menambah.`);
+      return false;
+    }
+    return true;
+  }
+  // Mengunci rekap satu bulan: hanya menandai bulan itu terkunci (gerbang
+  // keamanan untuk requireMonthUnlocked). TIDAK lagi membuat snapshot beku —
+  // rekap, honor, dan invoice tetap dihitung dari data terkini bahkan saat
+  // terkunci, supaya absen tentor tetap langsung berpengaruh ke angka.
   async function lockRekapBulan(month){
-    const relevant = assignments.filter(a=>isActiveInMonth(a, month));
-    const snap = {};
-    relevant.forEach(a=>{ snap[a.id] = calcRowRaw(a); });
-    await storeSet('rekapSnapshot:'+month, snap);
     rekapLocked[month] = true;
     await storeSet('rekapLocked', rekapLocked);
-    if(month===currentMonth) rekapSnapshot = snap;
   }
   // Membuka kunci lagi: bulan itu kembali memakai tarif & data TERKINI
   // (bukan snapshot lama). Kunci ulang setelah selesai mengoreksi supaya
@@ -862,7 +906,6 @@
   async function unlockRekapBulan(month){
     rekapLocked[month] = false;
     await storeSet('rekapLocked', rekapLocked);
-    if(month===currentMonth) rekapSnapshot = null;
   }
 
   // Ringkasan sesi "bercatatan" (absen dengan note) untuk satu kelas/assignment
@@ -926,7 +969,7 @@
         <input type="month" id="monthPicker" value="${currentMonth}">
       </div>
     </div>
-    ${availableMonths.length ? `<div class="chip-row">${availableMonths.map(m=>`<span class="chip month-chip ${m===currentMonth?'active':''}" data-month="${m}">${monthLabel(m)}</span>`).join('')}</div>` : ''}`;
+    ${availableMonths.length ? `<div class="chip-row">${availableMonths.map(m=>`<span class="chip month-chip ${m===currentMonth?'active':''} ${isMonthLocked(m)?'locked-month':'unlocked-month'}" data-month="${m}" title="${isMonthLocked(m)?'Terkunci':'Terbuka'}">${isMonthLocked(m)?'🔒':'🔓'} ${monthLabel(m)}</span>`).join('')}</div>` : ''}`;
   }
   function bindMonthPicker(){
     const mp = document.getElementById('monthPicker');
@@ -1013,9 +1056,9 @@
     const totBiaya = rows.reduce((s,r)=>s+r.c.totalBiaya,0);
     const totHonor = rows.reduce((s,r)=>s+r.c.totalHonor,0);
     const totFee = rows.reduce((s,r)=>s+r.c.totalFee,0);
-    const filtered = rows.filter(({a})=>{
+    const filtered = rows.filter(({a,c})=>{
       if(!q) return true;
-      const hay = (tentorName(a.tentorId)+' '+familyName(a.familyId)+' '+a.namaSiswa+' '+(a.keterangan||'')).toLowerCase();
+      const hay = (c.tentorNama+' '+c.familyAlamat+' '+c.namaSiswa+' '+c.keterangan).toLowerCase();
       return hay.includes(q);
     });
 
@@ -1050,12 +1093,12 @@
         <div class="group-card" style="margin-bottom:16px;">
           <div class="group-head">
             <span class="name">Kunci Rekap Bulan ${monthLabel(currentMonth)}</span>
-            <span class="kode-tag" style="${isMonthLocked(currentMonth)?'background:var(--green-100);color:var(--success);':''}">${isMonthLocked(currentMonth)?'Terkunci 🔒':'Belum Dikunci 🔓'}</span>
+            <span class="lock-status-badge ${isMonthLocked(currentMonth)?'locked':'unlocked'}">${isMonthLocked(currentMonth)?'🔒 TERKUNCI':'🔓 TERBUKA'}</span>
           </div>
           <div class="group-body" style="padding-top:12px;">
             <div class="banner">${isMonthLocked(currentMonth)
-              ? `Rekap bulan ${monthLabel(currentMonth)} sudah <b>dikunci</b> — tarif, jumlah pertemuan, dan semua total di bulan ini AMAN, tidak akan berubah lagi walau Anda mengedit tarif/kelas untuk bulan berikutnya. Kolom "Jumlah Pertemuan" untuk bulan ini juga ikut terkunci. Kalau memang perlu koreksi rekap bulan ini, tekan "Buka Kunci" dulu — kunci lagi setelah selesai.`
-              : `Kalau rekap bulan ${monthLabel(currentMonth)} sudah final (jumlah pertemuan sudah pasti & honor sudah/siap ditransfer), <b>kunci dulu</b> sebelum mengedit tarif atau menambah/mengubah kelas untuk bulan berikutnya — supaya angka bulan ini tidak ikut bergeser.`}</div>
+              ? `Rekap bulan ${monthLabel(currentMonth)} sedang <b>terkunci</b> — admin TIDAK bisa menambah/mengubah/menghapus tentor, alamat, atau kelas selama masih terkunci. Kolom "Jumlah Pertemuan" di bawah juga tidak bisa diketik manual. Tapi absen tentor tetap jalan seperti biasa — begitu tentor absen, jumlah pertemuan, honor, dan invoice di rekap ini tetap ikut berubah otomatis (angkanya TIDAK dibekukan). Kalau perlu mengubah data master (tentor/alamat/kelas), tekan "Buka Kunci" dulu.`
+              : `Kalau data master bulan ${monthLabel(currentMonth)} (tentor, alamat, kelas, tarif) sudah tidak perlu diubah-ubah lagi, <b>kunci</b> supaya tidak ada yang tidak sengaja menambah/mengedit/menghapus data selama bulan ini berjalan. Absen tentor dan penghitungan rekap tetap jalan normal walau dikunci.`}</div>
             <button class="btn ${isMonthLocked(currentMonth)?'secondary':''} small" id="toggleRekapLockBtn">${isMonthLocked(currentMonth) ? '🔓 Buka Kunci Rekap Bulan Ini' : '🔒 Kunci Rekap Bulan Ini'}</button>
           </div>
         </div>
@@ -1099,10 +1142,10 @@
               const cd = catatanRowData(a);
               const mainRow = `
               <tr data-id="${a.id}">
-                <td>${esc(tentorName(a.tentorId))} <span class="kode-tag">${tentorById(a.tentorId)?tentorById(a.tentorId).kode:''}</span></td>
-                <td>${esc(familyName(a.familyId))}</td>
-                <td>${esc(a.tingkatan)}</td>
-                <td>${esc(childLabel(a))}</td>
+                <td>${esc(c.tentorNama)} <span class="kode-tag">${esc(c.tentorKode)}</span></td>
+                <td>${esc(c.familyAlamat)}</td>
+                <td>${esc(c.tingkatan)}</td>
+                <td>${esc(c.childLabelText)}</td>
                 <td class="num">${rupiah(c.biayaLes)}</td>
                 <td class="num">${rupiah(c.honorTentor)}</td>
                 <td><input type="number" min="0" class="pill-input sesi-input num ${c.jumlah>0?'filled':'empty'}" data-id="${a.id}" data-catatan="${c.jumlahCatatan}" value="${c.jumlahNormal}" ${isMonthLocked(currentMonth)?'disabled title="Rekap bulan ini terkunci — buka kunci dulu untuk mengedit"':''}></td>
@@ -1115,10 +1158,10 @@
               </tr>`;
               const catatanRow = cd ? `
               <tr class="catatan-row">
-                <td>${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span></td>
-                <td>${esc(familyName(a.familyId))}</td>
-                <td>${esc(a.tingkatan)}</td>
-                <td>${esc(childLabel(a))}</td>
+                <td>${esc(c.tentorNama)} <span class="catatan-label">Catatan</span></td>
+                <td>${esc(c.familyAlamat)}</td>
+                <td>${esc(c.tingkatan)}</td>
+                <td>${esc(c.childLabelText)}</td>
                 <td class="num">${moneyOrBelum(cd.biayaRate, cd.belum)}</td>
                 <td class="num">${moneyOrBelum(cd.honorRate, cd.belum)}</td>
                 <td class="num">${cd.count}x</td>
@@ -1177,10 +1220,10 @@
     if(toggleLockBtn) toggleLockBtn.addEventListener('click', async ()=>{
       const month = currentMonth;
       if(!isMonthLocked(month)){
-        if(!confirm(`Kunci rekap bulan ${monthLabel(month)} sekarang?\n\nTarif, jumlah pertemuan, dan total biaya/honor bulan ini akan dibekukan — aman dari perubahan tarif atau kelas yang Anda buat setelah ini. Anda tetap bisa membuka kuncinya lagi kapan saja kalau perlu koreksi.`)) return;
+        if(!confirm(`Kunci rekap bulan ${monthLabel(month)} sekarang?\n\nSetelah dikunci, admin TIDAK bisa menambah/mengubah/menghapus data tentor, alamat, atau kelas, dan kolom "Jumlah Pertemuan" tidak bisa diketik manual — sampai kuncinya dibuka lagi. Absen tentor tetap berjalan normal dan rekap tetap ikut ter-update otomatis. Lanjutkan?`)) return;
         await lockRekapBulan(month);
       } else {
-        if(!confirm(`Buka kunci rekap bulan ${monthLabel(month)}?\n\nSetelah dibuka, jumlah pertemuan bisa diedit lagi dan semua total akan mengikuti tarif TERBARU (bukan tarif saat dikunci). Kunci lagi setelah selesai mengoreksi.`)) return;
+        if(!confirm(`Buka kunci rekap bulan ${monthLabel(month)}?\n\nSetelah dibuka, admin bisa lagi menambah/mengubah/menghapus tentor, alamat, kelas, dan mengetik manual kolom "Jumlah Pertemuan" untuk bulan ini. Lanjutkan?`)) return;
         await unlockRekapBulan(month);
       }
       render();
@@ -1191,9 +1234,8 @@
     const header = ['Kode Tentor','Tentor','Alamat','Tingkatan','Siswa','Keterangan Pembeda','Biaya/Pertemuan','Honor/Pertemuan','Jumlah Pertemuan','Sesi Normal','Sesi Bercatatan','Fee/Pertemuan','Total Biaya','Total Honor','Total Fee'];
     const lines = [header.join(',')];
     rows.forEach(({a,c})=>{
-      const t = tentorById(a.tentorId);
       lines.push([
-        t?t.kode:'', t?t.nama:'', familyName(a.familyId), a.tingkatan||'', a.namaSiswa||'', a.keterangan||'',
+        c.tentorKode, c.tentorNama, c.familyAlamat, c.tingkatan, c.namaSiswa, c.keterangan,
         c.biayaLes, c.honorTentor, c.jumlah, c.jumlahNormal, c.jumlahCatatan, c.feePertemuan, c.totalBiaya, c.totalHonor, c.totalFee
       ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     });
@@ -1398,6 +1440,7 @@
           Bagikan link yang sama ke semua tentor. Saat dibuka, tentor tinggal cari lalu pilih nama sendiri — jadi tidak perlu link berbeda-beda per tentor lagi.
           <div style="margin-top:10px;"><button class="btn small" id="copySharedAbsenLink">Salin Link Absen Bersama</button></div>
         </div>
+        ${isMonthLocked(currentMonth) ? `<div class="banner" style="margin-bottom:14px;background:var(--danger-soft);border-color:var(--danger);">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang terkunci — buka kunci dulu lewat tab "Rekap Bulanan" sebelum menambah tentor baru.</div>` : ''}
         <div class="form-grid">
           <div><label class="field-label">Nama Tentor Baru</label><input type="text" id="newTentorName" placeholder="mis. Sarah"></div>
         </div>
@@ -1430,6 +1473,7 @@
     `));
 
     document.getElementById('addTentorBtn').addEventListener('click', ()=>{
+      if(!requireMonthUnlocked('menambah tentor baru')) return;
       const inp = document.getElementById('newTentorName');
       const nama = inp.value.trim();
       if(!nama) return;
@@ -1454,6 +1498,7 @@
 
     view.querySelectorAll('.rename-tentor').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('mengubah nama tentor')) return;
         const t = tentorById(btn.dataset.id);
         const baru = prompt('Ubah nama tentor:', t.nama);
         if(baru===null) return;
@@ -1466,6 +1511,7 @@
     });
     view.querySelectorAll('.toggle-tentor-status').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('mengubah status tentor')) return;
         const t = tentorById(btn.dataset.id);
         t.status = t.status==='nonaktif' ? 'aktif' : 'nonaktif';
         renumberTentors();
@@ -1475,6 +1521,7 @@
     });
     view.querySelectorAll('.del-tentor').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('menghapus tentor')) return;
         const id = btn.dataset.id;
         const jml = assignments.filter(a=>a.tentorId===id).length;
         const msg = jml>0
@@ -1499,6 +1546,7 @@
       <div>
         <h2 style="margin-bottom:16px;">Orang Tua / Alamat</h2>
         <div class="banner">Setiap alamat mewakili satu rumah tangga. Jika ada 2–3 anak dalam satu rumah, daftarkan satu alamat saja di sini — semua anaknya nanti dikaitkan ke alamat yang sama di tab "Siswa &amp; Kelas", dan tagihannya akan otomatis digabung jadi satu invoice. Setiap alamat otomatis mendapat kode sendiri agar mudah dicari.</div>
+        ${isMonthLocked(currentMonth) ? `<div class="banner" style="margin-bottom:14px;background:var(--danger-soft);border-color:var(--danger);">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang terkunci — buka kunci dulu lewat tab "Rekap Bulanan" sebelum menambah alamat/orang tua baru.</div>` : ''}
         <div class="form-grid">
           <div><label class="field-label">Alamat Orang Tua</label><input type="text" id="newFamAddr" placeholder="mis. Lamprit"></div>
         </div>
@@ -1529,6 +1577,7 @@
     `));
 
     document.getElementById('addFamBtn').addEventListener('click', ()=>{
+      if(!requireMonthUnlocked('menambah alamat/orang tua baru')) return;
       const alamat = document.getElementById('newFamAddr').value.trim();
       if(!alamat) return;
       families.push({id:uid(), kode:'', alamat});
@@ -1540,6 +1589,7 @@
 
     view.querySelectorAll('.edit-fam').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('mengubah data alamat')) return;
         const f = familyById(btn.dataset.id);
         const alamat = prompt('Ubah alamat:', f.alamat);
         if(alamat===null) return;
@@ -1551,6 +1601,7 @@
     });
     view.querySelectorAll('.del-fam').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('menghapus data alamat')) return;
         const id = btn.dataset.id;
         const jml = assignments.filter(a=>a.familyId===id).length;
         const msg = jml>0
@@ -1591,6 +1642,7 @@
     view.appendChild(el(`
       <div>
         <h2 style="margin-bottom:16px;">Siswa &amp; Kelas</h2>
+        ${(!editing && isMonthLocked(currentMonth)) ? `<div class="banner" style="margin-bottom:12px;background:var(--danger-soft);border-color:var(--danger);">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang terkunci — buka kunci dulu lewat tab "Rekap Bulanan" sebelum menambah siswa/kelas baru.</div>` : ''}
         <div class="banner">Satu "kelas" = satu tentor mengajar satu siswa (atau sekelompok siswa) dengan tarif tertentu per pertemuan. Jumlah pertemuan diisi tiap bulan di tab Rekap Bulanan. Kalau siswa berhenti sementara, gunakan tombol "Nonaktifkan" — datanya tidak hilang dan bisa diaktifkan lagi kapan pun tanpa input ulang. <b>Rekap bulan-bulan sebelum kelas dinonaktifkan tidak akan berubah/terkunci</b> — kolom "sejak" menandai mulai bulan mana kelas ini hilang dari rekap; ubah manual kalau perlu bulan lain. Kalau ada 2 siswa dengan nama sama persis yang diajar tentor yang sama, isi kolom "Keterangan Pembeda" — sistem akan otomatis mengingatkan Anda saat ini terjadi.</div>
         ${tentors.length===0 ? `<div class="banner">Tambahkan tentor terlebih dahulu di tab "Tentor".</div>` : ''}
         ${families.length===0 ? `<div class="banner">Tambahkan data alamat terlebih dahulu di tab "Orang Tua".</div>` : ''}
@@ -1744,6 +1796,7 @@
     });
 
     document.getElementById('addAssignBtn').addEventListener('click', ()=>{
+      if(!editingAssignmentId && !requireMonthUnlocked('menambah siswa/kelas baru')) return;
       const tentorId = document.getElementById('a_tentor').value;
       const familyId = document.getElementById('a_family').value;
       const namaSiswa = document.getElementById('a_siswa').value.trim();
@@ -1785,6 +1838,7 @@
 
     view.querySelectorAll('.toggle-status').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('mengubah status aktif/nonaktif kelas')) return;
         const a = assignments.find(x=>x.id===btn.dataset.id);
         const turningOff = isActiveInMonth(a, currentMonth);
         // Titik riwayat baru berlaku MULAI bulan yang sedang dilihat (currentMonth)
@@ -1861,10 +1915,14 @@
       });
     });
     view.querySelectorAll('.edit-assign').forEach(btn=>{
-      btn.addEventListener('click', ()=>{ editingAssignmentId = btn.dataset.id; render(); window.scrollTo({top:0, behavior:'smooth'}); });
+      btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('mengubah data kelas')) return;
+        editingAssignmentId = btn.dataset.id; render(); window.scrollTo({top:0, behavior:'smooth'});
+      });
     });
     view.querySelectorAll('.del-assign').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('menghapus kelas')) return;
         if(!confirm('Hapus kelas ini secara permanen? Riwayat pertemuan bulan-bulan sebelumnya untuk kelas ini tidak akan tampil lagi. Jika hanya berhenti sementara, gunakan tombol "Nonaktifkan" saja agar datanya tidak hilang.')) return;
         assignments = assignments.filter(a=>a.id!==btn.dataset.id);
         if(editingAssignmentId===btn.dataset.id) editingAssignmentId=null;
@@ -1960,19 +2018,21 @@
   function buildTentorInvoice(tid){
     const list = assignments.filter(a=>a.tentorId===tid && isActiveInMonth(a, currentMonth));
     let total = 0;
+    let namaTentor = '';
     const rows = list.map(a=>{
       const c = calcRow(a);
       total += c.totalHonor;
+      if(!namaTentor) namaTentor = c.tentorNama;
       const cd = catatanRowData(a);
-      const mainRow = `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td></tr>`;
-      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(childLabel(a))} <span class="catatan-label">Catatan</span></td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td></tr>` : '';
+      const mainRow = `<tr><td style="padding:6px 4px;">${esc(c.childLabelText)}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td></tr>`;
+      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(c.childLabelText)} <span class="catatan-label">Catatan</span></td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td></tr>` : '';
       return mainRow + catatanRow;
     }).join('');
-    const t = tentorById(tid);
+    if(!namaTentor){ const t = tentorById(tid); namaTentor = t?t.nama:''; }
     return `
       ${invoiceHeader('Slip Honor Tentor')}
       <div style="margin-bottom:16px;">
-        <div style="font-family:'Poppins',sans-serif;font-weight:600;font-size:16px;">${esc(t?t.nama:'')}</div>
+        <div style="font-family:'Poppins',sans-serif;font-weight:600;font-size:16px;">${esc(namaTentor)}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
         <thead><tr style="border-bottom:2px solid var(--blue-100);">
@@ -1984,29 +2044,32 @@
         <div style="font-weight:700;">Total Honor Diterima</div>
         <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:var(--blue-700);">${rupiah(total)}</div>
       </div>
-      ${invoiceFooter('Diterima oleh', t?t.nama:'')}
+      ${invoiceFooter('Diterima oleh', namaTentor)}
     `;
   }
 
   function buildFamilyInvoice(fid){
     const list = assignments.filter(a=>a.familyId===fid && isActiveInMonth(a, currentMonth));
     let total = 0;
+    let namaAlamat = '';
     const rows = list.map(a=>{
       const c = calcRow(a);
       total += c.totalBiaya;
+      if(!namaAlamat) namaAlamat = c.familyAlamat;
       const cd = catatanRowData(a);
-      const mainRow = `<tr><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(c.biayaLes)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalBiaya-(cd?cd.totalBiaya:0))}</td></tr>`;
+      const mainRow = `<tr><td style="padding:6px 4px;">${esc(c.childLabelText)}</td><td style="padding:6px 4px;">${esc(c.tingkatan)}</td><td style="padding:6px 4px;">${esc(c.tentorNama)}</td><td class="num" style="padding:6px 4px;text-align:right;">${c.jumlahNormal}x</td><td class="num" style="padding:6px 4px;text-align:right;">${rupiah(c.biayaLes)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${rupiah(c.totalBiaya-(cd?cd.totalBiaya:0))}</td></tr>`;
       const notes = cd ? kehadiran.filter(r=>r.assignmentId===a.id && r.catatan).map(r=>r.catatan) : [];
       const notesHtml = notes.length ? `<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;line-height:1.4;">${notes.map(n=>`📝 ${esc(n)}`).join('<br>')}</div>` : '';
-      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(childLabel(a))}</td><td style="padding:6px 4px;">${esc(a.tingkatan)}</td><td style="padding:6px 4px;">${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span>${notesHtml}</td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td><td class="num" style="padding:6px 4px;text-align:right;">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
+      const catatanRow = cd ? `<tr class="catatan-row"><td style="padding:6px 4px;">${esc(c.childLabelText)}</td><td style="padding:6px 4px;">${esc(c.tingkatan)}</td><td style="padding:6px 4px;">${esc(c.tentorNama)} <span class="catatan-label">Catatan</span>${notesHtml}</td><td class="num" style="padding:6px 4px;text-align:right;">${cd.count}x</td><td class="num" style="padding:6px 4px;text-align:right;">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num" style="padding:6px 4px;text-align:right;font-weight:600;">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
       return mainRow + catatanRow;
     }).join('');
     const f = familyById(fid);
-    const childNames = [...new Set(list.map(a=>childLabel(a)))].join(', ') || (f?f.alamat:'');
+    if(!namaAlamat) namaAlamat = f?f.alamat:'';
+    const childNames = [...new Set(list.map(a=>calcRow(a).childLabelText))].join(', ') || namaAlamat;
     return `
       ${invoiceHeader('Invoice Biaya Les')}
       <div style="margin-bottom:16px;">
-        <div style="font-family:'Poppins',sans-serif;font-weight:600;font-size:16px;">${esc(f?f.alamat:'')}</div>
+        <div style="font-family:'Poppins',sans-serif;font-weight:600;font-size:16px;">${esc(namaAlamat)}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
         <thead><tr style="border-bottom:2px solid var(--blue-100);">
@@ -2025,23 +2088,23 @@
   function buildRekapPrintable(rows){
     const groups = {};
     rows.forEach(({a,c})=>{ (groups[a.tentorId] = groups[a.tentorId]||[]).push({a,c}); });
-    const tentorIds = Object.keys(groups).sort((x,y)=>tentorName(x).localeCompare(tentorName(y)));
+    const tentorIds = Object.keys(groups).sort((x,y)=>groups[x][0].c.tentorNama.localeCompare(groups[y][0].c.tentorNama));
     const sections = tentorIds.map(tid=>{
-      const t = tentorById(tid);
+      const headTentorC = groups[tid][0].c;
       const body = groups[tid].map(({a,c})=>{
         const cd = catatanRowData(a);
         const mainRow = `
         <tr>
-          <td>${esc(familyName(a.familyId))}</td>
-          <td>${esc(childLabel(a))}</td>
-          <td>${esc(a.tingkatan)}</td>
+          <td>${esc(c.familyAlamat)}</td>
+          <td>${esc(c.childLabelText)}</td>
+          <td>${esc(c.tingkatan)}</td>
           <td class="num" style="text-align:right;">${c.jumlahNormal}x</td>
         </tr>`;
         const catatanRow = cd ? `
         <tr class="catatan-row">
-          <td>${esc(familyName(a.familyId))}</td>
-          <td>${esc(childLabel(a))} <span class="catatan-label">Catatan</span></td>
-          <td>${esc(a.tingkatan)}</td>
+          <td>${esc(c.familyAlamat)}</td>
+          <td>${esc(c.childLabelText)} <span class="catatan-label">Catatan</span></td>
+          <td>${esc(c.tingkatan)}</td>
           <td class="num" style="text-align:right;">${cd.count}x</td>
         </tr>` : '';
         return mainRow + catatanRow;
@@ -2049,7 +2112,7 @@
       return `
       <div class="rekap-section">
         <div class="rekap-title">
-          <span>${esc(t?t.nama:tentorName(tid))}</span> <span class="kode-tag">${t?t.kode:''}</span>
+          <span>${esc(headTentorC.tentorNama)}</span> <span class="kode-tag">${esc(headTentorC.tentorKode)}</span>
         </div>
         <table>
           <thead><tr>
@@ -2075,24 +2138,26 @@
   function buildHonorRekapPrintable(tentorIds, groups){
     let grandTotal = 0;
     const sections = tentorIds.map(tid=>{
-      const t = tentorById(tid);
       const list = groups[tid] || [];
       let sectionTotal = 0;
+      let headNama = '', headKode = '';
       const body = list.map(a=>{
         const c = calcRow(a);
+        if(!headNama){ headNama = c.tentorNama; headKode = c.tentorKode; }
         const totalPertemuan = c.jumlahNormal + c.jumlahCatatan;
         sectionTotal += c.totalHonor;
         return `
         <tr>
-          <td>${esc(childLabel(a))}</td>
+          <td>${esc(c.childLabelText)}</td>
           <td class="num" style="text-align:right;">${totalPertemuan}x</td>
         </tr>`;
       }).join('');
+      if(!headNama){ const t = tentorById(tid); headNama = t?t.nama:''; headKode = t?t.kode:''; }
       grandTotal += sectionTotal;
       return `
       <div class="rekap-section">
         <div class="rekap-title">
-          <span>${esc(t?t.nama:tentorName(tid))}</span> <span class="kode-tag">${t?t.kode:''}</span>
+          <span>${esc(headNama)}</span> <span class="kode-tag">${esc(headKode)}</span>
         </div>
         <table>
           <thead><tr>
@@ -2123,10 +2188,20 @@
     const q = filters.honor.trim().toLowerCase();
     const groups = {};
     assignments.filter(a=>isActiveInMonth(a, currentMonth)).forEach(a=>{ (groups[a.tentorId] = groups[a.tentorId]||[]).push(a); });
-    let tentorIds = Object.keys(groups).sort((x,y)=>tentorName(x).localeCompare(tentorName(y)));
-    if(q) tentorIds = tentorIds.filter(tid=>{
+    // Nama/kode tentor yang ditampilkan di sini diambil dari kelas pertama
+    // di grup (lewat calcRow), bukan langsung dari data master — supaya
+    // kalau bulan ini sudah terkunci, nama yang tampil juga ikut beku,
+    // sama seperti tarif & totalnya.
+    function tentorGroupDisplay(tid){
+      const first = groups[tid] && groups[tid][0];
+      if(first){ const c = calcRow(first); return {nama:c.tentorNama, kode:c.tentorKode}; }
       const t = tentorById(tid);
-      return t && (t.kode+' '+t.nama).toLowerCase().includes(q);
+      return {nama: t?t.nama:tentorName(tid), kode: t?t.kode:''};
+    }
+    let tentorIds = Object.keys(groups).sort((x,y)=>tentorGroupDisplay(x).nama.localeCompare(tentorGroupDisplay(y).nama));
+    if(q) tentorIds = tentorIds.filter(tid=>{
+      const d = tentorGroupDisplay(tid);
+      return (d.kode+' '+d.nama).toLowerCase().includes(q);
     });
 
     view.appendChild(el(`
@@ -2136,7 +2211,7 @@
           <button class="btn secondary small" id="printHonorRekap">Cetak Rekap Semua / PDF</button>
         </div>
         ${monthPickerHtml()}
-        ${isMonthLocked(currentMonth) ? `<div class="banner" style="margin-bottom:10px;">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang <b>terkunci</b> — angka di bawah ini beku, tidak ikut berubah walau tarif kelas diedit. Buka kuncinya lewat tab "Rekap Bulanan" kalau perlu koreksi.</div>` : ''}
+        ${isMonthLocked(currentMonth) ? `<div class="banner" style="margin-bottom:10px;">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang <b>terkunci</b> — data tentor/alamat/kelas tidak bisa ditambah/diubah/dihapus, tapi angka di bawah ini tetap live mengikuti absen tentor. Buka kuncinya lewat tab "Rekap Bulanan" kalau perlu mengubah data master.</div>` : ''}
         <p style="color:var(--ink-soft); margin:8px 0 14px;">Total honor untuk tiap tentor pada ${monthLabel(currentMonth)}. Setiap tentor punya slip terpisah yang bisa dicetak atau disimpan sebagai PDF, atau cetak rekap gabungan semua tentor sekaligus lewat tombol di atas (berisi nama tentor, nama anak, jumlah pertemuan, dan total gaji).</p>
         <div class="row" style="margin-bottom:16px;">${searchInputHtml('searchHonor','Cari kode atau nama tentor…', filters.honor)}</div>
         <h3 style="margin:4px 0 10px; color:var(--danger);">Belum Bayar</h3>
@@ -2169,18 +2244,18 @@
       const rowsHtml = list.map(a=>{
         const c = calcRow(a); total += c.totalHonor;
         const cd = catatanRowData(a);
-        const mainRow = `<tr><td>${esc(childLabel(a))}</td><td>${esc(familyName(a.familyId))}</td><td class="num">${c.jumlahNormal}x</td><td class="num">${rupiah(c.honorTentor)}</td><td class="num money">${rupiah(c.totalHonor-(cd?cd.totalHonor:0))}</td></tr>`;
-        const catatanRow = cd ? `<tr class="catatan-row"><td>${esc(childLabel(a))} <span class="catatan-label">Catatan</span></td><td>${esc(familyName(a.familyId))}</td><td class="num">${cd.count}x</td><td class="num">${moneyOrBelum(cd.honorRate,cd.belum)}</td><td class="num money">${moneyOrBelum(cd.totalHonor,cd.belum)}</td></tr>` : '';
+        const mainRow = `<tr><td>${esc(c.childLabelText)}</td><td>${esc(c.familyAlamat)}</td><td class="num">${c.jumlahNormal}x</td><td class="num">${rupiah(c.honorTentor)}</td><td class="num money">${rupiah(c.totalHonor-(cd?cd.totalHonor:0))}</td></tr>`;
+        const catatanRow = cd ? `<tr class="catatan-row"><td>${esc(c.childLabelText)} <span class="catatan-label">Catatan</span></td><td>${esc(c.familyAlamat)}</td><td class="num">${cd.count}x</td><td class="num">${moneyOrBelum(cd.honorRate,cd.belum)}</td><td class="num money">${moneyOrBelum(cd.totalHonor,cd.belum)}</td></tr>` : '';
         return mainRow + catatanRow;
       }).join('');
-      const t = tentorById(tid);
+      const disp = tentorGroupDisplay(tid);
       const isOpen = expandedTentors.has(tid);
       const paid = !!honorPayments[tid];
       return el(`
         <div class="group-card">
           <div class="group-head">
             <span class="name name-toggle tentor-toggle" data-id="${tid}">
-              <span class="toggle-arrow">${isOpen?'▼':'▶'}</span>${esc(tentorName(tid))} <span class="kode-tag">${t?t.kode:''}</span>
+              <span class="toggle-arrow">${isOpen?'▼':'▶'}</span>${esc(disp.nama)} <span class="kode-tag">${esc(disp.kode)}</span>
             </span>
             <div class="right">
               <label class="pay-toggle ${paid?'paid':'unpaid'}">
@@ -2254,13 +2329,22 @@
     const q = filters.tagihan.trim().toLowerCase();
     const groups = {};
     assignments.filter(a=>isActiveInMonth(a, currentMonth)).forEach(a=>{ (groups[a.familyId] = groups[a.familyId]||[]).push(a); });
-    let familyIds = Object.keys(groups).sort((x,y)=>familyName(x).localeCompare(familyName(y)));
-    if(q) familyIds = familyIds.filter(fid=>{
+    // Sama seperti di Slip Honor: alamat/nama yang tampil di sini diambil
+    // lewat calcRow (ikut beku kalau bulan ini terkunci), bukan langsung
+    // dari data master.
+    function familyGroupDisplay(fid){
+      const first = groups[fid] && groups[fid][0];
+      if(first){ const c = calcRow(first); return {alamat:c.familyAlamat, kode:c.familyKode}; }
       const f = familyById(fid);
+      return {alamat: f?f.alamat:familyName(fid), kode: f?f.kode:''};
+    }
+    let familyIds = Object.keys(groups).sort((x,y)=>familyGroupDisplay(x).alamat.localeCompare(familyGroupDisplay(y).alamat));
+    if(q) familyIds = familyIds.filter(fid=>{
+      const d = familyGroupDisplay(fid);
       const list = groups[fid] || [];
-      const childNames = list.map(a=>a.namaSiswa||'').join(' ');
-      const tentorNames = list.map(a=>tentorName(a.tentorId)).join(' ');
-      const haystack = (f?f.kode:'')+' '+(f?f.alamat:'')+' '+childNames+' '+tentorNames;
+      const childNames = list.map(a=>calcRow(a).namaSiswa).join(' ');
+      const tentorNames = list.map(a=>calcRow(a).tentorNama).join(' ');
+      const haystack = d.kode+' '+d.alamat+' '+childNames+' '+tentorNames;
       return haystack.toLowerCase().includes(q);
     });
 
@@ -2268,7 +2352,7 @@
       <div>
         <h2 style="margin-bottom:16px;">Invoice Orang Tua</h2>
         ${monthPickerHtml()}
-        ${isMonthLocked(currentMonth) ? `<div class="banner" style="margin-bottom:10px;">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang <b>terkunci</b> — angka di bawah ini beku, tidak ikut berubah walau tarif kelas diedit. Buka kuncinya lewat tab "Rekap Bulanan" kalau perlu koreksi.</div>` : ''}
+        ${isMonthLocked(currentMonth) ? `<div class="banner" style="margin-bottom:10px;">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang <b>terkunci</b> — data tentor/alamat/kelas tidak bisa ditambah/diubah/dihapus, tapi angka di bawah ini tetap live mengikuti absen tentor. Buka kuncinya lewat tab "Rekap Bulanan" kalau perlu mengubah data master.</div>` : ''}
         <p style="color:var(--ink-soft); margin:8px 0 14px;">Total biaya les untuk ${monthLabel(currentMonth)}, digabung per keluarga — jika satu rumah punya 2–3 anak, semuanya masuk ke satu invoice yang sama.</p>
         <div class="row" style="margin-bottom:16px;">${searchInputHtml('searchTagihan','Cari kode, alamat, nama anak, atau nama tentor…', filters.tagihan)}</div>
         <h3 style="margin:4px 0 10px; color:var(--danger); display:flex; justify-content:space-between; align-items:baseline; gap:10px;"><span>Belum Bayar</span><span class="num" id="tagihanUnpaidTotal" style="font-size:15px;">Rp0</span></h3>
@@ -2315,23 +2399,23 @@
       const rowsHtml = list.map(a=>{
         const c = calcRow(a); total += c.totalBiaya;
         const cd = catatanRowData(a);
-        const mainRow = `<tr><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))}</td><td class="num">${c.jumlahNormal}x</td><td class="num">${rupiah(c.biayaLes)}</td><td class="num money">${rupiah(c.totalBiaya-(cd?cd.totalBiaya:0))}</td></tr>`;
+        const mainRow = `<tr><td>${esc(c.childLabelText)}</td><td>${esc(c.tingkatan)}</td><td>${esc(c.tentorNama)}</td><td class="num">${c.jumlahNormal}x</td><td class="num">${rupiah(c.biayaLes)}</td><td class="num money">${rupiah(c.totalBiaya-(cd?cd.totalBiaya:0))}</td></tr>`;
         const notes = cd ? kehadiran.filter(r=>r.assignmentId===a.id && r.catatan).map(r=>r.catatan) : [];
         const notesHtml = notes.length ? `<div class="catatan-note-text">${notes.map(n=>`📝 ${esc(n)}`).join('<br>')}</div>` : '';
-        const catatanRow = cd ? `<tr class="catatan-row"><td>${esc(childLabel(a))}</td><td>${esc(a.tingkatan)}</td><td>${esc(tentorName(a.tentorId))} <span class="catatan-label">Catatan</span>${notesHtml}</td><td class="num">${cd.count}x</td><td class="num">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num money">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
+        const catatanRow = cd ? `<tr class="catatan-row"><td>${esc(c.childLabelText)}</td><td>${esc(c.tingkatan)}</td><td>${esc(c.tentorNama)} <span class="catatan-label">Catatan</span>${notesHtml}</td><td class="num">${cd.count}x</td><td class="num">${moneyOrBelum(cd.biayaRate,cd.belum)}</td><td class="num money">${moneyOrBelum(cd.totalBiaya,cd.belum)}</td></tr>` : '';
         return mainRow + catatanRow;
       }).join('');
-      const f = familyById(fid);
+      const disp = familyGroupDisplay(fid);
       const isOpen = !collapsedFamilies.has(fid);
       const paid = !!payments[fid];
-      const childrenNames = [...new Set(list.map(a=>childLabel(a)))].join(', ');
+      const childrenNames = [...new Set(list.map(a=>calcRow(a).childLabelText))].join(', ');
       return el(`
         <div class="group-card">
           <div class="group-head">
             <span class="name name-toggle fam-toggle" data-id="${fid}">
-              <span class="toggle-arrow">${isOpen?'▼':'▶'}</span>${esc(familyName(fid))}
+              <span class="toggle-arrow">${isOpen?'▼':'▶'}</span>${esc(disp.alamat)}
               ${childrenNames ? `<span class="sub">— Anak: ${esc(childrenNames)}</span>` : ''}
-              <span class="kode-tag">${f?f.kode:''}</span>
+              <span class="kode-tag">${esc(disp.kode)}</span>
             </span>
             <div class="right">
               <label class="pay-toggle ${paid?'paid':'unpaid'}">
@@ -2701,13 +2785,10 @@ service cloud.firestore {
       const list = assignments.filter(a=>a.tentorId===tentor.id && isActiveInMonth(a, month));
       const isToday = selectedDate===todayStr();
       const honorTerbuka = !!honorVisible[month];
-      // Kalau bulan ini sudah dikunci admin di Rekap Bulanan, pakai angka
-      // beku dari snapshot supaya honor yang dilihat tentor tidak ikut
-      // bergeser kalau admin mengedit tarif untuk bulan berikutnya.
-      const monthLockMap = (await storeGet('rekapLocked')) || {};
-      const monthSnapshot = monthLockMap[month] ? ((await storeGet('rekapSnapshot:'+month)) || {}) : null;
+      // Honor selalu dihitung dari data TERKINI (tarif & absen sekarang) —
+      // tidak lagi dibekukan walau bulan ini sedang dikunci admin, supaya
+      // honor tentor ikut naik langsung setiap kali dia absen.
       const totalHonorBulan = list.reduce((sum,a)=>{
-        if(monthSnapshot && monthSnapshot[a.id]) return sum + monthSnapshot[a.id].totalHonor;
         const jumlah = sess[a.id]||0;
         const jumlahCatatan = Math.min(sessNoHonor[a.id]||0, jumlah);
         const jumlahNormal = jumlah-jumlahCatatan;
