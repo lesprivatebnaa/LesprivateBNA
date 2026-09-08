@@ -118,6 +118,7 @@
   .pay-toggle{display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; padding:6px 12px; border-radius:20px; cursor:pointer; user-select:none; white-space:nowrap; border:1px solid transparent;}
   .pay-toggle.paid{background:#DFF5E8; color:var(--success); border-color:#BFE8D2;}
   .pay-toggle.unpaid{background:var(--danger-soft); color:var(--danger); border-color:#F3C9C9;}
+  .pay-toggle.pending{background:var(--orange-50); color:#D97A1F; border-color:var(--orange-100);}
   .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:14px;}
   .banner{font-size:12.5px; color:var(--ink-soft); background:var(--blue-50); border:1px solid var(--blue-100); border-radius:10px; padding:11px 15px; margin-bottom:16px;}
   .chip-row{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 16px;}
@@ -450,23 +451,50 @@ function monthKey(ref=new Date()){
   return `${ref.getFullYear()}-${String(ref.getMonth()+1).padStart(2,'0')}`;
 }
 
-/* Jumlah pertemuan otomatis = hitungan dari absensi "Hadir" bulan berjalan.
+/* Siklus gaji tentor mengikuti tanggal GAJIAN (tgl 13), bukan awal bulan kalender:
+   satu periode = tgl 14 s/d tgl 13 bulan berikutnya. Kalau dibiarkan reset di
+   tgl 1 (pakai monthKey biasa), absen tgl 14-akhir bulan jadi "kepotong" dan
+   ketinggalan/tidak pernah kehitung waktu gajian tanggal 13. Key periode dilabeli
+   dengan tahun-bulan dari tanggal 14 yang jadi AWAL periode tsb (format sama
+   dengan monthKey: "YYYY-MM"), supaya penyimpanan per-periode tetap konsisten. */
+function gajiPeriodRange(ref=new Date()){
+  let startY = ref.getFullYear(), startM = ref.getMonth();
+  if(ref.getDate() < 14){
+    startM -= 1;
+    if(startM < 0){ startM = 11; startY -= 1; }
+  }
+  const start = new Date(startY, startM, 14);
+  const end = new Date(startY, startM+1, 13);
+  return { start, end };
+}
+function gajiPeriodKey(ref=new Date()){
+  const { start } = gajiPeriodRange(ref);
+  return `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}`;
+}
+function gajiPeriodLabel(ref=new Date()){
+  const { start, end } = gajiPeriodRange(ref);
+  const f = d => `${d.getDate()} ${namaBulan[d.getMonth()]} ${d.getFullYear()}`;
+  return `${f(start)} – ${f(end)}`;
+}
+
+/* Jumlah pertemuan otomatis = hitungan dari absensi "Hadir" pada PERIODE GAJIAN berjalan
+   (tgl 14 s/d tgl 13 bulan berikutnya, lihat gajiPeriodRange di atas).
    Admin bisa langsung mengubah angka "Total Pertemuan" di tab Gaji Tentor kalau ada selisih
    (mis. tentor absen tapi sebenarnya masuk 2x) — nilai ini adalah GANTI (override), bukan tambahan,
-   tersimpan per bulan di t.totalPertemuanOverride[monthKey]. Kalau belum pernah diubah, otomatis
-   dari absensi tetap dipakai. */
+   tersimpan per periode di t.totalPertemuanOverride[gajiPeriodKey]. Kalau belum pernah diubah,
+   otomatis dari absensi tetap dipakai. */
 function pertemuanOtomatis(tentorId, ref=new Date()){
-  const y = ref.getFullYear(), m = ref.getMonth();
+  const { start, end } = gajiPeriodRange(ref);
   return absensiLog.filter(a=>{
     if(a.tentorId!==tentorId || !a.hadir) return false;
     const ad = new Date(a.tanggal+"T00:00:00");
-    return ad.getFullYear()===y && ad.getMonth()===m;
+    return ad >= start && ad <= end;
   }).length;
 }
 function totalPertemuanOverride(tentorId, ref=new Date()){
   const t = findTentor(tentorId);
   if(!t || !t.totalPertemuanOverride) return null;
-  const v = t.totalPertemuanOverride[monthKey(ref)];
+  const v = t.totalPertemuanOverride[gajiPeriodKey(ref)];
   return (v===undefined || v===null) ? null : v;
 }
 function pertemuanBulanIni(tentorId, ref=new Date()){
@@ -474,26 +502,51 @@ function pertemuanBulanIni(tentorId, ref=new Date()){
   return override!==null ? override : pertemuanOtomatis(tentorId, ref);
 }
 
-/* Status lunas & gaji dibayar disimpan PER BULAN (key "YYYY-MM"), bukan satu flag tunggal —
-   supaya begitu bulan berganti, tagihan/gaji bulan baru otomatis mulai dari "belum lunas/belum dibayar"
-   tanpa perlu direset manual, sementara riwayat bulan-bulan sebelumnya tetap tersimpan. */
+/* Siklus tagihan murid mengikuti TANGGAL DAFTAR masing-masing anak (bukan tanggal 1
+   kalender bersama) — supaya kalau anak A daftar tgl 3, dia tetap "Lunas" sampai
+   tanggal 3 bulan berikutnya persis, baru dianggap jatuh tempo lagi mulai tgl 3
+   itu (dan "Terlambat" kalau sudah lewat tgl 3 tapi belum bayar). Satu periode =
+   [tanggal daftar bulan ini, tanggal sebelum tanggal daftar bulan depan]. Kalau
+   tanggal daftarnya lebih besar dari jumlah hari di suatu bulan (mis. daftar tgl 31
+   tapi bulan itu cuma 28/30 hari), dipakai hari terakhir bulan itu. */
+function daysInMonth(y, m){ return new Date(y, m+1, 0).getDate(); }
+function tagihanPeriodRange(m, ref=new Date()){
+  const anchor = m.tglDaftar;
+  let startY = ref.getFullYear(), startM = ref.getMonth();
+  const dueDayThisMonth = Math.min(anchor, daysInMonth(startY, startM));
+  if(ref.getDate() < dueDayThisMonth){
+    startM -= 1;
+    if(startM < 0){ startM = 11; startY -= 1; }
+  }
+  const startDay = Math.min(anchor, daysInMonth(startY, startM));
+  const start = new Date(startY, startM, startDay);
+  let endM = startM+1, endY = startY;
+  if(endM > 11){ endM = 0; endY += 1; }
+  const endDay = Math.min(anchor, daysInMonth(endY, endM));
+  const end = new Date(endY, endM, endDay);
+  return { start, end };
+}
+function tagihanPeriodKey(m, ref=new Date()){
+  const { start } = tagihanPeriodRange(m, ref);
+  return `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}`;
+}
 function lunasInfo(m, ref=new Date()){
-  const key = monthKey(ref);
+  const key = tagihanPeriodKey(m, ref);
   const h = m.lunasHistory && m.lunasHistory[key];
   return h ? { lunas: !!h.lunas, tanggalBayar: h.tanggalBayar ?? null } : { lunas:false, tanggalBayar:null };
 }
 function setLunas(m, val, ref=new Date()){
-  const key = monthKey(ref);
+  const key = tagihanPeriodKey(m, ref);
   if(!m.lunasHistory) m.lunasHistory = {};
   if(val) m.lunasHistory[key] = { lunas:true, tanggalBayar: todayDate };
   else delete m.lunasHistory[key];
 }
 function gajiDibayarBulanIni(t, ref=new Date()){
-  const key = monthKey(ref);
+  const key = gajiPeriodKey(ref);
   return !!(t.gajiHistory && t.gajiHistory[key]);
 }
 function setGajiDibayar(t, val, ref=new Date()){
-  const key = monthKey(ref);
+  const key = gajiPeriodKey(ref);
   if(!t.gajiHistory) t.gajiHistory = {};
   if(val) t.gajiHistory[key] = true;
   else delete t.gajiHistory[key];
@@ -631,11 +684,13 @@ function loadFirebaseConfigAndConnect(){
   }catch(e){ console.error(e); }
 }
 
-function statusTagihan(m){
-  const info = lunasInfo(m);
+function statusTagihan(m, ref=new Date()){
+  const info = lunasInfo(m, ref);
   if(info.lunas) return {label:"Lunas", cls:"paid", note: info.tanggalBayar ? `dibayar tgl ${info.tanggalBayar}` : ""};
-  if(todayDate >= m.tglDaftar) return {label:"Terlambat", cls:"unpaid", note:""};
-  return {label:"Belum jatuh tempo", cls:"unpaid", note:""};
+  const { start } = tagihanPeriodRange(m, ref);
+  const isDueToday = ref.getFullYear()===start.getFullYear() && ref.getMonth()===start.getMonth() && ref.getDate()===start.getDate();
+  if(isDueToday) return {label:"Jatuh tempo hari ini", cls:"pending", note:""};
+  return {label:"Terlambat", cls:"unpaid", note:""};
 }
 
 /* ---------------- Nav ---------------- */
@@ -780,7 +835,7 @@ function renderTentor(){
         <button class="btn" id="addTentor">+ Tambah Tentor</button>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nama</th><th>Alamat</th><th>No WA</th><th>Honor / Pertemuan</th><th>Pertemuan Bulan Ini</th><th>Estimasi Gaji</th><th></th></tr></thead>
+        <thead><tr><th>Nama</th><th>Alamat</th><th>No WA</th><th>Honor / Pertemuan</th><th>Pertemuan Periode Ini</th><th>Estimasi Gaji</th><th></th></tr></thead>
         <tbody>
           ${tentor.length ? tentor.map(t=>{ const p = pertemuanBulanIni(t.id); return `<tr>
             <td>${t.nama}</td>
@@ -833,13 +888,13 @@ function renderRekapBulanan(){
   const rows = tentor.map(t=>`<tr><td>${t.nama}</td><td class="num">${pertemuanBulanIni(t.id)}x</td><td class="num money">${rupiah(pertemuanBulanIni(t.id)*t.rate)}</td></tr>`).join("");
   return `<div class="card">
     <div class="row between" style="margin-bottom:2px">
-      <h3>Rekap Bulanan per Tentor</h3>
+      <h3>Rekap Gaji per Tentor — Periode ${gajiPeriodLabel()}</h3>
       <button class="btn small secondary" id="downloadRekapPdfBtn">⬇ Download PDF</button>
     </div>
-    <span class="sub-note">Otomatis terhitung dari absensi berstatus "Hadir" bulan berjalan (atau angka Total Pertemuan yang sudah diubah manual di tab Gaji Tentor) — ini yang jadi dasar Gaji Tentor</span>
+    <span class="sub-note">Otomatis terhitung dari absensi berstatus "Hadir" pada periode gajian berjalan, tgl 14 s/d tgl 13 bulan berikutnya (atau angka Total Pertemuan yang sudah diubah manual di tab Gaji Tentor) — ini yang jadi dasar Gaji Tentor</span>
     <div class="divider"></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Tentor</th><th>Pertemuan Bulan Ini</th><th>Estimasi Gaji</th></tr></thead>
+      <thead><tr><th>Tentor</th><th>Pertemuan Periode Ini</th><th>Estimasi Gaji</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
@@ -851,13 +906,13 @@ function downloadRekapTentorPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const now = new Date();
-  const judulBulan = `${namaBulan[now.getMonth()]} ${now.getFullYear()}`;
+  const judulPeriode = gajiPeriodLabel(now);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(15);
   doc.text("BIMBEL BNA", 14, 17);
   doc.setFontSize(11);
-  doc.text(`Rekap Gaji Tentor Bulanan — ${judulBulan}`, 14, 25);
+  doc.text(`Rekap Gaji Tentor — Periode ${judulPeriode}`, 14, 25);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(110);
@@ -882,7 +937,7 @@ function downloadRekapTentorPDF(){
     columnStyles: { 1:{halign:'right'}, 2:{halign:'right'}, 3:{halign:'right'} }
   });
 
-  doc.save(`bimbel-bna-rekap-tentor-${monthKey()}.pdf`);
+  doc.save(`bimbel-bna-rekap-tentor-${gajiPeriodKey()}.pdf`);
 }
 
 function renderAbsensi(){
@@ -966,7 +1021,7 @@ function renderGaji(){
   return `
     <div class="card">
       <h3>Gaji Tentor</h3>
-      <span class="sub-note">"Dari Absensi" otomatis dihitung dari absensi "Hadir" bulan berjalan (isi di tab Absensi Tentor). Kolom "Total Pertemuan" bisa diubah langsung kalau angkanya belum pas (mis. tentor lupa diabsen tapi sebenarnya masuk 2x) — angka yang disimpan di situ yang jadi dasar gaji. Gaji dibayar tiap tanggal 13.</span>
+      <span class="sub-note">"Dari Absensi" otomatis dihitung dari absensi "Hadir" pada periode gajian berjalan: <strong>tgl 14 s/d tgl 13 bulan berikutnya</strong> (isi di tab Absensi Tentor) — jadi hitungan tidak lagi kepotong/reset ke 0 di tanggal 1, melainkan reset pas tanggal 14, sehari setelah gajian. Kolom "Total Pertemuan" bisa diubah langsung kalau angkanya belum pas (mis. tentor lupa diabsen tapi sebenarnya masuk 2x) — angka yang disimpan di situ yang jadi dasar gaji. Periode berjalan saat ini: <strong>${gajiPeriodLabel()}</strong>, dibayar tanggal 13.</span>
       <div class="divider"></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Tentor</th><th>Dari Absensi</th><th>Total Pertemuan</th><th>Honor</th><th>Total Gaji</th><th>Status</th><th></th></tr></thead>
@@ -1136,7 +1191,7 @@ function bindEvents(){
       if(isNaN(val) || val<0){ alert("Isi angka total pertemuan yang valid (tidak boleh negatif)."); return; }
       const t = tentor.find(x=>x.id===id);
       if(!t.totalPertemuanOverride) t.totalPertemuanOverride = {};
-      t.totalPertemuanOverride[monthKey()] = val;
+      t.totalPertemuanOverride[gajiPeriodKey()] = val;
       saveState();
       renderMain();
     });
@@ -1145,7 +1200,7 @@ function bindEvents(){
     b.addEventListener("click", ()=>{
       const id = +b.dataset.resetTotalPertemuan;
       const t = tentor.find(x=>x.id===id);
-      if(t.totalPertemuanOverride) delete t.totalPertemuanOverride[monthKey()];
+      if(t.totalPertemuanOverride) delete t.totalPertemuanOverride[gajiPeriodKey()];
       saveState();
       renderMain();
     });
