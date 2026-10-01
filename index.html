@@ -633,7 +633,7 @@
   let loaded = false;
   let editingAssignmentId = null;
   let openHistoryIds = new Set(); // id kelas yang panel "Riwayat status"-nya sedang terbuka
-  let filters = {tentor:'', keluarga:'', kelas:'', honor:'', tagihan:'', absensi:''};
+  let filters = {tentor:'', keluarga:'', kelas:'', honor:'', tagihan:'', absensi:'', catatanAtas:false};
   let role = null; // 'admin' | null
   let payments = {}; // {familyId: true/false} untuk bulan berjalan
   let honorPayments = {}; // {tentorId: true/false} untuk bulan berjalan — status honor tentor sudah dibayar atau belum
@@ -1258,6 +1258,12 @@
       const hay = (a ? (tentorName(a.tentorId)+' '+a.namaSiswa+' '+(a.keterangan||'')+' '+familyName(a.familyId)) : '').toLowerCase();
       return hay.includes(q);
     });
+    // Centang "Catatan di atas": semua sesi bercatatan dinaikkan ke paling atas
+    // (urutan tanggal tetap terbaru dulu di dalam tiap kelompok).
+    if(filters.catatanAtas){
+      const idx = new Map(filtered.map((r,i)=>[r,i]));
+      filtered.sort((x,y)=> ((y.catatan?1:0)-(x.catatan?1:0)) || (idx.get(x)-idx.get(y)));
+    }
     const tentorOptions = tentors.filter(t=>t.status!=='nonaktif');
     const belumDiisi = kehadiran.filter(r=>r.catatan && (r.honorManual==null || r.biayaManual==null));
 
@@ -1305,7 +1311,12 @@
           </div>
         </div>
 
-        <div class="row" style="margin:16px 0 12px;">${searchInputHtml('searchAbsensi','Cari tentor / siswa / alamat…', filters.absensi)}</div>
+        <div class="row" style="margin:16px 0 12px;align-items:center;gap:14px;flex-wrap:wrap;">
+          ${searchInputHtml('searchAbsensi','Cari tentor / siswa / alamat…', filters.absensi)}
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:600;">
+            <input type="checkbox" id="catatanAtasToggle" ${filters.catatanAtas?'checked':''}> 📝 Tampilkan yang ada catatan di paling atas
+          </label>
+        </div>
 
         ${filtered.length===0 ? `<div class="empty"><h3>Belum ada catatan absen</h3><p>Bagikan link absen masing-masing tentor (tab Tentor) atau tambahkan catatan manual di atas.</p></div>` : `
         <div class="table-wrap">
@@ -1340,6 +1351,12 @@
     `));
     bindMonthPicker();
     bindLiveSearch('searchAbsensi','absensi');
+    const catatanAtasToggle = document.getElementById('catatanAtasToggle');
+    if(catatanAtasToggle) catatanAtasToggle.addEventListener('change', ()=>{
+      filters.catatanAtas = catatanAtasToggle.checked;
+      render();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
 
     const manTentorSel = document.getElementById('manTentor');
     const manKelasSel = document.getElementById('manKelas');
@@ -1426,6 +1443,31 @@
         render();
       });
     });
+  }
+
+  // Pindahkan data sesi/absen satu kelas lama ke kelas baru (hasil pecahan),
+  // mulai bulan fromMonth dan bulan-bulan sesudahnya yang sudah ada datanya.
+  async function migrateAssignmentData(oldId, newId, newTentorId, fromMonth){
+    const months = new Set([fromMonth]);
+    (availableMonths||[]).forEach(m=>{ if(m>=fromMonth) months.add(m); });
+    for(const m of months){
+      await storeTransactionUpdate('sessions:'+m, (val)=>{
+        val = val||{};
+        if(val[oldId]!=null){ val[newId] = (val[newId]||0) + val[oldId]; delete val[oldId]; }
+        return val;
+      });
+      await storeTransactionUpdate('sessionsNoHonor:'+m, (val)=>{
+        val = val||{};
+        if(val[oldId]!=null){ val[newId] = (val[newId]||0) + val[oldId]; delete val[oldId]; }
+        return val;
+      });
+      await storeTransactionUpdate('kehadiran:'+m, (val)=>{
+        val = val||[];
+        val.forEach(r=>{ if(r.assignmentId===oldId){ r.assignmentId = newId; r.tentorId = newTentorId; } });
+        return val;
+      });
+    }
+    await loadSessions(currentMonth);
   }
 
   // ---------- TENTOR ----------
@@ -1795,7 +1837,7 @@
       document.getElementById('a_honor_manual_wrap').style.display = honorSel.value==='__manual' ? '' : 'none';
     });
 
-    document.getElementById('addAssignBtn').addEventListener('click', ()=>{
+    document.getElementById('addAssignBtn').addEventListener('click', async ()=>{
       if(!editingAssignmentId && !requireMonthUnlocked('menambah siswa/kelas baru')) return;
       const tentorId = document.getElementById('a_tentor').value;
       const familyId = document.getElementById('a_family').value;
@@ -1819,7 +1861,26 @@
       }
       if(editingAssignmentId){
         const a = assignments.find(x=>x.id===editingAssignmentId);
-        Object.assign(a, {tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan});
+        // Kalau data yang diubah memengaruhi honor/biaya/identitas dan kelas ini
+        // sudah ada sejak bulan sebelumnya, JANGAN timpa data lamanya — nanti
+        // bulan lalu (yang terkunci) ikut berubah. Sebagai gantinya kelas dipecah:
+        // kelas lama dinonaktifkan mulai bulan ini, lalu dibuat kelas baru (tentor/
+        // tarif baru) yang aktif mulai bulan ini. Bulan-bulan sebelumnya tetap utuh.
+        const berubah = a.tentorId!==tentorId || a.familyId!==familyId || (a.namaSiswa||'')!==namaSiswa ||
+          (a.keterangan||'')!==keterangan || (a.tingkatan||'')!==tingkatan ||
+          (a.biayaLes||0)!==biayaLes || (a.honorTentor||0)!==honorTentor;
+        const mulaiLama = a.mulaiBulan || '';
+        const bulanIni = currentMonth;
+        const perluPecah = berubah && mulaiBulan===mulaiLama && mulaiLama && mulaiLama < bulanIni;
+        if(perluPecah){
+          if(!confirm(`Perubahan ini akan berlaku MULAI ${monthLabel(bulanIni)}.\n\nBulan sebelum ${monthLabel(bulanIni)} (mis. yang sudah terkunci) TIDAK berubah — tetap memakai tentor, tarif, dan data lama.\n\nSesi yang sudah tercatat di ${monthLabel(bulanIni)} (dan bulan sesudahnya, kalau ada) akan ikut dipindah ke data baru ini. Lanjutkan?`)) return;
+          const baru = {id:uid(), tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan:bulanIni, status:'aktif'};
+          setStatusAtMonth(a, bulanIni, 'nonaktif');
+          assignments.push(baru);
+          await migrateAssignmentData(a.id, baru.id, tentorId, bulanIni);
+        } else {
+          Object.assign(a, {tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan});
+        }
         editingAssignmentId = null;
       } else {
         assignments.push({id:uid(), tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan, status:'aktif'});
@@ -2165,7 +2226,7 @@
           </tr></thead>
           <tbody>${body || `<tr><td colspan="2" style="color:var(--ink);">Belum ada data.</td></tr>`}</tbody>
         </table>
-        <div class="rekap-total"><span>Total Gaji ${esc(t?t.nama:tentorName(tid))}</span><span class="num money">${rupiah(sectionTotal)}</span></div>
+        <div class="rekap-total"><span>Total Gaji ${esc(headNama)}</span><span class="num money">${rupiah(sectionTotal)}</span></div>
       </div>`;
     }).join('');
     return `
@@ -2182,6 +2243,38 @@
         <button class="btn secondary small close-invoice">Tutup</button>
       </div>
     `;
+  }
+
+  // Rekap ringkas semua tentor (nama + honor saja) untuk diunduh sebagai JPG.
+  function buildHonorRekapJpgHtml(tentorIds, groups){
+    let grand = 0;
+    const rows = tentorIds.map((tid,i)=>{
+      const list = groups[tid] || [];
+      let nama = '';
+      let total = 0;
+      list.forEach(a=>{ const c = calcRow(a); if(!nama) nama = c.tentorNama; total += c.totalHonor; });
+      if(!nama){ const t = tentorById(tid); nama = t ? t.nama : tentorName(tid); }
+      grand += total;
+      return `<tr style="border-bottom:1px solid #e3e8ef;">
+        <td style="padding:8px 6px;width:36px;color:#667;">${i+1}</td>
+        <td style="padding:8px 6px;">${esc(nama)}</td>
+        <td style="padding:8px 6px;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:600;">${rupiah(total)}</td>
+      </tr>`;
+    }).join('');
+    return `
+      ${invoiceHeader('Rekap Honor Tentor — Semua Tentor')}
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px;">
+        <thead><tr style="border-bottom:2px solid var(--blue-100);">
+          <th style="text-align:left;padding:8px 6px;">No</th>
+          <th style="text-align:left;padding:8px 6px;">Nama Tentor</th>
+          <th style="text-align:right;padding:8px 6px;">Honor</th>
+        </tr></thead>
+        <tbody>${rows || `<tr><td colspan="3" style="padding:14px 6px;color:#667;">Belum ada data.</td></tr>`}</tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--blue-500);padding-top:12px;">
+        <div style="font-weight:700;">Total Honor Semua Tentor</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:var(--blue-700);">${rupiah(grand)}</div>
+      </div>`;
   }
 
   function renderHonor(view){
@@ -2208,7 +2301,10 @@
       <div>
         <div class="row between toolbar">
           <h2 style="margin-bottom:0;">Slip Honor Tentor</h2>
-          <button class="btn secondary small" id="printHonorRekap">Cetak Rekap Semua / PDF</button>
+          <div class="row" style="gap:8px;">
+            <button class="btn small" id="downloadHonorRekapJpg">⬇ Download Rekap Semua (JPG)</button>
+            <button class="btn secondary small" id="printHonorRekap">Cetak Rekap Semua / PDF</button>
+          </div>
         </div>
         ${monthPickerHtml()}
         ${isMonthLocked(currentMonth) ? `<div class="banner" style="margin-bottom:10px;">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang <b>terkunci</b> — data tentor/alamat/kelas tidak bisa ditambah/diubah/dihapus, tapi angka di bawah ini tetap live mengikuti absen tentor. Buka kuncinya lewat tab "Rekap Bulanan" kalau perlu mengubah data master.</div>` : ''}
@@ -2281,6 +2377,13 @@
     unpaidIds.forEach(tid=> containerUnpaid.appendChild(buildTentorCard(tid)));
     paidIds.forEach(tid=> containerPaid.appendChild(buildTentorCard(tid)));
 
+    const dlHonorJpgBtn = document.getElementById('downloadHonorRekapJpg');
+    if(dlHonorJpgBtn) dlHonorJpgBtn.addEventListener('click', async ()=>{
+      dlHonorJpgBtn.disabled = true;
+      try{
+        await downloadInvoiceAsJpg(buildHonorRekapJpgHtml(tentorIds, groups), safeFileName('Rekap Honor Tentor '+monthLabel(currentMonth))+'.jpg');
+      } finally { dlHonorJpgBtn.disabled = false; }
+    });
     const printHonorRekapBtn = document.getElementById('printHonorRekap');
     if(printHonorRekapBtn) printHonorRekapBtn.addEventListener('click', ()=> showInvoice(buildHonorRekapPrintable(tentorIds, groups)));
 
