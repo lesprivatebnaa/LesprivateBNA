@@ -647,6 +647,115 @@
   // berpengaruh ke angka walau bulan ini terkunci.
   let rekapLocked = {};
 
+  // ---------- DATA MASTER PER BULAN (penyegelan bulan terkunci) ----------
+  // Data master = tentor (nama, kode, status), alamat/orang tua, dan kelas
+  // (murid, tentor pengajar, biaya les, HONOR, status aktif/nonaktif).
+  // Bulan yang belum pernah dikunci memakai data master "live" bersama.
+  // Begitu sebuah bulan DIKUNCI, data master saat itu disalin menjadi
+  // salinan MILIK BULAN ITU SAJA (key 'rekapSnapshot:<bulan>:master') dan
+  // salinan itu tetap dipakai selamanya untuk bulan tsb — juga setelah kunci
+  // dibuka lagi. Akibatnya:
+  //  - mengedit tentor/murid/honor/aktif-nonaktif di bulan lain TIDAK pernah
+  //    masuk ke bulan terkunci, dan
+  //  - mengedit bulan terkunci (setelah dibuka kuncinya) TIDAK pernah
+  //    mengubah bulan lain.
+  // Variabel tentors/families/assignments/counters di bawah selalu menunjuk
+  // ke data master milik bulan yang sedang dilihat (currentMonth).
+  let liveMaster = {tentors:[], families:[], assignments:[], counters:{tentor:0, family:0}};
+  let snapMasters = {};        // { 'YYYY-MM': {tentors,families,assignments,counters} }
+  let boundMonth = null;       // null = globals menunjuk data live; 'YYYY-MM' = salinan bulan itu
+  let absenModeActive = false; // halaman absen tentor (publik) selalu memakai data live untuk mencari tentor
+  let snapLoadFailed = false;  // true kalau salinan bulan terkunci gagal dibaca (jaringan) -> blokir edit demi keamanan
+  function snapKey(m){ return 'rekapSnapshot:'+m+':master'; }
+  function cloneMaster(m){ return JSON.parse(JSON.stringify(m)); }
+  function setGlobalsFrom(m){ tentors=m.tentors; families=m.families; assignments=m.assignments; counters=m.counters; }
+  function syncBoundFromGlobals(){
+    const cur = {tentors, families, assignments, counters};
+    if(boundMonth) snapMasters[boundMonth] = cur; else liveMaster = cur;
+  }
+  function bindMasterForMonth(month){
+    syncBoundFromGlobals();
+    if(snapMasters[month]){ boundMonth = month; setGlobalsFrom(snapMasters[month]); }
+    else { boundMonth = null; setGlobalsFrom(liveMaster); }
+  }
+  // Apakah bulan m memakai kumpulan data master yang SAMA dengan bulan yang sedang dilihat?
+  function sameDataset(m){ return boundMonth ? m===boundMonth : !snapMasters[m]; }
+  // Simpan data master milik bulan yang sedang dilihat. Bulan bersalinan ->
+  // hanya salinan bulan itu yang ditulis (data live & bulan lain tidak tersentuh).
+  async function saveMaster(...parts){
+    syncBoundFromGlobals();
+    if(boundMonth){ await storeSet(snapKey(boundMonth), snapMasters[boundMonth]); return; }
+    const names = parts.length ? parts : ['tentors','families','assignments','counters'];
+    for(const n of names) await storeSet(n, liveMaster[n]);
+  }
+  async function withLiveMaster(fn){
+    const was = boundMonth;
+    if(was){ syncBoundFromGlobals(); boundMonth = null; setGlobalsFrom(liveMaster); }
+    try{ return await fn(); }
+    finally{
+      syncBoundFromGlobals();
+      if(was){ boundMonth = was; setGlobalsFrom(snapMasters[was]); }
+    }
+  }
+  // Baca dokumen dan LEMPAR error kalau gagal (storeGet biasa menelan error
+  // jadi null, padahal di sini "gagal baca" tidak boleh dianggap "belum ada").
+  async function storeGetStrict(key){
+    const d = initFirebase();
+    if(!d){ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }
+    const doc = await d.collection('kv').doc(key).get();
+    if(!doc.exists) return null;
+    const raw = doc.data().value;
+    return (raw!==undefined && raw!==null) ? JSON.parse(raw) : null;
+  }
+  // Bulan yang SUDAH dikunci sebelum fitur ini ada belum punya salinan sendiri:
+  // buatkan sekarang dari data master saat ini (khusus admin yang sudah login).
+  async function ensureSnapshots(){
+    if(snapLoadFailed) return;
+    let made = false;
+    for(const m of Object.keys(rekapLocked)){
+      if(rekapLocked[m] && !snapMasters[m]){
+        syncBoundFromGlobals();
+        const copy = cloneMaster(liveMaster);
+        snapMasters[m] = copy;
+        await storeSet(snapKey(m), copy);
+        made = true;
+      }
+    }
+    await autoSeedMonth(currentMonthStr());
+    await autoSeedMonth(currentMonth);
+    if(made || snapMasters[currentMonth]) bindMasterForMonth(currentMonth);
+  }
+  // Bulan BARU (belum punya data absen & belum punya salinan sendiri) otomatis
+  // memulai dari salinan bulan terkunci TERDEKAT sebelumnya (mis. November
+  // memulai dari data final Oktober yang sudah dikunci). Setelah itu bulan baru
+  // punya salinan sendiri dan terpisah penuh. Bulan yang sudah berjalan
+  // (sudah ada absen) tidak pernah ditimpa.
+  async function autoSeedMonth(m){
+    if(!m || !role || snapLoadFailed || snapMasters[m]) return;
+    if((availableMonths||[]).includes(m)) return;
+    const src = Object.keys(snapMasters).filter(k=>k<m && rekapLocked[k]).sort().pop();
+    if(!src) return;
+    snapMasters[m] = cloneMaster(snapMasters[src]);
+    await storeSet(snapKey(m), snapMasters[m]);
+    rekapLocked[m] = false; // key tetap dicatat supaya salinannya ikut dimuat saat refresh
+    await storeSet('rekapLocked', rekapLocked);
+  }
+  let snapEnsured = false;
+  async function ensureSnapshotsOnce(){
+    if(snapEnsured) return;
+    snapEnsured = true;
+    await ensureSnapshots();
+  }
+  async function gotoMonth(m){
+    if(!m) return;
+    currentMonth = m;
+    editingAssignmentId = null;
+    await autoSeedMonth(m);
+    bindMasterForMonth(m);
+    await loadSessions(m);
+    render();
+  }
+
   // ---------- akses Admin ----------
   // Ini gerbang sederhana di sisi tampilan saja (bukan keamanan tingkat server).
   function getAdminPassword(){ try{ return localStorage.getItem('adminPassword') || 'admin123'; }catch(e){ return 'admin123'; } }
@@ -660,12 +769,32 @@
   async function setOwnerPin(pin){ try{ await storeSet('ownerPin', pin); }catch(e){} }
 
   async function loadCore(){
-    tentors = (await storeGet('tentors')) || [];
-    families = (await storeGet('families')) || [];
-    assignments = (await storeGet('assignments')) || [];
-    counters = (await storeGet('counters')) || {tentor:0, family:0};
+    const lm = {
+      tentors: (await storeGet('tentors')) || [],
+      families: (await storeGet('families')) || [],
+      assignments: (await storeGet('assignments')) || [],
+      counters: (await storeGet('counters')) || {tentor:0, family:0}
+    };
     honorVisible = (await storeGet('honorVisible')) || {};
     rekapLocked = (await storeGet('rekapLocked')) || {};
+    // Salinan data master bulan-bulan yang pernah dikunci (dibaca satu per satu
+    // lewat key-nya, bukan lewat daftar, supaya halaman absen tentor tanpa login
+    // juga bisa membacanya).
+    const sm = {};
+    let failed = false;
+    for(const m of Object.keys(rekapLocked)){
+      try{
+        const sn = await storeGetStrict(snapKey(m));
+        if(sn && Array.isArray(sn.tentors) && Array.isArray(sn.families) && Array.isArray(sn.assignments)){
+          if(!sn.counters) sn.counters = {tentor:0, family:0};
+          sm[m] = sn;
+        }
+      }catch(e){ failed = true; }
+    }
+    snapLoadFailed = failed;
+    liveMaster = lm; snapMasters = sm; boundMonth = null;
+    setGlobalsFrom(liveMaster);
+    if(!absenModeActive) bindMasterForMonth(currentMonth);
   }
   async function loadSessions(month){
     sessions = (await storeGet('sessions:'+month)) || {};
@@ -701,7 +830,8 @@
     families.forEach((f,i)=>{ f.kode = 'K'+pad3(i+1); });
   }
 
-  async function migrateIfNeeded(){
+  async function migrateIfNeeded(){ return withLiveMaster(migrateLive); }
+  async function migrateLive(){
     let changed = false;
     tentors.forEach(t=>{
       if(!t.status){ t.status='aktif'; changed=true; }
@@ -886,23 +1016,34 @@
   // "Rekap Bulanan". Ini supaya nambah data baru tidak bisa dilakukan sembarang
   // waktu — harus sadar dulu sedang mengedit untuk bulan mana.
   function requireMonthUnlocked(actionLabel){
+    if(snapLoadFailed){
+      alert('Data bulan-bulan terkunci gagal dimuat (koneksi bermasalah). Demi keamanan, perubahan data master ditahan dulu — refresh halaman lalu coba lagi.');
+      return false;
+    }
     if(isMonthLocked(currentMonth)){
       alert(`Rekap bulan ${monthLabel(currentMonth)} sedang TERKUNCI 🔒.\n\nBuka kunci dulu lewat tab "Rekap Bulanan" sebelum ${actionLabel}. Kalau mau data baru ini masuk ke bulan lain, pindah dulu ke bulan itu (dan pastikan bulan itu dalam keadaan terbuka) sebelum menambah.`);
       return false;
     }
     return true;
   }
-  // Mengunci rekap satu bulan: hanya menandai bulan itu terkunci (gerbang
-  // keamanan untuk requireMonthUnlocked). TIDAK lagi membuat snapshot beku —
-  // rekap, honor, dan invoice tetap dihitung dari data terkini bahkan saat
-  // terkunci, supaya absen tentor tetap langsung berpengaruh ke angka.
+  // Mengunci rekap satu bulan: data master (tentor, alamat, murid/kelas, honor,
+  // status aktif/nonaktif) saat ini DISALIN menjadi milik bulan itu sendiri
+  // lalu bulan ditandai terkunci. Sejak itu bulan ini terpisah penuh dari bulan
+  // lain (lihat komentar "DATA MASTER PER BULAN"). Angka pertemuan dari absen
+  // tetap live karena absen memang tercatat per bulan.
   async function lockRekapBulan(month){
+    if(!snapMasters[month]){
+      syncBoundFromGlobals();
+      const copy = cloneMaster(liveMaster);
+      snapMasters[month] = copy;
+      await storeSet(snapKey(month), copy);
+    }
     rekapLocked[month] = true;
     await storeSet('rekapLocked', rekapLocked);
+    bindMasterForMonth(currentMonth);
   }
-  // Membuka kunci lagi: bulan itu kembali memakai tarif & data TERKINI
-  // (bukan snapshot lama). Kunci ulang setelah selesai mengoreksi supaya
-  // aman lagi dari perubahan tarif berikutnya.
+  // Membuka kunci: bulan ini boleh diedit lagi, tapi yang diedit hanya
+  // salinan data milik bulan ini — bulan lain tetap tidak tersentuh.
   async function unlockRekapBulan(month){
     rekapLocked[month] = false;
     await storeSet('rekapLocked', rekapLocked);
@@ -973,9 +1114,9 @@
   }
   function bindMonthPicker(){
     const mp = document.getElementById('monthPicker');
-    if(mp) mp.addEventListener('change', async ()=>{ currentMonth = mp.value; await loadSessions(currentMonth); render(); });
+    if(mp) mp.addEventListener('change', async ()=>{ await gotoMonth(mp.value); });
     document.querySelectorAll('.month-chip').forEach(c=>{
-      c.addEventListener('click', async ()=>{ currentMonth = c.dataset.month; await loadSessions(currentMonth); render(); });
+      c.addEventListener('click', async ()=>{ await gotoMonth(c.dataset.month); });
     });
   }
   function searchInputHtml(id, placeholder, value){
@@ -1097,8 +1238,8 @@
           </div>
           <div class="group-body" style="padding-top:12px;">
             <div class="banner">${isMonthLocked(currentMonth)
-              ? `Rekap bulan ${monthLabel(currentMonth)} sedang <b>terkunci</b> — admin TIDAK bisa menambah/mengubah/menghapus tentor, alamat, atau kelas selama masih terkunci. Kolom "Jumlah Pertemuan" di bawah juga tidak bisa diketik manual. Tapi absen tentor tetap jalan seperti biasa — begitu tentor absen, jumlah pertemuan, honor, dan invoice di rekap ini tetap ikut berubah otomatis (angkanya TIDAK dibekukan). Kalau perlu mengubah data master (tentor/alamat/kelas), tekan "Buka Kunci" dulu.`
-              : `Kalau data master bulan ${monthLabel(currentMonth)} (tentor, alamat, kelas, tarif) sudah tidak perlu diubah-ubah lagi, <b>kunci</b> supaya tidak ada yang tidak sengaja menambah/mengedit/menghapus data selama bulan ini berjalan. Absen tentor dan penghitungan rekap tetap jalan normal walau dikunci.`}</div>
+              ? `Rekap bulan ${monthLabel(currentMonth)} sedang <b>terkunci dan terpisah penuh dari bulan lain</b>: data tentor, murid, honor, tarif, dan status aktif/nonaktif bulan ini punya salinan sendiri. Mengubah apa pun di bulan lain TIDAK akan masuk ke sini, dan sebaliknya. Di bulan ini admin tidak bisa menambah/mengubah/menghapus data master, dan kolom "Jumlah Pertemuan" tidak bisa diketik manual. Absen tentor bulan ini tetap berjalan normal. Kalau perlu koreksi, tekan "Buka Kunci" — yang berubah hanya bulan ini.`
+              : `Kalau data bulan ${monthLabel(currentMonth)} (tentor, murid, honor, tarif, aktif/nonaktif) sudah final, <b>kunci</b>: data bulan ini disalin dan disegel terpisah dari bulan lain, jadi perubahan di bulan lain tidak akan pernah menyentuhnya. Absen tentor tetap jalan normal walau dikunci.`}</div>
             <button class="btn ${isMonthLocked(currentMonth)?'secondary':''} small" id="toggleRekapLockBtn">${isMonthLocked(currentMonth) ? '🔓 Buka Kunci Rekap Bulan Ini' : '🔒 Kunci Rekap Bulan Ini'}</button>
           </div>
         </div>
@@ -1380,6 +1521,10 @@
       if(isCatatan && !catatanText){ alert('Tulis catatan kejadiannya dulu, atau matikan opsi "sesi bercatatan".'); return; }
       const a = assignments.find(x=>x.id===aid);
       const m = tanggal.slice(0,7);
+      if(m!==currentMonth && (snapMasters[m] || snapMasters[currentMonth])){
+        alert(`Tanggal itu masuk ke bulan ${monthLabel(m)}, sedangkan data kelas/tentor bulan ${monthLabel(m)} dan ${monthLabel(currentMonth)} terpisah (salah satunya pernah dikunci). Pindah dulu ke bulan ${monthLabel(m)} lalu catat absen dari sana supaya tidak tercampur.`);
+        return;
+      }
       const rec = {id:uid(), assignmentId:aid, tentorId:a.tentorId, tanggal, dicatatOleh:'admin', waktu:new Date().toISOString()};
       if(isCatatan){ rec.catatan = catatanText; rec.honorManual = null; }
       await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val=val||[]; val.push(rec); return val; });
@@ -1448,8 +1593,11 @@
   // Pindahkan data sesi/absen satu kelas lama ke kelas baru (hasil pecahan),
   // mulai bulan fromMonth dan bulan-bulan sesudahnya yang sudah ada datanya.
   async function migrateAssignmentData(oldId, newId, newTentorId, fromMonth){
-    const months = new Set([fromMonth]);
-    (availableMonths||[]).forEach(m=>{ if(m>=fromMonth) months.add(m); });
+    // Hanya bulan yang memakai data master yang SAMA yang ikut dipindah.
+    // Bulan terkunci/bersalinan sendiri tidak pernah disentuh.
+    const months = new Set();
+    if(sameDataset(fromMonth)) months.add(fromMonth);
+    (availableMonths||[]).forEach(m=>{ if(m>=fromMonth && sameDataset(m)) months.add(m); });
     for(const m of months){
       await storeTransactionUpdate('sessions:'+m, (val)=>{
         val = val||{};
@@ -1522,7 +1670,7 @@
       tentors.push({id:uid(), kode:'', nama, status:'aktif', secretToken: uid()+uid()});
       renumberTentors();
       render();
-      storeSet('tentors', tentors);
+      saveMaster('tentors');
     });
     bindLiveSearch('searchTentor','tentor');
 
@@ -1548,7 +1696,7 @@
         if(!trimmed) return;
         t.nama = trimmed;
         render();
-        storeSet('tentors', tentors);
+        saveMaster('tentors');
       });
     });
     view.querySelectorAll('.toggle-tentor-status').forEach(btn=>{
@@ -1558,7 +1706,7 @@
         t.status = t.status==='nonaktif' ? 'aktif' : 'nonaktif';
         renumberTentors();
         render();
-        storeSet('tentors', tentors);
+        saveMaster('tentors');
       });
     });
     view.querySelectorAll('.del-tentor').forEach(btn=>{
@@ -1574,8 +1722,7 @@
         assignments = assignments.filter(a=>a.tentorId!==id);
         renumberTentors();
         render();
-        storeSet('tentors', tentors);
-        storeSet('assignments', assignments);
+        saveMaster('tentors','assignments');
       });
     });
   }
@@ -1625,7 +1772,7 @@
       families.push({id:uid(), kode:'', alamat});
       renumberFamilies();
       render();
-      storeSet('families', families);
+      saveMaster('families');
     });
     bindLiveSearch('searchFam','keluarga');
 
@@ -1638,7 +1785,7 @@
         if(!alamat.trim()) return;
         f.alamat = alamat.trim();
         render();
-        storeSet('families', families);
+        saveMaster('families');
       });
     });
     view.querySelectorAll('.del-fam').forEach(btn=>{
@@ -1654,8 +1801,7 @@
         assignments = assignments.filter(a=>a.familyId!==id);
         renumberFamilies();
         render();
-        storeSet('families', families);
-        storeSet('assignments', assignments);
+        saveMaster('families','assignments');
       });
     });
   }
@@ -1886,7 +2032,7 @@
         assignments.push({id:uid(), tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan, status:'aktif'});
       }
       render();
-      storeSet('assignments', assignments);
+      saveMaster('assignments');
     });
 
     const cancelBtn = document.getElementById('cancelEditBtn');
@@ -1907,7 +2053,7 @@
         // titik status di bulan lain, pakai panel "Riwayat status".
         setStatusAtMonth(a, currentMonth, turningOff ? 'nonaktif' : 'aktif');
         render();
-        storeSet('assignments', assignments);
+        saveMaster('assignments');
       });
     });
     view.querySelectorAll('.toggle-history').forEach(btn=>{
@@ -1919,6 +2065,7 @@
     });
     view.querySelectorAll('.hist-bulan-input').forEach(inp=>{
       inp.addEventListener('change', ()=>{
+        if(!requireMonthUnlocked('mengubah riwayat status kelas')){ render(); return; }
         const a = assignments.find(x=>x.id===inp.dataset.id);
         if(!a) return;
         const hist = sortedHistory(a);
@@ -1930,11 +2077,12 @@
         const hist2 = sortedHistory(a);
         a.status = hist2.length ? hist2[hist2.length-1].status : 'aktif';
         render();
-        storeSet('assignments', assignments);
+        saveMaster('assignments');
       });
     });
     view.querySelectorAll('.hist-status-input').forEach(sel=>{
       sel.addEventListener('change', ()=>{
+        if(!requireMonthUnlocked('mengubah riwayat status kelas')){ render(); return; }
         const a = assignments.find(x=>x.id===sel.dataset.id);
         if(!a) return;
         const hist = sortedHistory(a);
@@ -1945,11 +2093,12 @@
         const hist2 = sortedHistory(a);
         a.status = hist2.length ? hist2[hist2.length-1].status : 'aktif';
         render();
-        storeSet('assignments', assignments);
+        saveMaster('assignments');
       });
     });
     view.querySelectorAll('.del-history').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('menghapus riwayat status kelas')) return;
         const a = assignments.find(x=>x.id===btn.dataset.id);
         if(!a) return;
         const hist = sortedHistory(a);
@@ -1961,18 +2110,19 @@
         const hist2 = sortedHistory(a);
         a.status = hist2.length ? hist2[hist2.length-1].status : 'aktif';
         render();
-        storeSet('assignments', assignments);
+        saveMaster('assignments');
       });
     });
     view.querySelectorAll('.add-history').forEach(btn=>{
       btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('menambah riwayat status kelas')) return;
         const a = assignments.find(x=>x.id===btn.dataset.id);
         if(!a) return;
         const bulanInp = document.getElementById('newHistBulan_'+a.id);
         const statusSel = document.getElementById('newHistStatus_'+a.id);
         setStatusAtMonth(a, bulanInp.value || '', statusSel.value);
         render();
-        storeSet('assignments', assignments);
+        saveMaster('assignments');
       });
     });
     view.querySelectorAll('.edit-assign').forEach(btn=>{
@@ -1988,7 +2138,7 @@
         assignments = assignments.filter(a=>a.id!==btn.dataset.id);
         if(editingAssignmentId===btn.dataset.id) editingAssignmentId=null;
         render();
-        storeSet('assignments', assignments);
+        saveMaster('assignments');
       });
     });
   }
@@ -2590,7 +2740,10 @@
     for(const k of monthKeys){
       sessionsAll[k.replace('sessions:','')] = (await storeGet(k)) || {};
     }
-    return { version:1, exportedAt:new Date().toISOString(), tentors, families, assignments, counters, sessions:sessionsAll };
+    syncBoundFromGlobals();
+    const snaps = {};
+    Object.keys(snapMasters).forEach(m=>{ snaps[m] = snapMasters[m]; });
+    return { version:2, exportedAt:new Date().toISOString(), tentors:liveMaster.tentors, families:liveMaster.families, assignments:liveMaster.assignments, counters:liveMaster.counters, sessions:sessionsAll, rekapLocked, snapshots:snaps };
   }
 
   function renderCadangan(view){
@@ -2843,6 +2996,9 @@ service cloud.firestore {
         await storeSet('families', data.families||[]);
         await storeSet('assignments', data.assignments||[]);
         await storeSet('counters', data.counters||{tentor:0, family:0});
+        if(data.rekapLocked) await storeSet('rekapLocked', data.rekapLocked);
+        const snaps = data.snapshots||{};
+        for(const m of Object.keys(snaps)){ await storeSet(snapKey(m), snaps[m]); }
         const sess = data.sessions||{};
         for(const month of Object.keys(sess)){
           await storeSet('sessions:'+month, sess[month]);
@@ -2885,7 +3041,12 @@ service cloud.firestore {
       const sess = (await storeGet('sessions:'+month)) || {};
       const sessNoHonor = (await storeGet('sessionsNoHonor:'+month)) || {};
       const kLog = (await storeGet('kehadiran:'+month)) || [];
-      const list = assignments.filter(a=>a.tentorId===tentor.id && isActiveInMonth(a, month));
+      // Daftar kelas diambil dari data master MILIK bulan tanggal absen —
+      // bulan terkunci memakai salinannya sendiri, bukan data bulan lain.
+      const M = snapMasters[month] || liveMaster;
+      const tentorM = M.tentors.find(t=>t.id===tentor.id) || tentor;
+      const famNameM = (fid)=>{ const f = M.families.find(x=>x.id===fid); return f ? (f.alamat||'(tanpa alamat)') : '(alamat dihapus)'; };
+      const list = M.assignments.filter(a=>a.tentorId===tentor.id && isActiveInMonth(a, month));
       const isToday = selectedDate===todayStr();
       const honorTerbuka = !!honorVisible[month];
       // Honor selalu dihitung dari data TERKINI (tarif & absen sekarang) —
@@ -2904,8 +3065,8 @@ service cloud.firestore {
         : `<div style="text-align:center;margin-top:18px;color:var(--ink-soft);font-size:11.5px;">Bukan ${esc(tentor.nama)}? Jangan gunakan link ini — hubungi admin.<br>Tips: simpan link ini di WhatsApp (chat pribadi ke diri sendiri) atau tambahkan ke layar utama HP agar sekali tekan langsung terbuka.</div>`;
       body.innerHTML = `
         <div style="margin-bottom:4px;">
-          <div style="font-family:'Poppins',sans-serif;font-weight:700;font-size:17px;color:var(--ink);">${esc(tentor.nama)}</div>
-          <span class="kode-tag" style="margin-top:4px;display:inline-block;">${esc(tentor.kode)}</span>
+          <div style="font-family:'Poppins',sans-serif;font-weight:700;font-size:17px;color:var(--ink);">${esc(tentorM.nama)}</div>
+          <span class="kode-tag" style="margin-top:4px;display:inline-block;">${esc(tentorM.kode)}</span>
         </div>
         ${honorTerbuka ? `
         <div style="background:#EAF6EE;border:1px solid #BFE8D2;border-radius:10px;padding:12px 16px;margin:12px 0 16px;">
@@ -2936,7 +3097,7 @@ service cloud.firestore {
           return `
           <div class="group-card">
             <div class="group-head">
-              <span class="name">${esc(childLabel(a))}<span class="sub"><br>${esc(familyName(a.familyId))} · ${esc(a.tingkatan)}</span></span>
+              <span class="name">${esc(childLabel(a))}<span class="sub"><br>${esc(famNameM(a.familyId))} · ${esc(a.tingkatan)}</span></span>
               <div class="right"><span class="kode-tag">${bulanIni}x bulan ini</span></div>
             </div>
             <div class="group-body" style="padding-top:12px;">
@@ -3005,6 +3166,7 @@ service cloud.firestore {
   // Link per-tentor lama: ?t=<id>&k=<secretToken> — tetap didukung supaya
   // link yang sudah pernah dibagikan sebelumnya tidak tiba-tiba rusak.
   async function startAbsenMode(idRaw, tokenRaw){
+    absenModeActive = true;
     document.title = 'Absen Mengajar — Les Private Banda Aceh';
     document.body.innerHTML = absenShellHtml();
     const body = document.getElementById('absenBody');
@@ -3031,6 +3193,7 @@ service cloud.firestore {
   // memilih nama sendiri dari daftar. Setelah dipilih, HP tentor tsb akan
   // "mengingat" pilihannya supaya lain kali langsung terbuka ke namanya.
   async function startAbsenModeShared(){
+    absenModeActive = true;
     document.title = 'Absen Mengajar — Les Private Banda Aceh';
     document.body.innerHTML = absenShellHtml();
     const body = document.getElementById('absenBody');
@@ -3153,6 +3316,7 @@ service cloud.firestore {
       render();
       await dataReadyPromise;
     }
+    await ensureSnapshotsOnce();
     render();
   }
 
@@ -3257,6 +3421,7 @@ service cloud.firestore {
           updateRoleBadge();
           document.getElementById('loginOverlay').style.display = 'none';
           if(!loaded) await dataReadyPromise;
+          await ensureSnapshotsOnce();
           render();
         } else {
           role = null;
@@ -3272,6 +3437,7 @@ service cloud.firestore {
         role = savedRole;
         updateRoleBadge();
         await dataReadyPromise;
+        await ensureSnapshotsOnce();
         render();
       } else {
         showLogin();
