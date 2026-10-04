@@ -741,15 +741,10 @@
     await storeSet('rekapLocked', rekapLocked);
   }
   // Data master yang berlaku untuk bulan m (dipakai halaman absen tentor yang
-  // tidak login): salinan bulan itu kalau ada; kalau bulannya belum punya
-  // salinan dan lebih baru dari semua bulan terkunci, ikut bulan terkunci
-  // terdekat sebelumnya (sama seperti penyalinan otomatis bulan baru).
+  // tidak login): salinan bulan itu kalau ada, kalau tidak data live — sama
+  // persis dengan yang dilihat admin saat membuka bulan tersebut.
   function masterForMonth(m){
-    if(snapMasters[m]) return snapMasters[m];
-    const src = Object.keys(snapMasters).filter(k=>k<m && rekapLocked[k]).sort().pop();
-    const newest = Object.keys(snapMasters).sort().pop();
-    if(src && (!newest || m>newest)) return snapMasters[src];
-    return liveMaster;
+    return snapMasters[m] || liveMaster;
   }
   // Cari tentor untuk link/pemilih absen: utamakan data bulan berjalan (hari ini),
   // lalu data bulan lain supaya link lama tetap berlaku.
