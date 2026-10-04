@@ -740,6 +740,27 @@
     rekapLocked[m] = false; // key tetap dicatat supaya salinannya ikut dimuat saat refresh
     await storeSet('rekapLocked', rekapLocked);
   }
+  // Data master yang berlaku untuk bulan m (dipakai halaman absen tentor yang
+  // tidak login): salinan bulan itu kalau ada; kalau bulannya belum punya
+  // salinan dan lebih baru dari semua bulan terkunci, ikut bulan terkunci
+  // terdekat sebelumnya (sama seperti penyalinan otomatis bulan baru).
+  function masterForMonth(m){
+    if(snapMasters[m]) return snapMasters[m];
+    const src = Object.keys(snapMasters).filter(k=>k<m && rekapLocked[k]).sort().pop();
+    const newest = Object.keys(snapMasters).sort().pop();
+    if(src && (!newest || m>newest)) return snapMasters[src];
+    return liveMaster;
+  }
+  // Cari tentor untuk link/pemilih absen: utamakan data bulan berjalan (hari ini),
+  // lalu data bulan lain supaya link lama tetap berlaku.
+  function absenTentors(){ return masterForMonth(currentMonthStr()).tentors; }
+  function absenFindTentor(id){
+    let t = absenTentors().find(x=>x.id===id);
+    if(t) return t;
+    const all = Object.keys(snapMasters).sort().reverse().map(k=>snapMasters[k]).concat([liveMaster]);
+    for(const M of all){ t = M.tentors.find(x=>x.id===id); if(t) return t; }
+    return null;
+  }
   let snapEnsured = false;
   async function ensureSnapshotsOnce(){
     if(snapEnsured) return;
@@ -3036,6 +3057,7 @@ service cloud.firestore {
     const body = document.getElementById('absenBody');
     let selectedDate = todayStr();
     async function draw(){
+      if(selectedDate.slice(0,7)!==currentMonthStr()) selectedDate = todayStr();
       body.innerHTML = `<div class="empty"><h3>Memuat…</h3></div>`;
       const month = selectedDate.slice(0,7);
       const sess = (await storeGet('sessions:'+month)) || {};
@@ -3043,7 +3065,7 @@ service cloud.firestore {
       const kLog = (await storeGet('kehadiran:'+month)) || [];
       // Daftar kelas diambil dari data master MILIK bulan tanggal absen —
       // bulan terkunci memakai salinannya sendiri, bukan data bulan lain.
-      const M = snapMasters[month] || liveMaster;
+      const M = masterForMonth(month);
       const tentorM = M.tentors.find(t=>t.id===tentor.id) || tentor;
       const famNameM = (fid)=>{ const f = M.families.find(x=>x.id===fid); return f ? (f.alamat||'(tanpa alamat)') : '(alamat dihapus)'; };
       const list = M.assignments.filter(a=>a.tentorId===tentor.id && isActiveInMonth(a, month));
@@ -3082,7 +3104,8 @@ service cloud.firestore {
         <div style="color:var(--ink-soft);font-size:12px;margin:8px 0 16px;">${isToday?'Hari ini':tanggalIndo(selectedDate)} — <button class="icon-btn edit-btn" id="toggleDateBtn" style="padding:2px 6px;">${isToday?'bukan hari ini?':'kembali ke hari ini'}</button></div>
         <div id="dateBox" style="display:${isToday?'none':'block'};margin-bottom:16px;">
           <label class="field-label">Tanggal Mengajar</label>
-          <input type="date" id="absenDate" value="${selectedDate}" max="${todayStr()}">
+          <input type="date" id="absenDate" value="${selectedDate}" min="${currentMonthStr()}-01" max="${todayStr()}">
+          <div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">Hanya bisa memilih tanggal di bulan ${monthLabel(currentMonthStr())}. Untuk bulan lalu, hubungi admin.</div>
         </div>
         ${list.length===0 ? `<div class="empty"><h3>Belum ada kelas</h3><p>Anda belum terdaftar mengajar kelas manapun. Hubungi admin.</p></div>` :
         list.map(a=>{
@@ -3120,7 +3143,11 @@ service cloud.firestore {
         box.style.display = box.style.display==='none' ? 'block' : 'none';
       });
       const dateInp = document.getElementById('absenDate');
-      if(dateInp) dateInp.addEventListener('change', ()=>{ selectedDate = dateInp.value || todayStr(); draw(); });
+      if(dateInp) dateInp.addEventListener('change', ()=>{
+        const v = dateInp.value || todayStr();
+        selectedDate = (v.slice(0,7)===currentMonthStr() && v<=todayStr()) ? v : todayStr();
+        draw();
+      });
       body.querySelectorAll('.absen-mark').forEach(btn=>{
         btn.addEventListener('click', async ()=>{
           btn.disabled = true; btn.textContent = 'Menyimpan…';
@@ -3177,7 +3204,7 @@ service cloud.firestore {
     await loadCore();
     const id = (idRaw||'').trim();
     const token = (tokenRaw||'').trim();
-    const tentor = tentors.find(t=>t.id===id);
+    const tentor = absenFindTentor(id);
     if(!tentor || !token || tentor.secretToken!==token){
       body.innerHTML = `<div class="empty"><h3>Link tidak valid</h3><p>Link ini tidak dikenali atau sudah tidak berlaku (mungkin sudah di-reset oleh admin). Hubungi admin untuk mendapatkan link absen yang baru.</p></div>`;
       return;
@@ -3204,7 +3231,7 @@ service cloud.firestore {
     await loadCore();
     let rememberedId = null;
     try{ rememberedId = localStorage.getItem('absenSharedTentorId'); }catch(e){}
-    const remembered = rememberedId ? tentors.find(t=>t.id===rememberedId) : null;
+    const remembered = rememberedId ? absenFindTentor(rememberedId) : null;
     if(remembered && remembered.status!=='nonaktif'){
       await runTentorAbsenSession(remembered, {allowSwitch:true});
     } else {
@@ -3224,7 +3251,7 @@ service cloud.firestore {
     `;
     function drawList(){
       const q = (document.getElementById('tentorPickerSearch').value||'').trim().toLowerCase();
-      const aktif = tentors.filter(t=>t.status!=='nonaktif' && (!q || t.nama.toLowerCase().includes(q))).slice().sort((a,b)=>a.nama.localeCompare(b.nama,'id'));
+      const aktif = absenTentors().filter(t=>t.status!=='nonaktif' && (!q || t.nama.toLowerCase().includes(q))).slice().sort((a,b)=>a.nama.localeCompare(b.nama,'id'));
       const listEl = document.getElementById('tentorPickerList');
       listEl.innerHTML = aktif.length===0 ? `<div class="empty"><h3>Tidak ditemukan</h3></div>` :
         aktif.map(t=>`<button class="btn secondary tentor-pick-btn" data-id="${t.id}" style="width:100%;text-align:left;font-size:14px;padding:12px 16px;">${esc(t.nama)}</button>`).join('');
