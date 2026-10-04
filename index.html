@@ -756,6 +756,12 @@
     for(const M of all){ t = M.tentors.find(x=>x.id===id); if(t) return t; }
     return null;
   }
+  function absenDiagHtml(month){
+    const M = masterForMonth(month);
+    const sumber = snapMasters[month] ? 'salinan bulan '+monthLabel(month) : 'data umum (belum ada salinan '+monthLabel(month)+')';
+    const warn = snapLoadFailed ? ' · ⚠ salinan bulan gagal dimuat, kabari admin' : '';
+    return `<div style="text-align:center;margin-top:14px;color:var(--ink-soft);font-size:10.5px;opacity:.8;">Sumber data: ${esc(sumber)} · ${M.tentors.length} tentor${warn}</div>`;
+  }
   let snapEnsured = false;
   async function ensureSnapshotsOnce(){
     if(snapEnsured) return;
@@ -798,7 +804,10 @@
     // juga bisa membacanya).
     const sm = {};
     let failed = false;
-    for(const m of Object.keys(rekapLocked)){
+    const snapMonths = Object.keys(rekapLocked);
+    const cm = currentMonthStr();
+    if(!snapMonths.includes(cm)) snapMonths.push(cm);
+    for(const m of snapMonths){
       try{
         const sn = await storeGetStrict(snapKey(m));
         if(sn && Array.isArray(sn.tentors) && Array.isArray(sn.families) && Array.isArray(sn.assignments)){
@@ -3130,6 +3139,7 @@ service cloud.firestore {
           </div>`;
         }).join('')}
         ${footerHtml}
+        ${absenDiagHtml(month)}
       `;
       const toggleBtn = document.getElementById('toggleDateBtn');
       if(toggleBtn) toggleBtn.addEventListener('click', ()=>{
@@ -3243,6 +3253,7 @@ service cloud.firestore {
       </div>
       <div style="margin-top:14px;"><input type="search" id="tentorPickerSearch" placeholder="Cari nama…"></div>
       <div id="tentorPickerList" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;"></div>
+      ${absenDiagHtml(currentMonthStr())}
     `;
     function drawList(){
       const q = (document.getElementById('tentorPickerSearch').value||'').trim().toLowerCase();
