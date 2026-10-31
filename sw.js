@@ -1,9 +1,10 @@
 // Service worker Buku Kas — Les Private BNA
-// - Halaman aplikasi: selalu ambil versi TERBARU dari internet; kalau internet
-//   lambat (>4 detik) atau putus, pakai salinan terakhir yang tersimpan di HP.
-// - Pustaka (Firebase, font, html2canvas) & ikon: disimpan di HP supaya cepat dibuka.
-// - Data (Firestore) TIDAK pernah disimpan di sini — selalu langsung dari Firebase.
-const CACHE = 'bna-app-v2';
+// - Halaman aplikasi: langsung dibuka dari salinan di HP (instan, seperti
+//   aplikasi asli). Versi terbaru diambil di latar belakang; kalau ada yang
+//   berubah, aplikasi menampilkan tombol "Versi baru tersedia".
+// - Pustaka (Firebase, font, html2canvas) & ikon: disimpan di HP.
+// - Data (Firestore) TIDAK pernah disimpan di sini — selalu dari Firebase.
+const CACHE = 'bna-app-v3';
 const CORE = ['./', './index.html', './manifest.json', './manifest-absen.json', './icon-192.png', './icon-512.png', './icon-absen-192.png', './icon-absen-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -32,27 +33,36 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (req.mode === 'navigate' && isAppPage(url)) {
-    e.respondWith(networkFirst(req));
+    e.respondWith(appShell(req, e));
   } else if (isStaticAsset(url)) {
     e.respondWith(cacheFirst(req));
   }
 });
 
-async function networkFirst(req) {
+async function appShell(req, event) {
   const cache = await caches.open(CACHE);
   const key = new URL('./index.html', self.registration.scope).href;
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 4000);
-    const res = await fetch(req, { signal: ctrl.signal, cache: 'no-store' });
-    clearTimeout(timer);
-    if (res.ok) cache.put(key, res.clone());
+  const cached = await cache.match(key);
+  const oldText = cached ? cached.clone().text() : Promise.resolve(null);
+  const refresh = fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }).then(async (res) => {
+    if (res.ok) {
+      const fresh = await res.clone().text();
+      const old = await oldText;
+      await cache.put(key, new Response(fresh, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }));
+      if (old !== null && old !== fresh) {
+        // beri waktu halaman memasang pendengarnya
+        await new Promise((r) => setTimeout(r, 1500));
+        const wins = await self.clients.matchAll({ type: 'window' });
+        wins.forEach((w) => w.postMessage({ type: 'bna-update' }));
+      }
+    }
     return res;
-  } catch (err) {
-    const hit = await cache.match(key);
-    if (hit) return hit;
-    return fetch(req);
+  });
+  if (cached) {
+    event.waitUntil(refresh.catch(() => {}));
+    return cached;
   }
+  return refresh;
 }
 
 async function cacheFirst(req) {

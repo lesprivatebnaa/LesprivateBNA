@@ -10,6 +10,9 @@
 <meta name="apple-mobile-web-app-title" content="Buku Kas BNA">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
 <meta name="description" content="Buku kas Les Private Banda Aceh: rekap pertemuan, honor tentor, invoice orang tua, dan absen mengajar.">
 <title>Buku Kas — Les Private BNA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -287,6 +290,28 @@
     .rekap-grid{column-count:2; column-gap:14px;}
     .rekap-section{margin-bottom:8px;}
   }
+  /* ---------- Buka instan: data sebelumnya tampil, edit menunggu data terbaru ---------- */
+  body.warm-preview #view{pointer-events:none;}
+  body.warm-preview::before{
+    content:''; position:fixed; top:0; left:0; right:0; height:3px; z-index:200;
+    background:linear-gradient(90deg,transparent,var(--blue-600),transparent); background-size:50% 100%;
+    background-repeat:no-repeat; animation:warmbar 1s linear infinite;
+  }
+  @keyframes warmbar{from{background-position:-50% 0;}to{background-position:150% 0;}}
+  .update-toast{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:calc(86px + env(safe-area-inset-bottom)); z-index:10000;
+    background:#1E2A5A; color:#fff; border:0; border-radius:14px; padding:12px 16px; font:600 13.5px 'Inter',sans-serif;
+    box-shadow:0 8px 24px rgba(20,30,70,0.3); cursor:pointer; max-width:calc(100% - 32px);
+  }
+
+  /* ---------- Layar memuat ---------- */
+  .app-loading{display:flex; flex-direction:column; align-items:center; gap:12px; padding:34px 0 10px; color:var(--ink-soft); font-weight:600; font-size:13.5px;}
+  .app-loading .spinner{width:34px; height:34px; border-radius:50%; border:3.5px solid var(--blue-100); border-top-color:var(--blue-600); animation:spin .8s linear infinite;}
+  .app-loading .sk{width:100%; height:64px; border-radius:14px; background:linear-gradient(90deg,#EEF2FF 25%,#F7F9FF 50%,#EEF2FF 75%); background-size:200% 100%; animation:shimmer 1.2s infinite;}
+  .app-loading .sk.short{width:60%;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes shimmer{from{background-position:200% 0;}to{background-position:-200% 0;}}
+
   /* ---------- Menu bawah & lembar "Lainnya" (khusus HP) ---------- */
   .bottom-nav{display:none;}
   .more-sheet{display:none; position:fixed; inset:0; z-index:70;}
@@ -345,6 +370,13 @@
     main{margin:12px auto 20px; padding:0 10px;}
     .card{padding:16px 14px; border-radius:18px;}
     h2{font-size:19px;}
+
+    /* Rasa aplikasi: tanpa efek kedip saat ketuk, tanpa tarik-pantul halaman */
+    html, body{overscroll-behavior-y:none; -webkit-tap-highlight-color:transparent;}
+    button, .chip, .bottom-nav, .group-head, .more-sheet{-webkit-user-select:none; user-select:none;}
+    .btn:active, .chip:active, .icon-btn:active{transform:scale(0.97);}
+    #view{animation:viewIn .18s ease;}
+    @keyframes viewIn{from{opacity:.4; transform:translateY(4px);}to{opacity:1; transform:none;}}
 
     /* Menu bawah */
     .bottom-nav{
@@ -862,6 +894,45 @@
     if(snapMasters[month]){ boundMonth = month; setGlobalsFrom(snapMasters[month]); }
     else { boundMonth = null; setGlobalsFrom(liveMaster); }
   }
+  // ---------- Buka instan ----------
+  // Data terakhir disimpan di perangkat admin ini, supaya saat aplikasi dibuka
+  // isinya langsung tampil. Data terbaru dari Firebase tetap diambil di latar
+  // belakang; selama itu tampilan dikunci sebentar (tidak bisa diedit) supaya
+  // tidak ada yang tersimpan dari data lama. Dihapus saat Keluar.
+  const WARM_KEY = 'bnaWarmCache:v1';
+  let warmPreview = false;
+  let warmSaveTimer = null;
+  function saveWarmCacheSoon(){
+    if(!role || warmPreview || !loaded || !initFirebase()) return;
+    clearTimeout(warmSaveTimer);
+    warmSaveTimer = setTimeout(()=>{
+      try{
+        syncBoundFromGlobals();
+        localStorage.setItem(WARM_KEY, JSON.stringify({
+          month: currentMonth, liveMaster, snapMasters, honorVisible, rekapLocked,
+          kehadiran, sessionsAdj, payments, honorPayments, availableMonths, at: Date.now()
+        }));
+      }catch(e){ try{ localStorage.removeItem(WARM_KEY); }catch(_){} }
+    }, 1200);
+  }
+  function loadWarmCache(){
+    try{
+      const c = JSON.parse(localStorage.getItem(WARM_KEY) || 'null');
+      if(!c || c.month!==currentMonth || !c.liveMaster) return false;
+      boundMonth = null;
+      liveMaster = c.liveMaster; snapMasters = c.snapMasters || {};
+      setGlobalsFrom(liveMaster);
+      honorVisible = c.honorVisible || {}; rekapLocked = c.rekapLocked || {};
+      bindMasterForMonth(currentMonth);
+      kehadiran = c.kehadiran || []; sessionsAdj = c.sessionsAdj || {};
+      recomputeSessions();
+      payments = c.payments || {}; honorPayments = c.honorPayments || {};
+      availableMonths = c.availableMonths || [];
+      return true;
+    }catch(e){ return false; }
+  }
+  function clearWarmCache(){ try{ localStorage.removeItem(WARM_KEY); }catch(e){} }
+
   // Apakah bulan m memakai kumpulan data master yang SAMA dengan bulan yang sedang dilihat?
   function sameDataset(m){ return boundMonth ? m===boundMonth : !snapMasters[m]; }
   // Simpan data master milik bulan yang sedang dilihat. Bulan bersalinan ->
@@ -1148,14 +1219,12 @@
   }
 
   async function loadCore(){
-    const lm = {
-      tentors: (await storeGet('tentors')) || [],
-      families: (await storeGet('families')) || [],
-      assignments: (await storeGet('assignments')) || [],
-      counters: (await storeGet('counters')) || {tentor:0, family:0}
-    };
-    honorVisible = (await storeGet('honorVisible')) || {};
-    rekapLocked = (await storeGet('rekapLocked')) || {};
+    // Semua dibaca bersamaan (paralel) supaya aplikasi cepat terbuka.
+    const [t0, f0, a0, c0, hv0, rl0] = await Promise.all(
+      ['tentors','families','assignments','counters','honorVisible','rekapLocked'].map(k=>storeGet(k)));
+    const lm = { tentors: t0 || [], families: f0 || [], assignments: a0 || [], counters: c0 || {tentor:0, family:0} };
+    honorVisible = hv0 || {};
+    rekapLocked = rl0 || {};
     // Salinan data master bulan-bulan yang pernah dikunci (dibaca satu per satu
     // lewat key-nya, bukan lewat daftar, supaya halaman absen tentor tanpa login
     // juga bisa membacanya).
@@ -1164,7 +1233,7 @@
     const snapMonths = Object.keys(rekapLocked);
     const cm = currentMonthStr();
     if(!snapMonths.includes(cm)) snapMonths.push(cm);
-    for(const m of snapMonths){
+    await Promise.all(snapMonths.map(async (m)=>{
       try{
         const sn = await storeGetStrict(snapKey(m));
         if(sn && Array.isArray(sn.tentors) && Array.isArray(sn.families) && Array.isArray(sn.assignments)){
@@ -1172,20 +1241,21 @@
           sm[m] = sn;
         }
       }catch(e){ failed = true; }
-    }
+    }));
     snapLoadFailed = failed;
     liveMaster = lm; snapMasters = sm; boundMonth = null;
     setGlobalsFrom(liveMaster);
     if(!absenModeActive) bindMasterForMonth(currentMonth);
   }
   async function loadSessions(month){
-    try{ kehadiran = await absenListMonth(month); absenLoadFailed = false; }
-    catch(e){ kehadiran = []; absenLoadFailed = true; flashError(); }
-    sessionsAdj = (await storeGet('sessionsAdj:'+month)) || {};
+    const absenP = absenListMonth(month).then(r=>({ok:true, r}), ()=>({ok:false}));
+    const [ab, adj, pay, hpay] = await Promise.all([absenP, storeGet('sessionsAdj:'+month), storeGet('payments:'+month), storeGet('honorPayments:'+month)]);
+    if(ab.ok){ kehadiran = ab.r; absenLoadFailed = false; } else { kehadiran = []; absenLoadFailed = true; flashError(); }
+    sessionsAdj = adj || {};
     recomputeSessions();
     if(kehadiran.length) noteAbsenMonth(month);
-    payments = (await storeGet('payments:'+month)) || {};
-    honorPayments = (await storeGet('honorPayments:'+month)) || {};
+    payments = pay || {};
+    honorPayments = hpay || {};
   }
   // Jumlah pertemuan = jumlah absen + koreksi manual; sesi bercatatan = absen yang punya catatan.
   function recomputeSessions(){
@@ -1210,9 +1280,8 @@
     return hari[d.getDay()]+', '+d.getDate()+' '+bulan[d.getMonth()]+' '+d.getFullYear();
   }
   async function refreshAvailableMonths(){
-    const a = (await storeListPrefix('sessions:')).map(k=>k.slice(9));
-    const b = (await storeListPrefix('sessionsAdj:')).map(k=>k.slice(12));
-    const c = await absenMonthsList();
+    const [ka, kb, c] = await Promise.all([storeListPrefix('sessions:'), storeListPrefix('sessionsAdj:'), absenMonthsList()]);
+    const a = ka.map(k=>k.slice(9)), b = kb.map(k=>k.slice(12));
     availableMonths = [...new Set(a.concat(b, c))].sort().reverse();
   }
 
@@ -1482,7 +1551,11 @@
     syncBottomNav();
     closeMoreSheet();
     render();
-    if(changed) window.scrollTo(0, 0);
+    if(changed){
+      window.scrollTo(0, 0);
+      const v = document.getElementById('view');
+      v.style.animation = 'none'; void v.offsetWidth; v.style.animation = '';
+    }
   }
   function syncBottomNav(){
     document.querySelectorAll('#bottomNav button').forEach(b=>{
@@ -1548,6 +1621,7 @@
     view.innerHTML = '';
     renderTab(view);
     labelTableCells(view);
+    saveWarmCacheSoon();
     if(focusKey){
       const t = view.querySelector(focusKey.tag+'.'+CSS.escape(focusKey.cls)+'[data-id="'+CSS.escape(focusKey.id)+'"]');
       if(t && !t.disabled) t.focus({preventScroll:true});
@@ -1576,7 +1650,7 @@
     if(b && !e.target.closest('button, a, input')) b.classList.toggle('open');
   });
   function renderTab(view){
-    if(!loaded){ view.appendChild(el('<div class="empty"><h3>Memuat data…</h3></div>')); return; }
+    if(!loaded){ view.appendChild(el('<div class="app-loading"><div class="spinner"></div><div>Memuat data…</div><div class="sk"></div><div class="sk"></div><div class="sk short"></div></div>')); return; }
     if(activeTab==='rekap') renderRekap(view);
     else if(activeTab==='absensi') renderAbsensi(view);
     else if(activeTab==='tentor') renderTentor(view);
@@ -3786,10 +3860,17 @@ service cloud.firestore {
     dataReadyPromise = (async ()=>{
       await loadCore();
       await migrateIfNeeded();
-      try{ await migrateLegacyAbsen(); }catch(e){ console.warn('Migrasi absen lama tertunda:', e); }
-      await loadSessions(currentMonth);
-      await refreshAvailableMonths();
+      await Promise.all([loadSessions(currentMonth), refreshAvailableMonths()]);
       loaded = true;
+      // Absen yang masih masuk lewat aplikasi versi lama dipindah di belakang layar,
+      // tanpa menahan tampilan pertama.
+      setTimeout(async ()=>{
+        try{
+          const before = (await storeListPrefix('kehadiran:')).length;
+          await migrateLegacyAbsen();
+          if(before && role){ await loadSessions(currentMonth); render(); }
+        }catch(e){ console.warn('Migrasi absen lama tertunda:', e); }
+      }, 1500);
     })();
   }
 
@@ -3843,6 +3924,7 @@ service cloud.firestore {
     if(a){ try{ await a.signOut(); }catch(e){} }
     role = null;
     ownerUnlocked = false;
+    clearWarmCache();
     try{ localStorage.removeItem('loggedInRole'); }catch(e){}
     updateRoleBadge();
     showLogin();
@@ -3945,6 +4027,16 @@ service cloud.firestore {
       if(absenId){ const ti = document.querySelector('link[rel="apple-touch-icon"]'); if(ti) ti.href = 'icon-absen-192.png'; }
       if('serviceWorker' in navigator && location.protocol==='https:'){
         navigator.serviceWorker.register('sw.js').catch(()=>{});
+        // Aplikasi dibuka dari salinan di HP (instan); kalau ternyata ada versi
+        // baru di internet, tawarkan untuk memuat ulang.
+        navigator.serviceWorker.addEventListener('message', (ev)=>{
+          if(!ev.data || ev.data.type!=='bna-update' || document.getElementById('updateToast')) return;
+          const b = document.createElement('button');
+          b.id = 'updateToast'; b.className = 'update-toast';
+          b.textContent = '✨ Versi baru tersedia — ketuk untuk memperbarui';
+          b.addEventListener('click', ()=>location.reload());
+          document.body.appendChild(b);
+        });
       }
     }catch(e){}
     const absenToken = urlParams.get('k') || '';
@@ -3973,7 +4065,12 @@ service cloud.firestore {
           // Data admin baru dimuat SETELAH login, karena Rules hanya
           // mengizinkan akun admin membacanya.
           if(!dataReadyPromise) startDataLoad();
-          if(!loaded){ render(); await dataReadyPromise; }
+          if(!loaded){
+            if(loadWarmCache()){ warmPreview = true; loaded = true; document.body.classList.add('warm-preview'); }
+            render();
+          }
+          await dataReadyPromise;
+          if(warmPreview){ warmPreview = false; document.body.classList.remove('warm-preview'); }
           await ensureSnapshotsOnce();
           render();
           scheduleAbsenViewSync();
