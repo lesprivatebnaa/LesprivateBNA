@@ -1310,9 +1310,17 @@
     const sameTab = lastRenderedTab===activeTab;
     const scrollBoxes = [...view.querySelectorAll('.group-list-scroll10, .table-wrap.scroll10')].map(e=>e.scrollTop);
     const winY = window.scrollY;
+    // Kolom yang sedang aktif (mis. setelah Tab ke kolom berikutnya) difokuskan lagi.
+    const ae = document.activeElement;
+    const focusKey = (sameTab && ae && view.contains(ae) && ae.dataset && ae.dataset.id && ae.classList.length)
+      ? {tag: ae.tagName.toLowerCase(), cls: ae.classList[0], id: ae.dataset.id} : null;
     lastRenderedTab = activeTab;
     view.innerHTML = '';
     renderTab(view);
+    if(focusKey){
+      const t = view.querySelector(focusKey.tag+'.'+CSS.escape(focusKey.cls)+'[data-id="'+CSS.escape(focusKey.id)+'"]');
+      if(t && !t.disabled) t.focus({preventScroll:true});
+    }
     if(sameTab){
       view.querySelectorAll('.group-list-scroll10, .table-wrap.scroll10').forEach((e,i)=>{ if(scrollBoxes[i]!=null) e.scrollTop = scrollBoxes[i]; });
       window.scrollTo(0, winY);
@@ -1573,7 +1581,7 @@
         if(!availableMonths.includes(currentMonth)){
           availableMonths = [currentMonth, ...availableMonths].sort().reverse();
         }
-        render();
+        setTimeout(render, 0); // tunggu fokus pindah (Tab) dulu, lalu gambar ulang
         await storeTransactionUpdate('sessionsAdj:'+currentMonth, (v)=>{ v=v||{}; if(adjVal) v[id]=adjVal; else delete v[id]; return v; });
         scheduleAbsenViewSync();
       });
@@ -3307,9 +3315,13 @@ service cloud.firestore {
     opts = opts || {};
     const body = document.getElementById('absenBody');
     let selectedDate = todayStr();
+    let drawnOnce = false;
     async function draw(){
       if(selectedDate.slice(0,7)!==currentMonthStr()) selectedDate = todayStr();
-      body.innerHTML = `<div class="empty"><h3>Memuat…</h3></div>`;
+      // Tampilan "Memuat…" hanya saat pertama dibuka; saat diperbarui (mis.
+      // habis menekan Tandai), isi lama tetap tampil dan posisi scroll dijaga.
+      const keepY = window.scrollY;
+      if(!drawnOnce) body.innerHTML = `<div class="empty"><h3>Memuat…</h3></div>`;
       const month = selectedDate.slice(0,7);
       let kLog;
       try{ kLog = await absenListTentorMonth(tentor.id, month); }
@@ -3395,6 +3407,8 @@ service cloud.firestore {
         ${footerHtml}
         ${absenDiagHtml(month)}
       `;
+      if(drawnOnce) window.scrollTo(0, keepY);
+      drawnOnce = true;
       const toggleBtn = document.getElementById('toggleDateBtn');
       if(toggleBtn) toggleBtn.addEventListener('click', ()=>{
         if(!isToday){ selectedDate = todayStr(); draw(); return; }
