@@ -3,8 +3,8 @@
 //   lambat (>4 detik) atau putus, pakai salinan terakhir yang tersimpan di HP.
 // - Pustaka (Firebase, font, html2canvas) & ikon: disimpan di HP supaya cepat dibuka.
 // - Data (Firestore) TIDAK pernah disimpan di sini — selalu langsung dari Firebase.
-const CACHE = 'bna-app-v1';
-const CORE = ['./', './index.html', './manifest.json', './manifest-absen.json', './icon-192.png', './icon-512.png'];
+const CACHE = 'bna-app-v2';
+const CORE = ['./', './index.html', './manifest.json', './manifest-absen.json', './icon-192.png', './icon-512.png', './icon-absen-192.png', './icon-absen-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).catch(() => {}).then(() => self.skipWaiting()));

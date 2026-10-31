@@ -3941,6 +3941,7 @@ service cloud.firestore {
       mf.rel = 'manifest';
       mf.href = absenId ? 'manifest-absen.json' : 'manifest.json';
       document.head.appendChild(mf);
+      if(absenId){ const ti = document.querySelector('link[rel="apple-touch-icon"]'); if(ti) ti.href = 'icon-absen-192.png'; }
       if('serviceWorker' in navigator && location.protocol==='https:'){
         navigator.serviceWorker.register('sw.js').catch(()=>{});
       }
