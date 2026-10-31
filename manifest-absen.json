@@ -27,5 +27,11 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "description": "Absen mengajar tentor Les Private Banda Aceh.",
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "orientation": "portrait"
 }

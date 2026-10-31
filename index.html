@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Buku Kas BNA">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="description" content="Buku kas Les Private Banda Aceh: rekap pertemuan, honor tentor, invoice orang tua, dan absen mengajar.">
 <title>Buku Kas — Les Private BNA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -3937,10 +3939,9 @@ service cloud.firestore {
     const absenId = urlParams.get('t') || urlParams.get('absen');
     // Bisa dipasang sebagai aplikasi: admin dan halaman absen tentor punya ikon masing-masing.
     try{
-      const mf = document.createElement('link');
-      mf.rel = 'manifest';
+      let mf = document.querySelector('link[rel="manifest"]');
+      if(!mf){ mf = document.createElement('link'); mf.rel = 'manifest'; document.head.appendChild(mf); }
       mf.href = absenId ? 'manifest-absen.json' : 'manifest.json';
-      document.head.appendChild(mf);
       if(absenId){ const ti = document.querySelector('link[rel="apple-touch-icon"]'); if(ti) ti.href = 'icon-absen-192.png'; }
       if('serviceWorker' in navigator && location.protocol==='https:'){
         navigator.serviceWorker.register('sw.js').catch(()=>{});

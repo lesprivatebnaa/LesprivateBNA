@@ -27,5 +27,12 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "description": "Buku kas Les Private Banda Aceh: rekap pertemuan, honor tentor, invoice orang tua.",
+  "categories": [
+    "education",
+    "business",
+    "productivity"
+  ],
+  "orientation": "portrait"
 }
