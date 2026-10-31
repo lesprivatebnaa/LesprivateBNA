@@ -627,6 +627,8 @@
   let sessions = {};
   let sessionsNoHonor = {}; // {assignmentId: jumlah sesi "bercatatan" bulan ini — honor otomatis = 0, diisi manual admin saat rekap}
   let kehadiran = [];
+  let sessionsAdj = {}; // {assignmentId: koreksi manual admin atas jumlah pertemuan bulan ini (+/-)}
+  let absenLoadFailed = false; // true kalau daftar absen bulan ini gagal dimuat -> edit jumlah pertemuan diblokir
   let availableMonths = [];
   let currentMonth = currentMonthStr();
   let activeTab = 'rekap';
@@ -683,6 +685,7 @@
   // Simpan data master milik bulan yang sedang dilihat. Bulan bersalinan ->
   // hanya salinan bulan itu yang ditulis (data live & bulan lain tidak tersentuh).
   async function saveMaster(...parts){
+    scheduleAbsenViewSync();
     syncBoundFromGlobals();
     if(boundMonth){ await storeSet(snapKey(boundMonth), snapMasters[boundMonth]); return; }
     const names = parts.length ? parts : ['tentors','families','assignments','counters'];
@@ -748,19 +751,36 @@
   }
   // Cari tentor untuk link/pemilih absen: utamakan data bulan berjalan (hari ini),
   // lalu data bulan lain supaya link lama tetap berlaku.
-  function absenTentors(){ return masterForMonth(currentMonthStr()).tentors; }
+  // Halaman absen tentor (tanpa login) hanya membaca 'public/absenView'
+  // yang disiapkan admin — bukan data admin (tarif, pembayaran, dll).
+  let absenView = null;
+  async function loadAbsenView(){
+    const d = initFirebase();
+    const doc = await d.collection('public').doc('absenView').get();
+    absenView = doc.exists ? JSON.parse(doc.data().value) : null;
+  }
+  // Data bulan m; kalau admin belum membuka aplikasi di bulan itu, pakai bulan
+  // terakhir sebelumnya (tanpa koreksi jumlah & honor tetap tertutup).
+  function viewForMonth(m){
+    if(!absenView || !absenView.months) return null;
+    if(absenView.months[m]) return absenView.months[m];
+    const prev = Object.keys(absenView.months).filter(k=>k<m).sort().pop();
+    if(!prev) return null;
+    const v = absenView.months[prev];
+    return {honorVisible:false, tentors:v.tentors, kelas:v.kelas.map(k=>Object.assign({}, k, {adj:0})), fallbackFrom:prev};
+  }
+  function absenTentors(){ const v = viewForMonth(currentMonthStr()); return v ? v.tentors : []; }
   function absenFindTentor(id){
     let t = absenTentors().find(x=>x.id===id);
     if(t) return t;
-    const all = Object.keys(snapMasters).sort().reverse().map(k=>snapMasters[k]).concat([liveMaster]);
-    for(const M of all){ t = M.tentors.find(x=>x.id===id); if(t) return t; }
+    const months = absenView && absenView.months ? Object.keys(absenView.months).sort().reverse() : [];
+    for(const m of months){ t = absenView.months[m].tentors.find(x=>x.id===id); if(t) return t; }
     return null;
   }
   function absenDiagHtml(month){
-    const M = masterForMonth(month);
-    const sumber = snapMasters[month] ? 'salinan bulan '+monthLabel(month) : 'data umum (belum ada salinan '+monthLabel(month)+')';
-    const warn = snapLoadFailed ? ' · ⚠ salinan bulan gagal dimuat, kabari admin' : '';
-    return `<div style="text-align:center;margin-top:14px;color:var(--ink-soft);font-size:10.5px;opacity:.8;">Sumber data: ${esc(sumber)} · ${M.tentors.length} tentor${warn}</div>`;
+    const v = viewForMonth(month);
+    const sumber = !v ? 'belum disiapkan admin' : (v.fallbackFrom ? 'data '+monthLabel(v.fallbackFrom)+' (admin belum membuka aplikasi bulan ini)' : 'data '+monthLabel(month));
+    return `<div style="text-align:center;margin-top:14px;color:var(--ink-soft);font-size:10.5px;opacity:.8;">Sumber data: ${esc(sumber)} · ${v?v.tentors.length:0} tentor</div>`;
   }
   let snapEnsured = false;
   async function ensureSnapshotsOnce(){
@@ -789,6 +809,161 @@
   // Kalau belum tersambung Firebase (mode offline), tetap fallback ke localStorage per-device seperti sebelumnya.
   async function getOwnerPin(){ try{ return (await storeGet('ownerPin')) || ''; }catch(e){ return ''; } }
   async function setOwnerPin(pin){ try{ await storeSet('ownerPin', pin); }catch(e){} }
+
+  // ---------- ABSEN: satu absen = satu dokumen (koleksi 'absen') ----------
+  // Absen tidak lagi disimpan sebagai satu array besar per bulan, tapi satu
+  // dokumen per absen. Jumlah pertemuan = jumlah absen + koreksi manual admin
+  // (kv 'sessionsAdj:<bulan>'). Tentor (tanpa login) hanya bisa MENAMBAH
+  // absen; mengubah/menghapus absen hanya bisa admin (lihat Rules Firestore).
+  function absenCol(){ const d = initFirebase(); return d ? d.collection('absen') : null; }
+  function localAbsenGet(m){ try{ const raw = localStorage.getItem('absen:'+m); return raw ? JSON.parse(raw) : []; }catch(e){ return []; } }
+  function localAbsenSet(m, arr){ try{ localStorage.setItem('absen:'+m, JSON.stringify(arr)); flashSaved(); }catch(e){ flashError(); throw e; } }
+  async function absenListMonth(m){
+    const c = absenCol();
+    if(!c) return localAbsenGet(m);
+    const snap = await c.where('bulan','==',m).get();
+    return snap.docs.map(x=>x.data());
+  }
+  async function absenListTentorMonth(tid, m){
+    const c = absenCol();
+    if(!c) return localAbsenGet(m).filter(r=>r.tentorId===tid);
+    const snap = await c.where('tentorId','==',tid).where('bulan','==',m).get();
+    return snap.docs.map(x=>x.data());
+  }
+  async function absenCreate(rec){
+    rec.bulan = rec.bulan || (rec.tanggal||'').slice(0,7);
+    const c = absenCol();
+    if(!c){ const arr = localAbsenGet(rec.bulan); arr.push(rec); localAbsenSet(rec.bulan, arr); return; }
+    try{ await c.doc(rec.id).set(rec); flashSaved(); }catch(e){ flashError(); throw e; }
+  }
+  async function absenPutMany(recs){
+    const c = absenCol();
+    if(!c){
+      const byM = {};
+      recs.forEach(r=>{ (byM[r.bulan] = byM[r.bulan]||[]).push(r); });
+      Object.keys(byM).forEach(m=>{
+        const arr = localAbsenGet(m);
+        const idx = new Map(arr.map((r,i)=>[r.id,i]));
+        byM[m].forEach(r=>{ if(idx.has(r.id)) arr[idx.get(r.id)] = r; else arr.push(r); });
+        localAbsenSet(m, arr);
+      });
+      return;
+    }
+    const d = initFirebase();
+    for(let i=0;i<recs.length;i+=400){
+      const b = d.batch();
+      recs.slice(i,i+400).forEach(r=> b.set(c.doc(r.id), r));
+      await b.commit();
+    }
+    flashSaved();
+  }
+  async function absenUpdate(rec, fields){
+    const c = absenCol();
+    if(!c){
+      const arr = localAbsenGet(rec.bulan);
+      const r = arr.find(x=>x.id===rec.id);
+      if(r) Object.assign(r, fields);
+      localAbsenSet(rec.bulan, arr);
+      return;
+    }
+    try{ await c.doc(rec.id).update(fields); flashSaved(); }catch(e){ flashError(); throw e; }
+  }
+  async function absenDelete(rec){
+    const c = absenCol();
+    if(!c){ localAbsenSet(rec.bulan, localAbsenGet(rec.bulan).filter(x=>x.id!==rec.id)); return; }
+    try{ await c.doc(rec.id).delete(); flashSaved(); }catch(e){ flashError(); throw e; }
+  }
+  // Daftar bulan yang punya absen (untuk chip bulan & cadangan).
+  async function absenMonthsList(){
+    if(!absenCol()) return rawLocalListPrefix('absen:').map(k=>k.slice(6));
+    return (await storeGet('absenMonths')) || [];
+  }
+  async function noteAbsenMonth(m){
+    if(!absenCol() || !role) return;
+    const list = (await storeGet('absenMonths')) || [];
+    if(!list.includes(m)){ list.push(m); list.sort(); await storeSet('absenMonths', list); }
+  }
+  async function storeSetStrict(key, value){
+    const d = initFirebase();
+    if(!d){ localStorage.setItem(key, JSON.stringify(value)); return; }
+    await d.collection('kv').doc(key).set({ value: JSON.stringify(value) });
+  }
+  // Pindahkan absen format lama (kv 'kehadiran:<bulan>' = satu array besar,
+  // plus angka 'sessions:<bulan>') ke format baru. Aman dijalankan berkali-kali:
+  // dokumen absen memakai id yang sama, dan absen yang masih masuk lewat
+  // aplikasi versi lama (HP yang belum refresh) ikut dipindah saat admin membuka aplikasi.
+  async function migrateLegacyAbsen(){
+    const kKeys = await storeListPrefix('kehadiran:');
+    const sKeys = await storeListPrefix('sessions:');
+    const months = new Set(kKeys.map(k=>k.slice(10)).concat(sKeys.map(k=>k.slice(9))));
+    if(months.size===0) return;
+    const migrated = (await storeGetStrict('absenMigrated')) || {};
+    for(const m of [...months].sort()){
+      const legacy = (await storeGetStrict('kehadiran:'+m)) || [];
+      if(!migrated[m]){
+        // Selisih angka lama vs jumlah catatan absen = koreksi manual admin dulu.
+        const sess = (await storeGetStrict('sessions:'+m)) || {};
+        const cnt = {};
+        legacy.forEach(r=>{ cnt[r.assignmentId] = (cnt[r.assignmentId]||0) + 1; });
+        const adj = (await storeGetStrict('sessionsAdj:'+m)) || {};
+        Object.keys(sess).forEach(aid=>{
+          const v = (sess[aid]||0) - (cnt[aid]||0);
+          if(v) adj[aid] = (adj[aid]||0) + v;
+        });
+        await storeSetStrict('sessionsAdj:'+m, adj);
+        migrated[m] = true;
+        await storeSetStrict('absenMigrated', migrated);
+      }
+      if(legacy.length){
+        await absenPutMany(legacy.map(r=>Object.assign({}, r, {bulan:m})));
+        const ids = new Set(legacy.map(r=>r.id));
+        await storeTransactionUpdate('kehadiran:'+m, (v)=> (v||[]).filter(r=>!ids.has(r.id)));
+      }
+      await noteAbsenMonth(m);
+    }
+  }
+
+  // ---------- DATA RINGKAS UNTUK HALAMAN ABSEN TENTOR ----------
+  // Halaman absen dibuka tanpa login, jadi TIDAK boleh membaca data admin
+  // (tarif biaya les, pembayaran, kode keluarga, dll). Admin menuliskan
+  // ringkasan secukupnya ke 'public/absenView': nama tentor, kelas tiap
+  // tentor (nama anak, alamat, tingkatan, honor per pertemuan, koreksi
+  // jumlah pertemuan) dan status buka/tutup honor — untuk bulan ini & bulan lalu.
+  let absenViewTimer = null;
+  let lastAbsenViewJson = '';
+  function prevMonthStr(m){
+    let [y,mm] = m.split('-').map(Number);
+    mm--; if(mm<1){ mm=12; y--; }
+    return y+'-'+String(mm).padStart(2,'0');
+  }
+  function scheduleAbsenViewSync(){
+    if(!role || absenModeActive || !initFirebase()) return;
+    clearTimeout(absenViewTimer);
+    absenViewTimer = setTimeout(()=>{ syncAbsenView().catch(e=>console.warn('absenView', e)); }, 800);
+  }
+  async function syncAbsenView(){
+    if(snapLoadFailed || !loaded) return;
+    syncBoundFromGlobals();
+    const now = currentMonthStr();
+    const view = {v:1, months:{}};
+    for(const m of [prevMonthStr(now), now]){
+      const M = masterForMonth(m);
+      const adj = m===currentMonth ? sessionsAdj : ((await storeGet('sessionsAdj:'+m)) || {});
+      const famName = (fid)=>{ const f = M.families.find(x=>x.id===fid); return f ? (f.alamat||'(tanpa alamat)') : '(alamat dihapus)'; };
+      view.months[m] = {
+        honorVisible: !!honorVisible[m],
+        tentors: M.tentors.map(t=>({id:t.id, nama:t.nama, kode:t.kode, status:t.status||'aktif'})),
+        kelas: M.assignments.filter(a=>isActiveInMonth(a, m)).map(a=>({
+          id:a.id, tentorId:a.tentorId, label:childLabel(a), alamat:famName(a.familyId),
+          tingkatan:a.tingkatan||'', honor:a.honorTentor||0, adj:adj[a.id]||0
+        }))
+      };
+    }
+    const json = JSON.stringify(view);
+    if(json===lastAbsenViewJson) return;
+    await initFirebase().collection('public').doc('absenView').set({ value: json, updatedAt: new Date().toISOString() });
+    lastAbsenViewJson = json;
+  }
 
   async function loadCore(){
     const lm = {
@@ -822,14 +997,23 @@
     if(!absenModeActive) bindMasterForMonth(currentMonth);
   }
   async function loadSessions(month){
-    sessions = (await storeGet('sessions:'+month)) || {};
-    sessionsNoHonor = (await storeGet('sessionsNoHonor:'+month)) || {};
-    kehadiran = (await storeGet('kehadiran:'+month)) || [];
+    try{ kehadiran = await absenListMonth(month); absenLoadFailed = false; }
+    catch(e){ kehadiran = []; absenLoadFailed = true; flashError(); }
+    sessionsAdj = (await storeGet('sessionsAdj:'+month)) || {};
+    recomputeSessions();
+    if(kehadiran.length) noteAbsenMonth(month);
     payments = (await storeGet('payments:'+month)) || {};
     honorPayments = (await storeGet('honorPayments:'+month)) || {};
   }
-  async function saveSessions(){ await storeSet('sessions:'+currentMonth, sessions); }
-  async function saveKehadiran(){ await storeSet('kehadiran:'+currentMonth, kehadiran); }
+  // Jumlah pertemuan = jumlah absen + koreksi manual; sesi bercatatan = absen yang punya catatan.
+  function recomputeSessions(){
+    sessions = {}; sessionsNoHonor = {};
+    kehadiran.forEach(r=>{
+      sessions[r.assignmentId] = (sessions[r.assignmentId]||0) + 1;
+      if(r.catatan) sessionsNoHonor[r.assignmentId] = (sessionsNoHonor[r.assignmentId]||0) + 1;
+    });
+    Object.keys(sessionsAdj).forEach(aid=>{ sessions[aid] = Math.max(0, (sessions[aid]||0) + (sessionsAdj[aid]||0)); });
+  }
   async function savePayments(){ await storeSet('payments:'+currentMonth, payments); }
   async function saveHonorPayments(){ await storeSet('honorPayments:'+currentMonth, honorPayments); }
   function todayStr(){
@@ -844,8 +1028,10 @@
     return hari[d.getDay()]+', '+d.getDate()+' '+bulan[d.getMonth()]+' '+d.getFullYear();
   }
   async function refreshAvailableMonths(){
-    const keys = await storeListPrefix('sessions:');
-    availableMonths = keys.map(k=>k.replace('sessions:','')).sort().reverse();
+    const a = (await storeListPrefix('sessions:')).map(k=>k.slice(9));
+    const b = (await storeListPrefix('sessionsAdj:')).map(k=>k.slice(12));
+    const c = await absenMonthsList();
+    availableMonths = [...new Set(a.concat(b, c))].sort().reverse();
   }
 
   function renumberTentors(){
@@ -1066,12 +1252,14 @@
     rekapLocked[month] = true;
     await storeSet('rekapLocked', rekapLocked);
     bindMasterForMonth(currentMonth);
+    scheduleAbsenViewSync();
   }
   // Membuka kunci: bulan ini boleh diedit lagi, tapi yang diedit hanya
   // salinan data milik bulan ini — bulan lain tetap tidak tersentuh.
   async function unlockRekapBulan(month){
     rekapLocked[month] = false;
     await storeSet('rekapLocked', rekapLocked);
+    scheduleAbsenViewSync();
   }
 
   // Ringkasan sesi "bercatatan" (absen dengan note) untuk satu kelas/assignment
@@ -1358,14 +1546,22 @@
         // ikut terhitung otomatis dari Log Absensi dan ditambahkan lagi di sini
         // supaya total pertemuan yang tersimpan tetap benar (normal + catatan).
         const val = jumlahNormal + jumlahCatatan;
-        sessions[id] = val;
+        if(absenLoadFailed){
+          alert('Data absen bulan ini gagal dimuat (koneksi bermasalah). Refresh halaman dulu sebelum mengubah jumlah pertemuan.');
+          render(); return;
+        }
+        // Yang disimpan adalah KOREKSI terhadap jumlah absen (bukan angka mutlak),
+        // supaya absen baru dari tentor tetap menambah jumlahnya.
+        const jumlahAbsen = kehadiran.filter(r=>r.assignmentId===id).length;
+        const adjVal = val - jumlahAbsen;
+        if(adjVal) sessionsAdj[id] = adjVal; else delete sessionsAdj[id];
+        recomputeSessions();
         if(!availableMonths.includes(currentMonth)){
           availableMonths = [currentMonth, ...availableMonths].sort().reverse();
         }
         render();
-        // Update hanya field ini secara atomik — tidak menimpa perubahan
-        // tentor lain yang mungkin baru saja absen di kelas berbeda.
-        await storeTransactionUpdate('sessions:'+currentMonth, (v)=>{ v=v||{}; v[id]=val; return v; });
+        await storeTransactionUpdate('sessionsAdj:'+currentMonth, (v)=>{ v=v||{}; if(adjVal) v[id]=adjVal; else delete v[id]; return v; });
+        scheduleAbsenViewSync();
       });
     });
 
@@ -1380,6 +1576,7 @@
       if(!nowOpen && !confirm(`Tutup kembali honor bulan ${monthLabel(currentMonth)}? Tentor tidak akan bisa melihatnya lagi sampai dibuka ulang.`)) return;
       honorVisible[currentMonth] = nowOpen;
       await storeSet('honorVisible', honorVisible);
+      scheduleAbsenViewSync();
       render();
     });
     const toggleLockBtn = document.getElementById('toggleRekapLockBtn');
@@ -1552,15 +1749,12 @@
       }
       const rec = {id:uid(), assignmentId:aid, tentorId:a.tentorId, tanggal, dicatatOleh:'admin', waktu:new Date().toISOString()};
       if(isCatatan){ rec.catatan = catatanText; rec.honorManual = null; }
-      await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val=val||[]; val.push(rec); return val; });
-      await storeTransactionUpdate('sessions:'+m, (val)=>{ val=val||{}; val[aid]=(val[aid]||0)+1; return val; });
-      if(isCatatan){
-        await storeTransactionUpdate('sessionsNoHonor:'+m, (val)=>{ val=val||{}; val[aid]=(val[aid]||0)+1; return val; });
-      }
+      rec.bulan = m;
+      try{ await absenCreate(rec); }
+      catch(e){ alert('Gagal menyimpan, periksa koneksi internet lalu coba lagi.'); return; }
+      await noteAbsenMonth(m);
       if(m===currentMonth){
-        kehadiran = (await storeGet('kehadiran:'+m)) || [];
-        sessions = (await storeGet('sessions:'+m)) || {};
-        sessionsNoHonor = (await storeGet('sessionsNoHonor:'+m)) || {};
+        await loadSessions(currentMonth);
         render();
       } else {
         if(!availableMonths.includes(m)){ availableMonths=[m,...availableMonths].sort().reverse(); }
@@ -1574,24 +1768,11 @@
         if(!confirm('Hapus catatan absen ini? Jumlah pertemuan bulan ini akan berkurang 1.')) return;
         const id = btn.dataset.id;
         const rec = kehadiran.find(r=>r.id===id);
-        await storeTransactionUpdate('kehadiran:'+currentMonth, (val)=>{ val=val||[]; return val.filter(r=>r.id!==id); });
         if(rec){
-          await storeTransactionUpdate('sessions:'+currentMonth, (val)=>{
-            val=val||{};
-            val[rec.assignmentId] = Math.max(0, (val[rec.assignmentId]||0) - 1);
-            return val;
-          });
-          if(rec.catatan){
-            await storeTransactionUpdate('sessionsNoHonor:'+currentMonth, (val)=>{
-              val=val||{};
-              val[rec.assignmentId] = Math.max(0, (val[rec.assignmentId]||0) - 1);
-              return val;
-            });
-          }
+          try{ await absenDelete(Object.assign({bulan:currentMonth}, rec)); }
+          catch(e){ alert('Gagal menghapus, periksa koneksi internet lalu coba lagi.'); return; }
         }
-        kehadiran = (await storeGet('kehadiran:'+currentMonth)) || [];
-        sessions = (await storeGet('sessions:'+currentMonth)) || {};
-        sessionsNoHonor = (await storeGet('sessionsNoHonor:'+currentMonth)) || {};
+        await loadSessions(currentMonth);
         render();
       });
     });
@@ -1603,13 +1784,12 @@
         const biayaInput = view.querySelector(`.biaya-manual-input[data-id="${id}"]`);
         const honorNilai = Math.max(0, parseInt(honorInput.value,10)||0);
         const biayaNilai = Math.max(0, parseInt(biayaInput.value,10)||0);
-        await storeTransactionUpdate('kehadiran:'+currentMonth, (val)=>{
-          val = val||[];
-          const r = val.find(x=>x.id===id);
-          if(r){ r.honorManual = honorNilai; r.biayaManual = biayaNilai; }
-          return val;
-        });
-        kehadiran = (await storeGet('kehadiran:'+currentMonth)) || [];
+        const rec = kehadiran.find(r=>r.id===id);
+        if(rec){
+          try{ await absenUpdate(Object.assign({bulan:currentMonth}, rec), {honorManual:honorNilai, biayaManual:biayaNilai}); }
+          catch(e){ alert('Gagal menyimpan, periksa koneksi internet lalu coba lagi.'); return; }
+        }
+        await loadSessions(currentMonth);
         render();
       });
     });
@@ -1624,21 +1804,15 @@
     if(sameDataset(fromMonth)) months.add(fromMonth);
     (availableMonths||[]).forEach(m=>{ if(m>=fromMonth && sameDataset(m)) months.add(m); });
     for(const m of months){
-      await storeTransactionUpdate('sessions:'+m, (val)=>{
+      await storeTransactionUpdate('sessionsAdj:'+m, (val)=>{
         val = val||{};
         if(val[oldId]!=null){ val[newId] = (val[newId]||0) + val[oldId]; delete val[oldId]; }
         return val;
       });
-      await storeTransactionUpdate('sessionsNoHonor:'+m, (val)=>{
-        val = val||{};
-        if(val[oldId]!=null){ val[newId] = (val[newId]||0) + val[oldId]; delete val[oldId]; }
-        return val;
-      });
-      await storeTransactionUpdate('kehadiran:'+m, (val)=>{
-        val = val||[];
-        val.forEach(r=>{ if(r.assignmentId===oldId){ r.assignmentId = newId; r.tentorId = newTentorId; } });
-        return val;
-      });
+      const recs = (await absenListMonth(m)).filter(r=>r.assignmentId===oldId);
+      for(const r of recs){
+        await absenUpdate(Object.assign({bulan:m}, r), {assignmentId:newId, tentorId:newTentorId});
+      }
     }
     await loadSessions(currentMonth);
   }
@@ -2762,8 +2936,8 @@
   // Cadangan lengkap: SEMUA data (master, absen, catatan, status bayar ortu,
   // status honor, kunci bulan, salinan bulan terkunci). Kalau ada satu saja
   // yang gagal dibaca, cadangan dibatalkan — supaya tidak ada cadangan bolong.
-  const BACKUP_SINGLE = ['tentors','families','assignments','counters','rekapLocked','honorVisible'];
-  const BACKUP_PREFIXES = ['sessions:','sessionsNoHonor:','kehadiran:','payments:','honorPayments:','rekapSnapshot:'];
+  const BACKUP_SINGLE = ['tentors','families','assignments','counters','rekapLocked','honorVisible','absenMigrated','absenMonths'];
+  const BACKUP_PREFIXES = ['sessions:','sessionsNoHonor:','sessionsAdj:','kehadiran:','payments:','honorPayments:','rekapSnapshot:'];
   async function buildBackupObject(){
     const data = {};
     for(const k of BACKUP_SINGLE) data[k] = await storeGetStrict(k);
@@ -2771,6 +2945,8 @@
       const keys = await storeListPrefix(p);
       for(const k of keys) data[k] = await storeGetStrict(k);
     }
+    // Absen (satu dokumen per absen) disimpan per bulan: 'absen:<bulan>' = daftar absen.
+    for(const m of await absenMonthsList()) data['absen:'+m] = await absenListMonth(m);
     return { version:3, exportedAt:new Date().toISOString(), data };
   }
 
@@ -2807,33 +2983,52 @@
             <ol style="padding-left:20px; margin:0 0 14px;">
               <li>Buka <b>console.firebase.google.com</b>, login pakai akun Google, klik <b>Add project / Tambah project</b>. Beri nama misalnya "Les Private BNA", lanjutkan sampai selesai (Google Analytics boleh dimatikan).</li>
               <li>Di menu kiri, klik <b>Build → Firestore Database</b>, lalu klik <b>Create database</b>. Pilih lokasi server (misal <code>asia-southeast2</code> Jakarta), lalu pilih mode <b>Start in production mode</b>.</li>
-              <li>Buka tab <b>Rules</b> di Firestore, ganti isinya dengan kode berikut, lalu klik <b>Publish</b>. Aturan ini mengunci data nama/alamat/keuangan hanya untuk admin yang login — tentor tetap bisa absen tanpa login karena hanya dokumen <code>kehadiran:*</code> &amp; <code>sessions:*</code> yang dibuka:
+              <li>Buka tab <b>Rules</b> di Firestore, ganti isinya dengan kode berikut, lalu klik <b>Publish</b>. Ganti email admin di baris <code>isAdmin</code> dengan email akun admin Anda. Aturan ini mengunci semua data admin (tarif, pembayaran, data keluarga) hanya untuk akun admin; tentor tetap bisa absen tanpa login karena hanya koleksi <code>absen</code> (tambah saja) dan ringkasan <code>public/absenView</code> yang dibuka:
                 <textarea readonly style="width:100%; height:190px; font-family:'JetBrains Mono',monospace; font-size:11.5px; padding:8px; border:1px solid var(--line); border-radius:8px; background:#fff; margin-top:6px;">rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /kv/{docId} {
-      // Baca (read): data tentor/keluarga/kelas & absensi dibuka untuk
-      // siapa saja SUPAYA halaman absen (tanpa login) tetap bisa
-      // menampilkan nama tentor & daftar kelasnya, termasuk status
-      // honorVisible (buka/tutup honor per bulan), sessionsNoHonor
-      // (jumlah sesi bercatatan yang honornya diisi manual admin), dan
-      // rekapLocked/rekapSnapshot (supaya kalau admin sudah MENGUNCI rekap
-      // suatu bulan, tentor tetap melihat angka honor yang beku/final itu,
-      // bukan error). Data pembayaran (payments:*) tetap butuh login admin.
-      allow read: if docId == 'tentors' || docId == 'families' || docId == 'assignments'
-        || docId == 'honorVisible' || docId == 'rekapLocked'
-        || docId.matches('^(kehadiran|sessions|sessionsNoHonor|rekapSnapshot):.*')
-        || request.auth != null;
 
-      // Tulis (ubah/hapus): HANYA admin yang login, kecuali dokumen
-      // absensi & jumlah pertemuan (supaya tentor bisa absen tanpa login).
-      // rekapLocked/rekapSnapshot SENGAJA tidak dimasukkan di sini —
-      // hanya admin yang login yang boleh mengunci/membuka rekap.
-      allow write: if request.auth != null
-        || docId.matches('^(kehadiran|sessions|sessionsNoHonor):.*');
+    // Satu-satunya akun yang dianggap admin.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'lesprivatebnaa@gmail.com';
+    }
+
+    // Absen baru dari halaman tentor (tanpa login): hanya boleh MENAMBAH,
+    // dengan isi yang wajar. Mengubah/menghapus absen hanya admin.
+    function absenBaruValid(id) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id','assignmentId','tentorId','tanggal','bulan','dicatatOleh','waktu','catatan','honorManual'])
+        && d.id == id
+        && d.assignmentId is string && d.assignmentId.size() > 0 && d.assignmentId.size() &lt;= 100
+        && d.tentorId is string && d.tentorId.size() > 0 && d.tentorId.size() &lt;= 100
+        && d.bulan is string && d.bulan.matches('[0-9]{4}-[0-9]{2}')
+        && d.tanggal is string && d.tanggal.matches(d.bulan + '-[0-9]{2}')
+        && d.dicatatOleh == 'tentor'
+        && d.waktu is string && d.waktu.size() &lt;= 40
+        && (!('catatan' in d) || (d.catatan is string && d.catatan.size() &lt;= 500))
+        && (!('honorManual' in d) || d.honorManual == null);
+    }
+
+    match /absen/{id} {
+      allow read: if true;
+      allow create: if isAdmin() || absenBaruValid(id);
+      allow update, delete: if isAdmin();
+    }
+
+    // Ringkasan untuk halaman absen tentor (ditulis oleh aplikasi admin).
+    match /public/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Semua data admin: tentor, keluarga, kelas, tarif, pembayaran, rekap.
+    match /kv/{docId} {
+      allow read, write: if isAdmin();
     }
   }
-}</textarea>
+}
+</textarea>
                 <span style="color:var(--ink-soft);font-size:12px;">Catatan: nama tentor/alamat/nama anak (bukan data uang) tetap bisa DIBACA lewat API oleh orang yang tahu config Firebase ini — batasan bawaan aplikasi tanpa server. Yang pasti terkunci penuh: data pembayaran/honor, dan TIDAK ADA yang bisa mengubah/menghapus data tanpa login admin.</span>
               </li>
               <li>Aktifkan login admin: di menu kiri klik <b>Build → Authentication → Get started</b>, pilih provider <b>Email/Password</b> lalu <b>Enable</b>. Setelah itu buka tab <b>Users</b> → <b>Add user</b>, isi email &amp; password untuk tiap admin (misalnya diri Anda). Inilah yang nanti dipakai untuk login ke aplikasi ini, menggantikan password lama.</li>
@@ -2979,7 +3174,7 @@ service cloud.firestore {
         const localFamilies = (await rawLocalGet('families')) || [];
         const localAssignments = (await rawLocalGet('assignments')) || [];
         const localCounters = (await rawLocalGet('counters')) || {tentor:0, family:0};
-        const monthKeys = rawLocalListPrefix('sessions:').concat(rawLocalListPrefix('kehadiran:'));
+        const monthKeys = rawLocalListPrefix('sessions:').concat(rawLocalListPrefix('kehadiran:'), rawLocalListPrefix('sessionsAdj:'));
         await storeSet('tentors', localTentors);
         await storeSet('families', localFamilies);
         await storeSet('assignments', localAssignments);
@@ -2988,6 +3183,12 @@ service cloud.firestore {
           const val = await rawLocalGet(k);
           await storeSet(k, val || (k.startsWith('kehadiran:') ? [] : {}));
         }
+        for(const k of rawLocalListPrefix('absen:')){
+          const arr = (await rawLocalGet(k)) || [];
+          if(arr.length) await absenPutMany(arr.map(r=>Object.assign({}, r, {bulan:k.slice(6)})));
+          await noteAbsenMonth(k.slice(6));
+        }
+        await migrateLegacyAbsen();
         await loadCore();
         await loadSessions(currentMonth);
         await refreshAvailableMonths();
@@ -3021,13 +3222,22 @@ service cloud.firestore {
         if(data.version===3 && data.data){
           if(!confirm('Memuat cadangan ini akan menimpa semua data yang ada sekarang. Lanjutkan?')) return;
           for(const k of Object.keys(data.data)){
-            if(data.data[k]!==null && data.data[k]!==undefined) await storeSet(k, data.data[k]);
+            const v = data.data[k];
+            if(v===null || v===undefined) continue;
+            if(k.indexOf('absen:')===0){
+              const m = k.slice(6);
+              if(Array.isArray(v) && v.length) await absenPutMany(v.map(r=>Object.assign({}, r, {bulan:m})));
+            } else {
+              await storeSet(k, v);
+            }
           }
+          try{ await migrateLegacyAbsen(); }catch(e){}
           await loadCore();
           await loadSessions(currentMonth);
           await refreshAvailableMonths();
           alert('Cadangan berhasil dimuat.');
           render();
+          scheduleAbsenViewSync();
           return;
         }
         if(!Array.isArray(data.tentors) || !Array.isArray(data.assignments)){
@@ -3045,6 +3255,7 @@ service cloud.firestore {
         for(const month of Object.keys(sess)){
           await storeSet('sessions:'+month, sess[month]);
         }
+        try{ await migrateLegacyAbsen(); }catch(e){}
         await loadCore();
         await loadSessions(currentMonth);
         await refreshAvailableMonths();
@@ -3081,17 +3292,24 @@ service cloud.firestore {
       if(selectedDate.slice(0,7)!==currentMonthStr()) selectedDate = todayStr();
       body.innerHTML = `<div class="empty"><h3>Memuat…</h3></div>`;
       const month = selectedDate.slice(0,7);
-      const sess = (await storeGet('sessions:'+month)) || {};
-      const sessNoHonor = (await storeGet('sessionsNoHonor:'+month)) || {};
-      const kLog = (await storeGet('kehadiran:'+month)) || [];
-      // Daftar kelas diambil dari data master MILIK bulan tanggal absen —
-      // bulan terkunci memakai salinannya sendiri, bukan data bulan lain.
-      const M = masterForMonth(month);
-      const tentorM = M.tentors.find(t=>t.id===tentor.id) || tentor;
-      const famNameM = (fid)=>{ const f = M.families.find(x=>x.id===fid); return f ? (f.alamat||'(tanpa alamat)') : '(alamat dihapus)'; };
-      const list = M.assignments.filter(a=>a.tentorId===tentor.id && isActiveInMonth(a, month));
+      let kLog;
+      try{ kLog = await absenListTentorMonth(tentor.id, month); }
+      catch(e){
+        body.innerHTML = `<div class="empty"><h3>Gagal memuat</h3><p>Periksa koneksi internet lalu buka ulang halaman ini.</p></div>`;
+        return;
+      }
+      // Daftar kelas dari ringkasan yang disiapkan admin untuk bulan ini.
+      const V = viewForMonth(month) || {tentors:[], kelas:[], honorVisible:false};
+      const tentorM = V.tentors.find(t=>t.id===tentor.id) || tentor;
+      const list = V.kelas.filter(k=>k.tentorId===tentor.id);
+      const sess = {}, sessNoHonor = {};
+      kLog.forEach(r=>{
+        sess[r.assignmentId] = (sess[r.assignmentId]||0) + 1;
+        if(r.catatan) sessNoHonor[r.assignmentId] = (sessNoHonor[r.assignmentId]||0) + 1;
+      });
+      list.forEach(k=>{ if(k.adj) sess[k.id] = Math.max(0, (sess[k.id]||0) + k.adj); });
       const isToday = selectedDate===todayStr();
-      const honorTerbuka = !!honorVisible[month];
+      const honorTerbuka = !!V.honorVisible;
       // Honor selalu dihitung dari data TERKINI (tarif & absen sekarang) —
       // tidak lagi dibekukan walau bulan ini sedang dikunci admin, supaya
       // honor tentor ikut naik langsung setiap kali dia absen.
@@ -3100,7 +3318,7 @@ service cloud.firestore {
         const jumlahCatatan = Math.min(sessNoHonor[a.id]||0, jumlah);
         const jumlahNormal = jumlah-jumlahCatatan;
         const manualHonorSum = kLog.filter(r=>r.assignmentId===a.id && r.catatan).reduce((s,r)=>s+(r.honorManual||0),0);
-        return sum + jumlahNormal*(a.honorTentor||0) + manualHonorSum;
+        return sum + jumlahNormal*(a.honor||0) + manualHonorSum;
       }, 0);
       const totalSesiBulan = list.reduce((sum,a)=> sum + (sess[a.id]||0), 0);
       const footerHtml = opts.allowSwitch
@@ -3141,7 +3359,7 @@ service cloud.firestore {
           return `
           <div class="group-card">
             <div class="group-head">
-              <span class="name">${esc(childLabel(a))}<span class="sub"><br>${esc(famNameM(a.familyId))} · ${esc(a.tingkatan)}</span></span>
+              <span class="name">${esc(a.label)}<span class="sub"><br>${esc(a.alamat)} · ${esc(a.tingkatan)}</span></span>
               <div class="right"><span class="kode-tag">${bulanIni}x bulan ini</span></div>
             </div>
             <div class="group-body" style="padding-top:12px;">
@@ -3177,10 +3395,10 @@ service cloud.firestore {
             const aid = btn.dataset.id;
             const m = selectedDate.slice(0,7);
             const rec = {id:uid(), assignmentId:aid, tentorId:tentor.id, tanggal:selectedDate, dicatatOleh:'tentor', waktu:new Date().toISOString()};
-            // Transaksi: aman walau banyak tentor menekan tombol di waktu yang sama —
-            // tidak ada yang saling menimpa catatan orang lain.
-            await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val = val||[]; val.push(rec); return val; });
-            await storeTransactionUpdate('sessions:'+m, (val)=>{ val = val||{}; val[aid] = (val[aid]||0) + 1; return val; });
+            // Satu absen = satu dokumen baru, jadi aman walau banyak tentor
+            // menekan tombol di waktu yang sama.
+            rec.bulan = m;
+            await absenCreate(rec);
           }catch(e){ alert('Gagal menyimpan, periksa koneksi internet lalu coba lagi.'); }
           await draw();
         });
@@ -3194,9 +3412,8 @@ service cloud.firestore {
             const aid = btn.dataset.id;
             const m = selectedDate.slice(0,7);
             const rec = {id:uid(), assignmentId:aid, tentorId:tentor.id, tanggal:selectedDate, dicatatOleh:'tentor', catatan:catatan.trim(), honorManual:null, waktu:new Date().toISOString()};
-            await storeTransactionUpdate('kehadiran:'+m, (val)=>{ val = val||[]; val.push(rec); return val; });
-            await storeTransactionUpdate('sessions:'+m, (val)=>{ val = val||{}; val[aid] = (val[aid]||0) + 1; return val; });
-            await storeTransactionUpdate('sessionsNoHonor:'+m, (val)=>{ val = val||{}; val[aid] = (val[aid]||0) + 1; return val; });
+            rec.bulan = m;
+            await absenCreate(rec);
           }catch(e){ alert('Gagal menyimpan, periksa koneksi internet lalu coba lagi.'); }
           await draw();
         });
@@ -3212,30 +3429,11 @@ service cloud.firestore {
     await draw();
   }
 
-  // Link per-tentor lama: ?t=<id>&k=<secretToken> — tetap didukung supaya
-  // link yang sudah pernah dibagikan sebelumnya tidak tiba-tiba rusak.
-  async function startAbsenMode(idRaw, tokenRaw){
-    absenModeActive = true;
-    document.title = 'Absen Mengajar — Les Private Banda Aceh';
-    document.body.innerHTML = absenShellHtml();
-    const body = document.getElementById('absenBody');
-    if(!getApiUrl()){
-      body.innerHTML = `<div class="empty"><h3>Link belum aktif</h3><p>Sistem pusat belum tersambung ke link ini. Mohon minta admin membuatkan ulang link absen Anda dari tab Tentor.</p></div>`;
-      return;
-    }
-    await loadCore();
-    const id = (idRaw||'').trim();
-    const token = (tokenRaw||'').trim();
-    const tentor = absenFindTentor(id);
-    if(!tentor || !token || tentor.secretToken!==token){
-      body.innerHTML = `<div class="empty"><h3>Link tidak valid</h3><p>Link ini tidak dikenali atau sudah tidak berlaku (mungkin sudah di-reset oleh admin). Hubungi admin untuk mendapatkan link absen yang baru.</p></div>`;
-      return;
-    }
-    if(tentor.status==='nonaktif'){
-      body.innerHTML = `<div class="empty"><h3>Akun tidak aktif</h3><p>Status tentor ini sudah dinonaktifkan oleh admin. Hubungi admin jika ini keliru.</p></div>`;
-      return;
-    }
-    await runTentorAbsenSession(tentor, {allowSwitch:false});
+  // Link per-tentor lama: ?t=<id>&k=<token> — tetap berfungsi: langsung
+  // membuka halaman absen bersama dengan nama tentor tsb sudah terpilih.
+  async function startAbsenMode(idRaw){
+    try{ if(idRaw) localStorage.setItem('absenSharedTentorId', String(idRaw).trim()); }catch(e){}
+    await startAbsenModeShared();
   }
 
   // Link bersama untuk semua tentor: ?absen=all — tentor cukup mencari lalu
@@ -3250,7 +3448,15 @@ service cloud.firestore {
       body.innerHTML = `<div class="empty"><h3>Link belum aktif</h3><p>Sistem pusat belum tersambung ke link ini. Mohon minta admin menyambungkan aplikasi ke Firebase dulu di tab "Cadangan &amp; Sinkron".</p></div>`;
       return;
     }
-    await loadCore();
+    try{ await loadAbsenView(); }
+    catch(e){
+      body.innerHTML = `<div class="empty"><h3>Gagal memuat</h3><p>Periksa koneksi internet lalu buka ulang halaman ini.</p></div>`;
+      return;
+    }
+    if(!absenView){
+      body.innerHTML = `<div class="empty"><h3>Belum siap</h3><p>Data absen belum disiapkan. Minta admin membuka aplikasi admin sekali, lalu buka ulang link ini.</p></div>`;
+      return;
+    }
     let rememberedId = null;
     try{ rememberedId = localStorage.getItem('absenSharedTentorId'); }catch(e){}
     const remembered = rememberedId ? absenFindTentor(rememberedId) : null;
@@ -3298,6 +3504,7 @@ service cloud.firestore {
     dataReadyPromise = (async ()=>{
       await loadCore();
       await migrateIfNeeded();
+      try{ await migrateLegacyAbsen(); }catch(e){ console.warn('Migrasi absen lama tertunda:', e); }
       await loadSessions(currentMonth);
       await refreshAvailableMonths();
       loaded = true;
@@ -3368,6 +3575,7 @@ service cloud.firestore {
     }
     await ensureSnapshotsOnce();
     render();
+    scheduleAbsenViewSync();
   }
 
   // Login Admin sungguhan lewat Firebase Authentication (email+password),
@@ -3457,11 +3665,11 @@ service cloud.firestore {
     if(absenId){
       const apiParam = urlParams.get('api');
       if(apiParam){ try{ setApiUrl(decodeURIComponent(apiParam)); }catch(e){} }
-      await startAbsenMode(absenId, absenToken);
+      await startAbsenMode(absenId);
       return;
     }
-    startDataLoad();
     const a = initAuth();
+    if(!a) startDataLoad();
     if(a){
       // Mode Firebase: status login dikelola oleh Firebase Auth sendiri
       // (sesi tersimpan otomatis di perangkat, aman lintas refresh).
@@ -3470,9 +3678,13 @@ service cloud.firestore {
           role = 'admin';
           updateRoleBadge();
           document.getElementById('loginOverlay').style.display = 'none';
-          if(!loaded) await dataReadyPromise;
+          // Data admin baru dimuat SETELAH login, karena Rules hanya
+          // mengizinkan akun admin membacanya.
+          if(!dataReadyPromise) startDataLoad();
+          if(!loaded){ render(); await dataReadyPromise; }
           await ensureSnapshotsOnce();
           render();
+          scheduleAbsenViewSync();
         } else {
           role = null;
           updateRoleBadge();
