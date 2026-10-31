@@ -2,7 +2,13 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#4C6FF5">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Buku Kas BNA">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Buku Kas — Les Private BNA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -279,11 +285,152 @@
     .rekap-grid{column-count:2; column-gap:14px;}
     .rekap-section{margin-bottom:8px;}
   }
+  /* ---------- Menu bawah & lembar "Lainnya" (khusus HP) ---------- */
+  .bottom-nav{display:none;}
+  .more-sheet{display:none; position:fixed; inset:0; z-index:70;}
+  .more-sheet.open{display:block;}
+  .more-sheet .backdrop{position:absolute; inset:0; background:rgba(22,34,60,0.45); animation:fadeIn .15s ease;}
+  .more-sheet .panel{
+    position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:22px 22px 0 0;
+    padding:8px 14px calc(16px + env(safe-area-inset-bottom)); box-shadow:0 -10px 30px rgba(26,33,72,0.18);
+    animation:sheetUp .2s ease;
+  }
+  .more-sheet .grip{width:42px; height:4px; border-radius:2px; background:var(--line); margin:6px auto 12px;}
+  .more-sheet .sheet-title{font-family:'Poppins',sans-serif; font-weight:700; font-size:13px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em; margin:0 6px 6px;}
+  .more-sheet .item{
+    display:flex; align-items:center; gap:14px; width:100%; padding:14px 12px; border:0; background:none;
+    border-radius:14px; font:600 15px 'Inter',sans-serif; color:var(--ink); text-align:left; cursor:pointer;
+  }
+  .more-sheet .item:active{background:var(--blue-50);}
+  .more-sheet .item.active{background:var(--blue-50); color:var(--blue-700);}
+  .more-sheet .item svg{width:22px; height:22px; flex:none; color:var(--blue-600);}
+  .more-sheet .item .sub{display:block; font-weight:500; font-size:12px; color:var(--ink-soft); margin-top:1px;}
+  .more-sheet .sep{height:1px; background:var(--line); margin:6px 8px;}
+  @keyframes sheetUp{from{transform:translateY(100%);}to{transform:none;}}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  .owner-btn .lbl{margin-left:4px;}
+
   @media (max-width:640px){
-    .brand .stamp{order:3; margin-left:0;}
-    thead{display:none;}
-    tbody tr{display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; padding:10px 4px; border-bottom:1px solid var(--line);}
-    tbody td{border:none; padding:2px 4px;}
+    body{font-size:14.5px; padding-bottom:calc(76px + env(safe-area-inset-bottom));}
+    /* Header ringkas & menempel di atas */
+    header.app-header{
+      position:sticky; top:0; z-index:50; padding:calc(8px + env(safe-area-inset-top)) 12px 8px;
+      background:rgba(238,243,255,0.94); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+      border-bottom:1px solid var(--line);
+    }
+    .brand{display:grid; grid-template-columns:auto 1fr auto auto; gap:2px 8px; align-items:center;}
+    .brand .logo{width:36px; height:36px; border-radius:11px; padding:3px; grid-row:1 / 3; box-shadow:0 3px 10px rgba(76,111,245,0.18);}
+    .brand .titles{min-width:0;}
+    .brand h1{font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .brand .tagline{display:none;}
+    .brand .stamp{grid-column:2 / 5; grid-row:2; justify-self:start; margin:0; font-size:10px; padding:1px 8px; border-radius:10px;}
+    #roleBadge{display:none !important;}
+    #ownerToggleBtn, #logoutBtn{padding:8px 11px; font-size:12px; border-radius:10px; min-height:36px;}
+    .owner-btn .lbl{display:none;}
+    nav.tabs{display:none;}
+    footer{display:none;}
+    main{margin:12px auto 20px; padding:0 10px;}
+    .card{padding:16px 14px; border-radius:18px;}
+    h2{font-size:19px;}
+
+    /* Menu bawah */
+    .bottom-nav{
+      display:flex; position:fixed; left:0; right:0; bottom:0; z-index:60;
+      background:rgba(255,255,255,0.97); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+      border-top:1px solid var(--line); padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+      box-shadow:0 -4px 18px rgba(26,33,72,0.06);
+    }
+    .bottom-nav button{
+      flex:1; min-width:0; background:none; border:0; display:flex; flex-direction:column; align-items:center; gap:3px;
+      font:600 10.5px 'Inter',sans-serif; color:var(--ink-soft); padding:7px 0 6px; border-radius:14px; cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .bottom-nav button svg{width:23px; height:23px;}
+    .bottom-nav button.active{color:var(--blue-600); background:var(--blue-50);}
+
+    /* Isian & tombol ramah jari (16px mencegah zoom otomatis di iPhone) */
+    input[type=text], input[type=number], input[type=month], input[type=search], input[type=date], select{font-size:16px; padding:11px 12px; border-radius:11px;}
+    input[type=search]{max-width:none !important;}
+    .btn{padding:12px 18px; font-size:14px; border-radius:12px;}
+    .btn.small{padding:9px 13px; font-size:13px; border-radius:10px;}
+    .icon-btn{padding:8px 10px; font-size:13px;}
+    .pill-input{width:76px;}
+    .form-grid{grid-template-columns:1fr;}
+    .row.toolbar, .toolbar{gap:10px;}
+
+    /* Kartu sambutan & angka ringkas */
+    .welcome-card{padding:18px; border-radius:18px; margin-bottom:14px;}
+    .welcome-card h2{font-size:17px;}
+    .welcome-card p{font-size:12.5px;}
+    .stat-grid{grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;}
+    .stat{padding:11px 12px; border-radius:12px;}
+    .stat .label{font-size:10px; margin-bottom:3px;}
+    .stat .value{font-size:16px; word-break:break-word;}
+
+    /* Teks penjelasan dipendekkan — ketuk untuk membaca selengkapnya */
+    #view .banner:not(:has(button)):not(.open){
+      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; cursor:pointer;
+    }
+    #view .banner{font-size:12.5px; padding:10px 12px; margin-bottom:12px;}
+
+    /* Pilihan bulan satu baris, digeser ke samping */
+    .chip-row{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; margin-right:-14px; padding-right:14px;}
+    .chip-row::-webkit-scrollbar{display:none;}
+    .chip{white-space:nowrap; padding:7px 12px;}
+
+    /* Daftar panjang tidak lagi punya scroll sendiri — cukup scroll halaman */
+    .table-wrap, .table-wrap.scroll10, .group-list-scroll10{max-height:none; overflow:visible; padding-right:0; margin-right:0;}
+
+    /* Tabel jadi kartu: tiap baris = satu kartu dengan judul kolom di kiri */
+    #view table thead{display:none;}
+    #view table, #view table tbody, #view table tfoot{display:block; width:100%;}
+    #view table tr{
+      display:block; background:#fff; border:1px solid var(--line); border-radius:14px;
+      padding:10px 12px; margin-bottom:10px; box-shadow:0 2px 8px rgba(26,33,72,0.04);
+    }
+    #view table tbody tr:hover{background:#fff;}
+    #view table td{
+      display:flex; justify-content:space-between; align-items:center; gap:12px;
+      border:none; padding:5px 0; text-align:right; min-height:28px;
+    }
+    #view table td::before{
+      content:attr(data-label); flex:none; max-width:46%; text-align:left;
+      font-size:11.5px; font-weight:600; color:var(--ink-soft); text-transform:none;
+    }
+    #view table td[data-label=""]::before, #view table td:not([data-label])::before{display:none;}
+    #view table td[data-label=""], #view table td:not([data-label]){justify-content:flex-end;}
+    #view table tbody tr > td:first-child{
+      font-weight:700; font-size:15px; color:var(--ink); padding-bottom:7px; margin-bottom:3px;
+      border-bottom:1px dashed var(--line); justify-content:flex-start; text-align:left; flex-wrap:wrap;
+    }
+    #view table tbody tr > td:first-child::before{display:none;}
+    #view table tr.catatan-row{background:var(--blue-50); border-color:var(--blue-100);}
+    #view table tr.catatan-row td{background:transparent;}
+    #view table tfoot tr{background:var(--blue-50); border-color:var(--blue-300);}
+    #view table tfoot td{border:none; padding:4px 0; font-size:13px; display:block; text-align:left;}
+    #view table td input.pill-input{flex:none; width:88px; text-align:center;}
+    #view table td input[type=number]:not(.pill-input){width:110px; flex:none;}
+    #view table td::before{font-family:'Inter',sans-serif; letter-spacing:0;}
+    #view table td > div{justify-content:flex-end;}
+    /* Tabel di dalam kartu (riwayat status) tetap sederhana */
+    #view table table tr{border:none; box-shadow:none; padding:6px 0; margin:0; border-bottom:1px solid var(--line); border-radius:0;}
+
+    /* Kartu tentor/keluarga di Slip Honor & Invoice */
+    .group-card{border-radius:16px;}
+    .group-head{padding:12px 12px; align-items:flex-start;}
+    .group-head .name{font-size:15px;}
+    .group-head .right{width:100%; display:grid; grid-template-columns:auto 1fr; align-items:center; gap:8px;}
+    .group-head .right .total{text-align:right;}
+    .group-head .right .btn{grid-column:1 / -1; width:100%;}
+    .group-head .total{font-size:16px;}
+    .group-body{padding:4px 10px 10px;}
+    .group-body table tr{box-shadow:none;}
+
+    /* Invoice/cetak tampil penuh layar */
+    #invoiceOverlay{padding:0;}
+    #invoiceOverlay .invoice-sheet{border-radius:0; padding:18px 14px; min-height:100%;}
+    #invoiceOverlay .invoice-sheet table{font-size:12px;}
+    #loginOverlay .login-card{padding:26px 20px 22px;}
   }
 </style>
 </head>
@@ -298,7 +445,7 @@
     </div>
     <span class="stamp" id="saveStamp">siap</span>
     <span class="role-badge" id="roleBadge" style="display:none;"></span>
-    <button class="btn secondary small" id="ownerToggleBtn" style="display:none;">🔒 Mode Owner</button>
+    <button class="btn secondary small owner-btn" id="ownerToggleBtn" style="display:none;">🔒<span class="lbl">Mode Owner</span></button>
     <button class="btn secondary small" id="logoutBtn" style="display:none;">Keluar</button>
   </div>
 </header>
@@ -317,6 +464,27 @@
 <main>
   <div class="card" id="view"></div>
 </main>
+
+<nav class="bottom-nav" id="bottomNav" aria-label="Menu utama">
+  <button data-tab="rekap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx="1"/><rect x="12" y="7" width="3" height="10" rx="1"/><rect x="17" y="13" width="3" height="4" rx="1"/></svg><span>Rekap</span></button>
+  <button data-tab="absensi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="m9 15 2 2 4-4"/></svg><span>Absen</span></button>
+  <button data-tab="honor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="3"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 10v5M18 10v5"/></svg><span>Honor</span></button>
+  <button data-tab="tagihan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg><span>Invoice</span></button>
+  <button data-more="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>Lainnya</span></button>
+</nav>
+<div class="more-sheet" id="moreSheet" aria-hidden="true">
+  <div class="backdrop" data-close="1"></div>
+  <div class="panel" role="dialog" aria-label="Menu lainnya">
+    <div class="grip"></div>
+    <div class="sheet-title">Menu lainnya</div>
+    <button class="item" data-tab="tentor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg><span>Tentor<span class="sub">Daftar tentor &amp; link absen</span></span></button>
+    <button class="item" data-tab="keluarga"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg><span>Orang Tua<span class="sub">Alamat keluarga</span></span></button>
+    <button class="item" data-tab="kelas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l10-5 10 5-10 5z"/><path d="M6 10v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg><span>Siswa &amp; Kelas<span class="sub">Tentor, siswa, tarif</span></span></button>
+    <button class="item" data-tab="cadangan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19.5 10 4 4 0 0 1 18 18z"/><path d="M12 12v6M9.5 15.5 12 18l2.5-2.5"/></svg><span>Cadangan &amp; Sinkron<span class="sub">Unduh / muat cadangan</span></span></button>
+    <div class="sep" id="installSep"></div>
+    <button class="item" id="installAppBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M12 7v7M9 11l3 3 3-3"/><path d="M10 18h4"/></svg><span>Pasang sebagai aplikasi<span class="sub">Ikon di layar HP, buka lebih cepat</span></span></button>
+  </div>
+</div>
 
 <div id="invoiceOverlay"></div>
 <div id="loginOverlay"></div>
@@ -1292,11 +1460,57 @@
   // ---------- render helpers ----------
   function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
 
+  const MORE_TABS = ['tentor','keluarga','kelas','cadangan'];
   function setActiveTab(tab){
+    const changed = activeTab!==tab;
     activeTab = tab;
     document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+    syncBottomNav();
+    closeMoreSheet();
     render();
+    if(changed) window.scrollTo(0, 0);
   }
+  function syncBottomNav(){
+    document.querySelectorAll('#bottomNav button').forEach(b=>{
+      b.classList.toggle('active', b.dataset.more ? MORE_TABS.includes(activeTab) : b.dataset.tab===activeTab);
+    });
+    document.querySelectorAll('#moreSheet .item[data-tab]').forEach(b=>b.classList.toggle('active', b.dataset.tab===activeTab));
+  }
+  function openMoreSheet(){ const s=document.getElementById('moreSheet'); s.classList.add('open'); s.setAttribute('aria-hidden','false'); updateInstallUI(); }
+  function closeMoreSheet(){ const s=document.getElementById('moreSheet'); if(s){ s.classList.remove('open'); s.setAttribute('aria-hidden','true'); } }
+  document.getElementById('bottomNav').addEventListener('click', (e)=>{
+    const b = e.target.closest('button'); if(!b) return;
+    if(b.dataset.more){ openMoreSheet(); return; }
+    setActiveTab(b.dataset.tab);
+  });
+  document.getElementById('moreSheet').addEventListener('click', (e)=>{
+    if(e.target.closest('[data-close]')){ closeMoreSheet(); return; }
+    const b = e.target.closest('.item[data-tab]'); if(b) setActiveTab(b.dataset.tab);
+  });
+  syncBottomNav();
+
+  // ---------- Pasang sebagai aplikasi (PWA) ----------
+  let deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredInstall = e; updateInstallUI(); });
+  window.addEventListener('appinstalled', ()=>{ deferredInstall = null; updateInstallUI(); });
+  function isStandalone(){ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone===true; }
+  function updateInstallUI(){
+    const show = !isStandalone();
+    ['installAppBtn','installSep'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = show ? '' : 'none'; });
+  }
+  document.getElementById('installAppBtn').addEventListener('click', async ()=>{
+    if(deferredInstall){
+      deferredInstall.prompt();
+      try{ await deferredInstall.userChoice; }catch(e){}
+      deferredInstall = null; updateInstallUI(); closeMoreSheet();
+      return;
+    }
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    alert(ios
+      ? 'Cara pasang di iPhone:\n1. Buka halaman ini di Safari.\n2. Tekan tombol Bagikan (kotak dengan panah ke atas).\n3. Pilih "Tambah ke Layar Utama", lalu "Tambah".'
+      : 'Cara pasang di Android:\n1. Buka halaman ini di Chrome.\n2. Tekan menu ⋮ di pojok kanan atas.\n3. Pilih "Instal aplikasi" atau "Tambahkan ke layar utama".');
+  });
+  updateInstallUI();
   document.getElementById('tabs').addEventListener('click', (e)=>{
     const b = e.target.closest('button[data-tab]');
     if(b) setActiveTab(b.dataset.tab);
@@ -1317,6 +1531,7 @@
     lastRenderedTab = activeTab;
     view.innerHTML = '';
     renderTab(view);
+    labelTableCells(view);
     if(focusKey){
       const t = view.querySelector(focusKey.tag+'.'+CSS.escape(focusKey.cls)+'[data-id="'+CSS.escape(focusKey.id)+'"]');
       if(t && !t.disabled) t.focus({preventScroll:true});
@@ -1326,6 +1541,24 @@
       window.scrollTo(0, winY);
     }
   }
+  // Di HP tabel tampil sebagai kartu; tiap sel diberi label dari judul kolomnya.
+  function labelTableCells(root){
+    root.querySelectorAll('table').forEach(tbl=>{
+      const ths = [...tbl.querySelectorAll(':scope > thead th')].map(th=>th.textContent.trim());
+      if(!ths.length) return;
+      tbl.querySelectorAll(':scope > tbody > tr').forEach(tr=>{
+        let col = 0;
+        [...tr.children].forEach(td=>{
+          if(!td.hasAttribute('data-label')) td.setAttribute('data-label', td.colSpan>1 ? '' : (ths[col]||''));
+          col += td.colSpan || 1;
+        });
+      });
+    });
+  }
+  document.getElementById('view').addEventListener('click', (e)=>{
+    const b = e.target.closest('.banner');
+    if(b && !e.target.closest('button, a, input')) b.classList.toggle('open');
+  });
   function renderTab(view){
     if(!loaded){ view.appendChild(el('<div class="empty"><h3>Memuat data…</h3></div>')); return; }
     if(activeTab==='rekap') renderRekap(view);
@@ -3557,7 +3790,7 @@ service cloud.firestore {
       badge.textContent = 'Admin';
       logoutBtn.style.display='inline-block';
       ownerBtn.style.display='inline-block';
-      ownerBtn.textContent = ownerUnlocked ? '🔓 Mode Owner aktif' : '🔒 Mode Owner';
+      ownerBtn.innerHTML = ownerUnlocked ? '🔓<span class="lbl">Mode Owner aktif</span>' : '🔒<span class="lbl">Mode Owner</span>';
       ownerBtn.classList.toggle('secondary', !ownerUnlocked);
     } else {
       badge.style.display='none';
@@ -3688,6 +3921,16 @@ service cloud.firestore {
   (async function init(){
     const urlParams = new URLSearchParams(location.search);
     const absenId = urlParams.get('t') || urlParams.get('absen');
+    // Bisa dipasang sebagai aplikasi: admin dan halaman absen tentor punya ikon masing-masing.
+    try{
+      const mf = document.createElement('link');
+      mf.rel = 'manifest';
+      mf.href = absenId ? 'manifest-absen.json' : 'manifest.json';
+      document.head.appendChild(mf);
+      if('serviceWorker' in navigator && location.protocol==='https:'){
+        navigator.serviceWorker.register('sw.js').catch(()=>{});
+      }
+    }catch(e){}
     const absenToken = urlParams.get('k') || '';
     if(absenId==='all'){
       const apiParam = urlParams.get('api');

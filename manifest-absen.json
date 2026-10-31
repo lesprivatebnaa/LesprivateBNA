@@ -1,0 +1,31 @@
+{
+  "id": "./?absen=all",
+  "name": "Absen Mengajar — Les Private BNA",
+  "short_name": "Absen BNA",
+  "start_url": "./?absen=all",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EEF3FF",
+  "theme_color": "#4C6FF5",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
