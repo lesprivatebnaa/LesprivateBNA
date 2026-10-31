@@ -1302,9 +1302,23 @@
     if(b) setActiveTab(b.dataset.tab);
   });
 
+  // Posisi scroll disimpan sebelum halaman digambar ulang lalu dikembalikan
+  // (selama masih di tab yang sama), supaya daftar tidak loncat ke atas.
+  let lastRenderedTab = null;
   function render(){
     const view = document.getElementById('view');
+    const sameTab = lastRenderedTab===activeTab;
+    const scrollBoxes = [...view.querySelectorAll('.group-list-scroll10, .table-wrap.scroll10')].map(e=>e.scrollTop);
+    const winY = window.scrollY;
+    lastRenderedTab = activeTab;
     view.innerHTML = '';
+    renderTab(view);
+    if(sameTab){
+      view.querySelectorAll('.group-list-scroll10, .table-wrap.scroll10').forEach((e,i)=>{ if(scrollBoxes[i]!=null) e.scrollTop = scrollBoxes[i]; });
+      window.scrollTo(0, winY);
+    }
+  }
+  function renderTab(view){
     if(!loaded){ view.appendChild(el('<div class="empty"><h3>Memuat data…</h3></div>')); return; }
     if(activeTab==='rekap') renderRekap(view);
     else if(activeTab==='absensi') renderAbsensi(view);
@@ -2742,8 +2756,11 @@
     view.querySelectorAll('.tentor-toggle').forEach(elm=>{
       elm.addEventListener('click', ()=>{
         const id = elm.dataset.id;
-        if(expandedTentors.has(id)) expandedTentors.delete(id); else expandedTentors.add(id);
-        render();
+        const open = !expandedTentors.has(id);
+        if(open) expandedTentors.add(id); else expandedTentors.delete(id);
+        // Buka/tutup di tempat saja — tanpa menggambar ulang halaman.
+        elm.closest('.group-card').querySelector('.group-body').style.display = open ? '' : 'none';
+        elm.querySelector('.toggle-arrow').textContent = open ? '▼' : '▶';
       });
     });
     view.querySelectorAll('.honor-pay-checkbox').forEach(cb=>{
@@ -2918,8 +2935,10 @@
     view.querySelectorAll('.fam-toggle').forEach(elm=>{
       elm.addEventListener('click', ()=>{
         const id = elm.dataset.id;
-        if(collapsedFamilies.has(id)) collapsedFamilies.delete(id); else collapsedFamilies.add(id);
-        render();
+        const open = collapsedFamilies.has(id);
+        if(open) collapsedFamilies.delete(id); else collapsedFamilies.add(id);
+        elm.closest('.group-card').querySelector('.group-body').style.display = open ? '' : 'none';
+        elm.querySelector('.toggle-arrow').textContent = open ? '▼' : '▶';
       });
     });
     view.querySelectorAll('.pay-checkbox').forEach(cb=>{
