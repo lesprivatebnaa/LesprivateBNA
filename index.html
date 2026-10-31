@@ -321,7 +321,7 @@
 <div id="invoiceOverlay"></div>
 <div id="loginOverlay"></div>
 
-<footer>Data tersimpan otomatis di browser laptop ini (bukan di internet) sehingga bisa dipakai offline. Buka file ini langsung lewat browser (bukan dari dalam pratinjau chat) agar penyimpanan berjalan sempurna, dan unduh cadangan secara berkala di tab "Cadangan Data" agar data tidak hilang jika cache browser dibersihkan. Kapasitasnya cukup untuk ratusan tentor dan orang tua sekaligus.</footer>
+<footer>Data tersimpan di Firebase (online) dan otomatis tersinkron di semua perangkat admin. Kalau belum tersambung Firebase, data tersimpan di browser perangkat ini saja. Unduh cadangan lengkap tiap akhir bulan di tab "Cadangan &amp; Sinkron" sebagai jaring pengaman.</footer>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
@@ -2759,16 +2759,19 @@
   }
 
   // ---------- CADANGAN DATA (backup/restore) ----------
+  // Cadangan lengkap: SEMUA data (master, absen, catatan, status bayar ortu,
+  // status honor, kunci bulan, salinan bulan terkunci). Kalau ada satu saja
+  // yang gagal dibaca, cadangan dibatalkan — supaya tidak ada cadangan bolong.
+  const BACKUP_SINGLE = ['tentors','families','assignments','counters','rekapLocked','honorVisible'];
+  const BACKUP_PREFIXES = ['sessions:','sessionsNoHonor:','kehadiran:','payments:','honorPayments:','rekapSnapshot:'];
   async function buildBackupObject(){
-    const monthKeys = await storeListPrefix('sessions:');
-    const sessionsAll = {};
-    for(const k of monthKeys){
-      sessionsAll[k.replace('sessions:','')] = (await storeGet(k)) || {};
+    const data = {};
+    for(const k of BACKUP_SINGLE) data[k] = await storeGetStrict(k);
+    for(const p of BACKUP_PREFIXES){
+      const keys = await storeListPrefix(p);
+      for(const k of keys) data[k] = await storeGetStrict(k);
     }
-    syncBoundFromGlobals();
-    const snaps = {};
-    Object.keys(snapMasters).forEach(m=>{ snaps[m] = snapMasters[m]; });
-    return { version:2, exportedAt:new Date().toISOString(), tentors:liveMaster.tentors, families:liveMaster.families, assignments:liveMaster.assignments, counters:liveMaster.counters, sessions:sessionsAll, rekapLocked, snapshots:snaps };
+    return { version:3, exportedAt:new Date().toISOString(), data };
   }
 
   function renderCadangan(view){
@@ -2996,7 +2999,9 @@ service cloud.firestore {
     });
 
     document.getElementById('downloadBackupBtn').addEventListener('click', async ()=>{
-      const data = await buildBackupObject();
+      let data;
+      try{ data = await buildBackupObject(); }
+      catch(e){ alert('Gagal membuat cadangan (koneksi bermasalah). Coba lagi.'); return; }
       const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -3013,6 +3018,18 @@ service cloud.firestore {
         let data;
         try{ data = JSON.parse(reader.result); }
         catch(err){ alert('File ini bukan file cadangan yang valid.'); return; }
+        if(data.version===3 && data.data){
+          if(!confirm('Memuat cadangan ini akan menimpa semua data yang ada sekarang. Lanjutkan?')) return;
+          for(const k of Object.keys(data.data)){
+            if(data.data[k]!==null && data.data[k]!==undefined) await storeSet(k, data.data[k]);
+          }
+          await loadCore();
+          await loadSessions(currentMonth);
+          await refreshAvailableMonths();
+          alert('Cadangan berhasil dimuat.');
+          render();
+          return;
+        }
         if(!Array.isArray(data.tentors) || !Array.isArray(data.assignments)){
           alert('File ini bukan file cadangan yang valid.'); return;
         }
