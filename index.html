@@ -309,8 +309,19 @@
   @keyframes sheetUp{from{transform:translateY(100%);}to{transform:none;}}
   @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
   .owner-btn .lbl{margin-left:4px;}
+  .install-btn{display:none;}
 
-  @media (max-width:640px){
+  /* Di browser HP: tampilan web seperti biasa + tombol "Pasang Aplikasi". */
+  @media (max-width:640px) and (display-mode: browser){
+    .brand .stamp{order:3; margin-left:0;}
+    #view table thead{display:none;}
+    #view table tbody tr{display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; padding:10px 4px; border-bottom:1px solid var(--line);}
+    #view table tbody td{border:none; padding:2px 4px;}
+    .install-btn{display:inline-block;}
+  }
+
+  /* Tampilan APLIKASI: hanya saat dibuka dari ikon yang sudah dipasang di HP. */
+  @media (max-width:640px) and (display-mode: standalone), (max-width:640px) and (display-mode: fullscreen), (max-width:640px) and (display-mode: minimal-ui){
     body{font-size:14.5px; padding-bottom:calc(76px + env(safe-area-inset-bottom));}
     /* Header ringkas & menempel di atas */
     header.app-header{
@@ -446,6 +457,7 @@
     <span class="stamp" id="saveStamp">siap</span>
     <span class="role-badge" id="roleBadge" style="display:none;"></span>
     <button class="btn secondary small owner-btn" id="ownerToggleBtn" style="display:none;">🔒<span class="lbl">Mode Owner</span></button>
+    <button class="btn small install-btn" id="installHeaderBtn">📲 Pasang Aplikasi</button>
     <button class="btn secondary small" id="logoutBtn" style="display:none;">Keluar</button>
   </div>
 </header>
@@ -1496,9 +1508,9 @@
   function isStandalone(){ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone===true; }
   function updateInstallUI(){
     const show = !isStandalone();
-    ['installAppBtn','installSep'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = show ? '' : 'none'; });
+    ['installAppBtn','installSep','installHeaderBtn'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = show ? '' : 'none'; });
   }
-  document.getElementById('installAppBtn').addEventListener('click', async ()=>{
+  async function doInstall(){
     if(deferredInstall){
       deferredInstall.prompt();
       try{ await deferredInstall.userChoice; }catch(e){}
@@ -1509,7 +1521,9 @@
     alert(ios
       ? 'Cara pasang di iPhone:\n1. Buka halaman ini di Safari.\n2. Tekan tombol Bagikan (kotak dengan panah ke atas).\n3. Pilih "Tambah ke Layar Utama", lalu "Tambah".'
       : 'Cara pasang di Android:\n1. Buka halaman ini di Chrome.\n2. Tekan menu ⋮ di pojok kanan atas.\n3. Pilih "Instal aplikasi" atau "Tambahkan ke layar utama".');
-  });
+  }
+  document.getElementById('installAppBtn').addEventListener('click', doInstall);
+  document.getElementById('installHeaderBtn').addEventListener('click', doInstall);
   updateInstallUI();
   document.getElementById('tabs').addEventListener('click', (e)=>{
     const b = e.target.closest('button[data-tab]');
