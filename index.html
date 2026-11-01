@@ -290,6 +290,63 @@
     .rekap-grid{column-count:2; column-gap:14px;}
     .rekap-section{margin-bottom:8px;}
   }
+  /* ---------- Calon Tentor ---------- */
+  .calon-sec{font-family:'Poppins',sans-serif; font-size:15px; margin:20px 0 8px; color:var(--ink);}
+  #daftarForm .field-label{margin-top:10px;}
+  #daftarForm input[type=text], #daftarForm input[type=tel], #daftarForm input[type=date], #daftarForm select, #daftarForm textarea{width:100%; font-size:16px;}
+  .calon-checks{display:flex; flex-wrap:wrap; gap:7px; margin:4px 0 6px;}
+  .calon-check{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:7px 12px; font-size:13.5px; cursor:pointer; background:#fff; user-select:none;}
+  .calon-check input{margin:0; accent-color:var(--blue-600);}
+  .calon-check:has(input:checked){background:var(--blue-50); border-color:var(--blue-300); color:var(--blue-700); font-weight:600;}
+  .calon-photo-row{display:flex; gap:14px; align-items:center;}
+  .calon-photo-prev{width:92px; height:92px; border-radius:50%; background:var(--blue-50); border:2px dashed var(--blue-300); display:flex; align-items:center; justify-content:center; text-align:center; font-size:11px; color:var(--ink-soft); overflow:hidden; flex:none; padding:6px;}
+  .calon-photo-prev img{width:100%; height:100%; object-fit:cover; border-radius:50%;}
+  .calon-hint{font-size:12px; color:var(--ink-soft); margin-top:6px;}
+  .calon-exp{display:grid; gap:6px; padding:10px; border:1px solid var(--line); border-radius:12px; margin-bottom:8px; background:#FAFBFF;}
+  .calon-err{margin-top:14px; padding:10px 12px; border-radius:10px; background:var(--danger-soft); color:var(--danger); font-weight:600; font-size:13.5px;}
+  .calon-link{margin-top:8px; padding:8px 10px; background:#fff; border:1px dashed var(--blue-300); border-radius:10px; font-family:'JetBrains Mono',monospace; font-size:12px; word-break:break-all;}
+  .calon-filters{display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px; margin-bottom:14px;}
+  .calon-filters select, .calon-filters input{width:100%; max-width:none !important;}
+  .calon-count{font-weight:700; color:var(--ink); margin:4px 0 12px;}
+  .calon-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px;}
+  .calon-card{border:1px solid var(--line); border-radius:16px; padding:14px; background:#fff; box-shadow:0 2px 10px rgba(26,33,72,0.05); display:flex; flex-direction:column; gap:8px;}
+  .calon-top{display:flex; gap:12px; align-items:flex-start;}
+  .calon-foto{width:68px; height:68px; border-radius:50%; object-fit:cover; flex:none; cursor:zoom-in; border:2px solid var(--blue-100);}
+  .calon-foto-empty{display:flex; align-items:center; justify-content:center; background:var(--blue-50); font-size:28px; cursor:default;}
+  .calon-nama{font-family:'Poppins',sans-serif; font-weight:700; font-size:15.5px; color:var(--ink);}
+  .calon-pg{font-weight:500; color:var(--ink-soft); font-size:13px;}
+  .calon-sub{font-size:12.5px; color:var(--ink-soft);}
+  .calon-status{display:inline-block; margin-top:5px; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--blue-50); color:var(--blue-700);}
+  .calon-status.st-dihubungi{background:#FFF4DB; color:#9A6A00;}
+  .calon-status.st-diterima{background:#DFF5E8; color:var(--success);}
+  .calon-status.st-ditolak{background:var(--danger-soft); color:var(--danger);}
+  .calon-row{display:grid; grid-template-columns:84px 1fr; gap:8px; font-size:13px; align-items:start;}
+  .calon-row > b{font-size:11.5px; color:var(--ink-soft); font-weight:600; padding-top:3px;}
+  .calon-chip{display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:999px; background:#F1F4FB; margin:0 4px 4px 0;}
+  .calon-chip.on{background:var(--blue-600); color:#fff; font-weight:600;}
+  .calon-alasan{font-size:12.5px; font-style:italic; color:var(--ink-soft); background:#FAFBFF; border-radius:10px; padding:8px 10px;}
+  .calon-note{font-size:12.5px; background:#FFF8E6; border-radius:10px; padding:8px 10px;}
+  .calon-actions{display:flex; flex-wrap:wrap; gap:6px; align-items:center; border-top:1px dashed var(--line); padding-top:10px; margin-top:2px;}
+  .calon-actions select{font-size:13px; padding:7px 8px; border-radius:9px;}
+  .calon-wa{background:#25D366 !important; border-color:#25D366 !important; color:#fff !important; text-decoration:none;}
+  .calon-tabs{display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; scrollbar-width:none;}
+  .calon-tab{flex:none; border:1px solid var(--line); background:#fff; border-radius:999px; padding:8px 14px; font:600 13.5px 'Inter',sans-serif; color:var(--ink-soft); cursor:pointer; white-space:nowrap;}
+  .calon-tab.on{background:var(--blue-600); border-color:var(--blue-600); color:#fff;}
+  .calon-badge{display:inline-block; min-width:20px; padding:1px 6px; border-radius:999px; background:var(--danger); color:#fff; font-size:11px; margin-left:4px; text-align:center;}
+  .calon-badge.soft{background:rgba(76,111,245,0.15); color:inherit;}
+  .calon-tab.on .calon-badge.soft{background:rgba(255,255,255,0.25);}
+  .calon-linkbox{border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:14px; background:#FAFBFF;}
+  .calon-linkbox summary{cursor:pointer; font-weight:700; font-size:13.5px;}
+  .calon-status.st-lolos{background:#DFF5E8; color:var(--success);}
+  .calon-status.st-aktif{background:#E6EBFF; color:var(--blue-700);}
+  .calon-zoom{position:fixed; inset:0; background:rgba(10,15,35,0.85); z-index:9999; display:flex; align-items:center; justify-content:center; padding:20px; cursor:zoom-out;}
+  .calon-zoom img{max-width:100%; max-height:100%; border-radius:16px;}
+  @media (max-width:640px){
+    .calon-grid{grid-template-columns:1fr;}
+    .calon-filters{grid-template-columns:1fr 1fr;}
+    .calon-actions .btn, .calon-actions select{flex:1 1 auto;}
+  }
+
   /* ---------- Buka instan: data sebelumnya tampil, edit menunggu data terbaru ---------- */
   body.warm-preview #view{pointer-events:none;}
   body.warm-preview::before{
@@ -504,6 +561,7 @@
   <button data-tab="kelas">Siswa &amp; Kelas</button>
   <button data-tab="honor">Slip Honor Tentor</button>
   <button data-tab="tagihan">Invoice Orang Tua</button>
+  <button data-tab="calon">Calon Tentor</button>
   <button data-tab="cadangan">Cadangan &amp; Sinkron</button>
 </nav>
 
@@ -526,6 +584,7 @@
     <button class="item" data-tab="tentor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg><span>Tentor<span class="sub">Daftar tentor &amp; link absen</span></span></button>
     <button class="item" data-tab="keluarga"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg><span>Orang Tua<span class="sub">Alamat keluarga</span></span></button>
     <button class="item" data-tab="kelas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l10-5 10 5-10 5z"/><path d="M6 10v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg><span>Siswa &amp; Kelas<span class="sub">Tentor, siswa, tarif</span></span></button>
+    <button class="item" data-tab="calon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 3.8-6 7-6 1.2 0 2.3.3 3.3.8"/><path d="M18 14v6M15 17h6"/></svg><span>Calon Tentor<span class="sub">Pendaftar &amp; cari tentor cepat</span></span></button>
     <button class="item" data-tab="cadangan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1-9.9A6 6 0 0 1 19.5 10 4 4 0 0 1 18 18z"/><path d="M12 12v6M9.5 15.5 12 18l2.5-2.5"/></svg><span>Cadangan &amp; Sinkron<span class="sub">Unduh / muat cadangan</span></span></button>
     <div class="sep" id="installSep"></div>
     <button class="item" id="installAppBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M12 7v7M9 11l3 3 3-3"/><path d="M10 18h4"/></svg><span>Pasang sebagai aplikasi<span class="sub">Ikon di layar HP, buka lebih cepat</span></span></button>
@@ -708,6 +767,7 @@
   // timpa (rawan menghapus perubahan orang lain), ini pakai Firestore
   // transaction yang otomatis mengulang baca+tulis jika ada tabrakan.
   async function storeTransactionUpdate(key, mutatorFn){
+    if(writeBlocked()) return null;
     const d = initFirebase();
     if(!d){
       // Mode offline (localStorage): satu perangkat saja, tak ada tabrakan nyata.
@@ -743,9 +803,26 @@
       if(!doc.exists) return null;
       const raw = doc.data().value;
       return (raw!==undefined && raw!==null) ? JSON.parse(raw) : null;
-    }catch(e){ flashError(); return null; }
+    }catch(e){ flashError(); noteReadFailure(e); return null; }
+  }
+  // Kalau data gagal dibaca (koneksi / kuota Firebase habis), aplikasi TIDAK
+  // boleh menganggap datanya kosong lalu menyimpan — semua penyimpanan ditahan.
+  let readFailure = null;
+  function noteReadFailure(e){
+    if(!readFailure) readFailure = (e && e.code) || 'unknown';
+  }
+  function readFailureMessage(){
+    return readFailure==='resource-exhausted'
+      ? 'Kuota baca harian Firebase (paket gratis) sudah habis, jadi data tidak bisa dimuat. Kuota otomatis pulih sekitar pukul 14.00–15.00 WIB. Jangan mengubah data dulu.'
+      : 'Data gagal dimuat dari Firebase (koneksi bermasalah). Refresh halaman sebelum mengubah data.';
+  }
+  function writeBlocked(){
+    if(!readFailure || !role) return false;
+    alert(readFailureMessage()+'\n\nPerubahan ini TIDAK disimpan.');
+    return true;
   }
   async function storeSet(key, value){
+    if(writeBlocked()) return;
     const d = initFirebase();
     if(!d){
       try{ localStorage.setItem(key, JSON.stringify(value)); flashSaved(); }
@@ -903,7 +980,7 @@
   let warmPreview = false;
   let warmSaveTimer = null;
   function saveWarmCacheSoon(){
-    if(!role || warmPreview || !loaded || !initFirebase()) return;
+    if(!role || warmPreview || !loaded || !initFirebase() || readFailure) return;
     clearTimeout(warmSaveTimer);
     warmSaveTimer = setTimeout(()=>{
       try{
@@ -977,6 +1054,7 @@
         made = true;
       }
     }
+    await repairWrongSeed(currentMonthStr());
     await autoSeedMonth(currentMonthStr());
     await autoSeedMonth(currentMonth);
     if(made || snapMasters[currentMonth]) bindMasterForMonth(currentMonth);
@@ -986,12 +1064,40 @@
   // memulai dari data final Oktober yang sudah dikunci). Setelah itu bulan baru
   // punya salinan sendiri dan terpisah penuh. Bulan yang sudah berjalan
   // (sudah ada absen) tidak pernah ditimpa.
+  // Perbaikan sekali jalan: versi lama menyalin bulan baru dari bulan TERKUNCI
+  // terakhir (mis. November dari September), bukan dari bulan sebelumnya
+  // (Oktober). Kalau salinan bulan ini masih sama persis dengan salinan bulan
+  // lama itu (belum diubah), ganti dengan data bulan sebelumnya.
+  function masterJson(M){ if(!M) return ''; const {seededFrom, ...rest} = M; return JSON.stringify({tentors:rest.tentors, families:rest.families, assignments:rest.assignments}); }
+  async function repairWrongSeed(m){
+    if(!role || snapLoadFailed || readFailure) return;
+    const cur = snapMasters[m]; if(!cur || cur.seededFrom) return;
+    const p = prevMonthStr(m);
+    const prevM = snapMasters[p] || null;
+    const prevJson = prevM ? masterJson(prevM) : masterJson(liveMaster);
+    const curJson = masterJson(cur);
+    if(curJson===prevJson){ cur.seededFrom = p; await storeSet(snapKey(m), cur); return; }
+    const wrongFrom = Object.keys(snapMasters).filter(k=>k<p && rekapLocked[k] && masterJson(snapMasters[k])===curJson).sort().pop();
+    if(!wrongFrom) return; // sudah diubah admin → jangan disentuh otomatis
+    const fixed = cloneMaster(prevM || liveMaster);
+    fixed.seededFrom = p;
+    snapMasters[m] = fixed;
+    // Kalau bulan ini sedang dibuka, arahkan langsung ke data yang sudah benar
+    // (jangan lewat bindMasterForMonth: itu akan menulis balik data lama).
+    if(boundMonth===m) setGlobalsFrom(fixed);
+    await storeSet(snapKey(m), fixed);
+    console.warn('Data '+m+' diperbaiki: sebelumnya tersalin dari '+wrongFrom+', sekarang dari '+p);
+  }
   async function autoSeedMonth(m){
-    if(!m || !role || snapLoadFailed || snapMasters[m]) return;
+    if(!m || !role || snapLoadFailed || readFailure || snapMasters[m]) return;
     if((availableMonths||[]).includes(m)) return;
-    const src = Object.keys(snapMasters).filter(k=>k<m && rekapLocked[k]).sort().pop();
-    if(!src) return;
+    // Bulan baru meneruskan data BULAN SEBELUMNYA (dikunci atau tidak).
+    // Kalau bulan sebelumnya memakai data umum (tanpa salinan), bulan baru juga
+    // cukup memakai data umum — sama persis dengan bulan sebelumnya.
+    const src = prevMonthStr(m);
+    if(!snapMasters[src]) return;
     snapMasters[m] = cloneMaster(snapMasters[src]);
+    snapMasters[m].seededFrom = src;
     await storeSet(snapKey(m), snapMasters[m]);
     rekapLocked[m] = false; // key tetap dicatat supaya salinannya ikut dimuat saat refresh
     await storeSet('rekapLocked', rekapLocked);
@@ -1071,11 +1177,58 @@
   function absenCol(){ const d = initFirebase(); return d ? d.collection('absen') : null; }
   function localAbsenGet(m){ try{ const raw = localStorage.getItem('absen:'+m); return raw ? JSON.parse(raw) : []; }catch(e){ return []; } }
   function localAbsenSet(m, arr){ try{ localStorage.setItem('absen:'+m, JSON.stringify(arr)); flashSaved(); }catch(e){ flashError(); throw e; } }
+  // Admin: absen sebulan disimpan juga di perangkat (cache). Saat dibuka lagi,
+  // hanya absen BARU yang diambil dari Firebase (hemat kuota baca). Kalau ada
+  // absen yang diubah/dihapus admin, nomor versi 'absenVer:<bulan>' naik dan
+  // semua absen bulan itu diambil ulang.
+  const ABSEN_CACHE = 'bnaAbsenCache:';
+  function absenCacheGet(m){ try{ return JSON.parse(localStorage.getItem(ABSEN_CACHE+m) || 'null'); }catch(e){ return null; } }
+  function absenCachePut(m, cache){
+    try{ localStorage.setItem(ABSEN_CACHE+m, JSON.stringify(cache)); }
+    catch(e){
+      // penyimpanan penuh: buang cache bulan-bulan lama lalu coba lagi
+      try{
+        Object.keys(localStorage).filter(k=>k.indexOf(ABSEN_CACHE)===0 && k!==ABSEN_CACHE+m).forEach(k=>localStorage.removeItem(k));
+        localStorage.setItem(ABSEN_CACHE+m, JSON.stringify(cache));
+      }catch(_){}
+    }
+  }
+  function absenCacheClearAll(){ try{ Object.keys(localStorage).filter(k=>k.indexOf(ABSEN_CACHE)===0).forEach(k=>localStorage.removeItem(k)); }catch(e){} }
+  function maxWaktu(docs){ let mx=''; docs.forEach(r=>{ if(r.waktu && r.waktu>mx) mx=r.waktu; }); return mx; }
   async function absenListMonth(m){
     const c = absenCol();
     if(!c) return localAbsenGet(m);
+    if(!role){ const snap = await c.where('bulan','==',m).get(); return snap.docs.map(x=>x.data()); }
+    const ver = (await storeGetStrict('absenVer:'+m)) || 0;
+    const cache = absenCacheGet(m);
+    if(cache && cache.ver===ver && cache.docs && cache.maxWaktu){
+      try{
+        // ambil absen sejak 2 hari sebelum absen terbaru yang tersimpan (jaga-jaga jam HP tentor tidak tepat)
+        const since = new Date(new Date(cache.maxWaktu).getTime() - 2*86400000).toISOString();
+        const snap = await c.where('bulan','==',m).where('waktu','>',since).get();
+        snap.docs.forEach(x=>{ const r = x.data(); cache.docs[r.id] = r; });
+        const all = Object.values(cache.docs);
+        cache.maxWaktu = maxWaktu(all) || cache.maxWaktu;
+        absenCachePut(m, cache);
+        return all;
+      }catch(e){
+        if(e && e.code && e.code!=='failed-precondition') throw e;  // failed-precondition = indeks belum dibuat → ambil penuh
+      }
+    }
     const snap = await c.where('bulan','==',m).get();
-    return snap.docs.map(x=>x.data());
+    const docs = snap.docs.map(x=>x.data());
+    const map = {}; docs.forEach(r=>{ map[r.id] = r; });
+    absenCachePut(m, {ver, docs: map, maxWaktu: maxWaktu(docs) || new Date(0).toISOString()});
+    return docs;
+  }
+  // Dipanggil setelah admin mengubah/menghapus absen: naikkan versi & sesuaikan cache sendiri.
+  async function absenBumpVersion(m, applyFn){
+    const nv = await storeTransactionUpdate('absenVer:'+m, (v)=>(v||0)+1);
+    const cache = absenCacheGet(m);
+    if(cache && typeof nv==='number' && cache.ver===nv-1){
+      try{ applyFn && applyFn(cache.docs); }catch(e){}
+      cache.ver = nv; absenCachePut(m, cache);
+    } else if(cache){ try{ localStorage.removeItem(ABSEN_CACHE+m); }catch(e){} }
   }
   async function absenListTentorMonth(tid, m){
     const c = absenCol();
@@ -1108,6 +1261,7 @@
       recs.slice(i,i+400).forEach(r=> b.set(c.doc(r.id), r));
       await b.commit();
     }
+    for(const m of [...new Set(recs.map(r=>r.bulan))]){ if(role) await absenBumpVersion(m, null); }
     flashSaved();
   }
   async function absenUpdate(rec, fields){
@@ -1120,11 +1274,13 @@
       return;
     }
     try{ await c.doc(rec.id).update(fields); flashSaved(); }catch(e){ flashError(); throw e; }
+    await absenBumpVersion(rec.bulan, (docs)=>{ if(docs[rec.id]) Object.assign(docs[rec.id], fields); });
   }
   async function absenDelete(rec){
     const c = absenCol();
     if(!c){ localAbsenSet(rec.bulan, localAbsenGet(rec.bulan).filter(x=>x.id!==rec.id)); return; }
     try{ await c.doc(rec.id).delete(); flashSaved(); }catch(e){ flashError(); throw e; }
+    await absenBumpVersion(rec.bulan, (docs)=>{ delete docs[rec.id]; });
   }
   // Daftar bulan yang punya absen (untuk chip bulan & cadangan).
   async function absenMonthsList(){
@@ -1242,15 +1398,16 @@
         }
       }catch(e){ failed = true; }
     }));
+    if(readFailure) failed = true;
     snapLoadFailed = failed;
     liveMaster = lm; snapMasters = sm; boundMonth = null;
     setGlobalsFrom(liveMaster);
     if(!absenModeActive) bindMasterForMonth(currentMonth);
   }
   async function loadSessions(month){
-    const absenP = absenListMonth(month).then(r=>({ok:true, r}), ()=>({ok:false}));
+    const absenP = absenListMonth(month).then(r=>({ok:true, r}), (e)=>({ok:false, e}));
     const [ab, adj, pay, hpay] = await Promise.all([absenP, storeGet('sessionsAdj:'+month), storeGet('payments:'+month), storeGet('honorPayments:'+month)]);
-    if(ab.ok){ kehadiran = ab.r; absenLoadFailed = false; } else { kehadiran = []; absenLoadFailed = true; flashError(); }
+    if(ab.ok){ kehadiran = ab.r; absenLoadFailed = false; } else { kehadiran = []; absenLoadFailed = true; flashError(); noteReadFailure(ab.e); }
     sessionsAdj = adj || {};
     recomputeSessions();
     if(kehadiran.length) noteAbsenMonth(month);
@@ -1543,7 +1700,7 @@
   // ---------- render helpers ----------
   function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
 
-  const MORE_TABS = ['tentor','keluarga','kelas','cadangan'];
+  const MORE_TABS = ['tentor','keluarga','kelas','calon','cadangan'];
   function setActiveTab(tab){
     const changed = activeTab!==tab;
     activeTab = tab;
@@ -1619,6 +1776,7 @@
       ? {tag: ae.tagName.toLowerCase(), cls: ae.classList[0], id: ae.dataset.id} : null;
     lastRenderedTab = activeTab;
     view.innerHTML = '';
+    if(readFailure && role && loaded) view.appendChild(el(`<div class="banner" style="margin-bottom:14px;background:var(--danger-soft);border-color:var(--danger);color:var(--danger);font-weight:600;">⚠️ ${esc(readFailureMessage())}</div>`));
     renderTab(view);
     labelTableCells(view);
     saveWarmCacheSoon();
@@ -1658,6 +1816,7 @@
     else if(activeTab==='kelas') renderKelas(view);
     else if(activeTab==='honor') renderHonor(view);
     else if(activeTab==='tagihan') renderTagihan(view);
+    else if(activeTab==='calon') renderCalon(view);
     else if(activeTab==='cadangan') renderCadangan(view);
   }
 
@@ -3297,6 +3456,8 @@
     }
     // Absen (satu dokumen per absen) disimpan per bulan: 'absen:<bulan>' = daftar absen.
     for(const m of await absenMonthsList()) data['absen:'+m] = await absenListMonth(m);
+    // Data calon tentor (beserta fotonya)
+    if(calonCol()){ const sn = await calonCol().get(); data['calonTentor'] = sn.docs.map(x=>x.data()); }
     return { version:3, exportedAt:new Date().toISOString(), data };
   }
 
@@ -3364,6 +3525,28 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin() || absenBaruValid(id);
       allow update, delete: if isAdmin();
+    }
+
+    // Pendaftaran calon tentor (link ?daftar=1, tanpa login): hanya boleh
+    // MENGIRIM data baru. Membaca, mengubah status, dan menghapus hanya admin.
+    function calonBaruValid(id) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id','nama','panggilan','jk','tglLahir','wa','alamat','kampus','jurusan','semester','mapel','mapelLain','jenjang','wilayah','hari','jam','kendaraan','pernah','pengalaman','alasan','foto','status','createdAt'])
+        && d.id == id && d.status == 'baru'
+        && d.nama is string && d.nama.size() > 0 && d.nama.size() &lt;= 80
+        && d.wa is string && d.wa.size() &lt;= 20
+        && d.foto is string && d.foto.size() &lt;= 400000
+        && d.mapel is list && d.mapel.size() &lt;= 30
+        && d.jenjang is list && d.jenjang.size() &lt;= 30
+        && d.wilayah is list && d.wilayah.size() &lt;= 30
+        && d.hari is list && d.hari.size() &lt;= 30
+        && d.jam is list && d.jam.size() &lt;= 30
+        && d.pengalaman is list && d.pengalaman.size() &lt;= 5
+        && (!('alasan' in d) || (d.alasan is string && d.alasan.size() &lt;= 600));
+    }
+    match /calonTentor/{id} {
+      allow create: if isAdmin() || calonBaruValid(id);
+      allow read, update, delete: if isAdmin();
     }
 
     // Ringkasan untuk halaman absen tentor (ditulis oleh aplikasi admin).
@@ -3574,6 +3757,10 @@ service cloud.firestore {
           for(const k of Object.keys(data.data)){
             const v = data.data[k];
             if(v===null || v===undefined) continue;
+            if(k==='calonTentor'){
+              if(Array.isArray(v) && calonCol()){ for(const c of v){ if(c && c.id) await calonCol().doc(c.id).set(c); } calonState='idle'; }
+              continue;
+            }
             if(k.indexOf('absen:')===0){
               const m = k.slice(6);
               if(Array.isArray(v) && v.length) await absenPutMany(v.map(r=>Object.assign({}, r, {bulan:m})));
@@ -3854,6 +4041,424 @@ service cloud.firestore {
     await runTentorAbsenSession(t, {allowSwitch:true});
   }
 
+  // =====================================================================
+  // ---------- BANK CALON TENTOR ----------
+  // Calon tentor mendaftar sendiri lewat link ?daftar=1 (tanpa login).
+  // Data disimpan di koleksi Firestore 'calonTentor' (satu dokumen per
+  // pendaftar). Publik hanya boleh MENGIRIM pendaftaran; membaca, mengubah
+  // status, dan menghapus hanya admin (lihat Rules Firestore).
+  // =====================================================================
+  const CALON_MAPEL = ['Matematika','Bahasa Inggris','IPA','Fisika','Kimia','Biologi','Bahasa Indonesia','IPS','Bahasa Arab','Calistung (Baca Tulis Hitung)','Mengaji / Iqra','Semua Mapel SD (Tematik)'];
+  const CALON_JENJANG = ['TK / PAUD','SD','SMP','SMA / SMK','Persiapan UTBK / Masuk PTN'];
+  const CALON_WILAYAH = ['Baiturrahman','Banda Raya','Jaya Baru','Kuta Alam','Kuta Raja','Lueng Bata','Meuraxa','Syiah Kuala','Ulee Kareng','Darussalam (Aceh Besar)','Ingin Jaya (Aceh Besar)','Krueng Barona Jaya (Aceh Besar)','Baitussalam (Aceh Besar)','Darul Imarah (Aceh Besar)','Peukan Bada (Aceh Besar)'];
+  const CALON_HARI = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
+  const CALON_JAM = ['Pagi (08–11)','Siang (11–14)','Sore (14–18)','Malam (18–21)'];
+  const CALON_STATUS = {baru:'Baru', dihubungi:'Sudah Dihubungi', diterima:'Diterima', ditolak:'Tidak Lanjut'};
+
+  function calonCol(){ const d = initFirebase(); return d ? d.collection('calonTentor') : null; }
+  function waNumber(raw){
+    let n = String(raw||'').replace(/[^0-9]/g,'');
+    if(n.startsWith('620')) n = '62' + n.slice(3);
+    if(n.startsWith('0')) n = '62' + n.slice(1);
+    else if(n.startsWith('8')) n = '62' + n;
+    return n;
+  }
+  function umurDari(tgl){
+    if(!tgl) return '';
+    const b = new Date(tgl+'T00:00:00'); if(isNaN(b)) return '';
+    const n = new Date(); let u = n.getFullYear()-b.getFullYear();
+    if(n.getMonth()<b.getMonth() || (n.getMonth()===b.getMonth() && n.getDate()<b.getDate())) u--;
+    return u>0 && u<100 ? u+' th' : '';
+  }
+  function checkGroupHtml(name, options, cls){
+    return `<div class="calon-checks">${options.map(o=>`<label class="calon-check"><input type="checkbox" name="${name}" value="${esc(o)}"${cls?` class="${cls}"`:''}><span>${esc(o)}</span></label>`).join('')}</div>`;
+  }
+  function checkedValues(root, name){ return [...root.querySelectorAll(`input[name="${name}"]:checked`)].map(i=>i.value); }
+
+  // Foto diperkecil di HP pendaftar (maks. 480 px, JPEG) supaya hemat & tetap jelas.
+  function compressPhoto(file){
+    return new Promise((resolve, reject)=>{
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{
+        const max = 480;
+        let w = img.naturalWidth, h = img.naturalHeight;
+        const k = Math.min(1, max/Math.max(w,h)); w = Math.round(w*k); h = Math.round(h*k);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,w,h); x.drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        let q = 0.78, out = c.toDataURL('image/jpeg', q);
+        while(out.length > 300000 && q > 0.3){ q -= 0.12; out = c.toDataURL('image/jpeg', q); }
+        resolve(out);
+      };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('foto')); };
+      img.src = url;
+    });
+  }
+
+  // ---------- Halaman pendaftaran (publik) ----------
+  async function startDaftarMode(){
+    absenModeActive = true;
+    document.title = 'Daftar Calon Tentor — Les Private Banda Aceh';
+    document.body.innerHTML = `
+      <div style="max-width:560px;margin:0 auto;padding:22px 14px 60px;">
+        <div style="text-align:center;margin-bottom:16px;">
+          <img src="${LOGO_DATA_URI}" style="width:56px;height:56px;object-fit:contain;">
+          <h1 style="font-family:'Poppins',sans-serif;font-size:20px;margin:8px 0 2px;color:var(--ink);">Daftar Calon Tentor</h1>
+          <div style="color:var(--ink-soft);font-size:13px;">Les Private Banda Aceh</div>
+        </div>
+        <div id="daftarBody" class="card"></div>
+      </div>`;
+    const body = document.getElementById('daftarBody');
+    if(!calonCol()){
+      body.innerHTML = `<div class="empty"><h3>Link belum aktif</h3><p>Hubungi admin Les Private Banda Aceh.</p></div>`;
+      return;
+    }
+    body.innerHTML = `
+      <div class="banner" style="margin-bottom:16px;">Terima kasih sudah tertarik bergabung! Isi data di bawah dengan benar. Kami akan menghubungi lewat WhatsApp kalau ada murid yang cocok dengan Anda.</div>
+      <form id="daftarForm" novalidate>
+        <h3 class="calon-sec">📸 Foto Diri</h3>
+        <div class="calon-photo-row">
+          <div class="calon-photo-prev" id="fotoPrev">Belum ada foto</div>
+          <div>
+            <label class="btn secondary small" style="display:inline-block;cursor:pointer;">Pilih / Ambil Foto<input type="file" id="fotoInput" accept="image/*" style="display:none;"></label>
+            <div class="calon-hint">Foto wajah yang jelas dan sopan.</div>
+          </div>
+        </div>
+
+        <h3 class="calon-sec">👤 Data Diri</h3>
+        <label class="field-label">Nama lengkap *</label><input type="text" id="cNama" maxlength="80" autocomplete="name">
+        <label class="field-label">Nama panggilan</label><input type="text" id="cPanggilan" maxlength="40">
+        <label class="field-label">Jenis kelamin *</label>
+        <div class="calon-checks"><label class="calon-check"><input type="radio" name="cJk" value="Laki-laki"><span>Laki-laki</span></label><label class="calon-check"><input type="radio" name="cJk" value="Perempuan"><span>Perempuan</span></label></div>
+        <label class="field-label">Tanggal lahir</label><input type="date" id="cTgl">
+        <label class="field-label">No. WhatsApp aktif *</label><input type="tel" id="cWa" maxlength="20" placeholder="mis. 0812xxxxxxx" inputmode="tel">
+        <label class="field-label">Alamat tinggal sekarang *</label><input type="text" id="cAlamat" maxlength="160" placeholder="mis. Jl. ..., Lamnyong">
+
+        <h3 class="calon-sec">🎓 Pendidikan</h3>
+        <label class="field-label">Kampus *</label><input type="text" id="cKampus" maxlength="80" placeholder="mis. USK, UIN Ar-Raniry">
+        <label class="field-label">Jurusan / Prodi *</label><input type="text" id="cJurusan" maxlength="80" placeholder="mis. Pendidikan Matematika">
+        <label class="field-label">Status *</label>
+        <select id="cSemester"><option value="">Pilih…</option>${[1,2,3,4,5,6,7,8].map(s=>`<option value="Semester ${s}">Semester ${s}</option>`).join('')}<option value="Semester 9+">Semester 9+</option><option value="Sudah lulus">Sudah lulus</option></select>
+
+        <h3 class="calon-sec">📚 Yang Bisa Diajar</h3>
+        <label class="field-label">Mata pelajaran * (boleh lebih dari satu)</label>${checkGroupHtml('cMapel', CALON_MAPEL)}
+        <label class="field-label">Mapel lainnya (opsional)</label><input type="text" id="cMapelLain" maxlength="120" placeholder="mis. Pemrograman, Akuntansi">
+        <label class="field-label">Jenjang * (boleh lebih dari satu)</label>${checkGroupHtml('cJenjang', CALON_JENJANG)}
+
+        <h3 class="calon-sec">📍 Wilayah & Waktu</h3>
+        <label class="field-label">Wilayah yang bisa dijangkau *</label>${checkGroupHtml('cWilayah', CALON_WILAYAH)}
+        <label class="field-label">Hari bisa mengajar *</label>${checkGroupHtml('cHari', CALON_HARI)}
+        <label class="field-label">Jam bisa mengajar *</label>${checkGroupHtml('cJam', CALON_JAM)}
+        <label class="field-label">Punya kendaraan sendiri?</label>
+        <div class="calon-checks"><label class="calon-check"><input type="radio" name="cKendaraan" value="ya"><span>Ya</span></label><label class="calon-check"><input type="radio" name="cKendaraan" value="tidak"><span>Tidak</span></label></div>
+
+        <h3 class="calon-sec">🧑‍🏫 Pengalaman Mengajar</h3>
+        <div class="calon-checks"><label class="calon-check"><input type="radio" name="cPernah" value="ya"><span>Pernah mengajar</span></label><label class="calon-check"><input type="radio" name="cPernah" value="tidak"><span>Belum pernah</span></label></div>
+        <div id="pengalamanBox" style="display:none;">
+          <div id="pengalamanList"></div>
+          <button type="button" class="btn secondary small" id="addPengalaman">+ Tambah pengalaman</button>
+        </div>
+
+        <h3 class="calon-sec">💬 Lainnya</h3>
+        <label class="field-label">Kenapa ingin jadi tentor? (opsional)</label>
+        <textarea id="cAlasan" maxlength="600" rows="3" style="width:100%;"></textarea>
+
+        <div id="daftarErr" class="calon-err" style="display:none;"></div>
+        <button type="submit" class="btn" id="daftarSubmit" style="width:100%;margin-top:16px;font-size:15px;padding:14px;">Kirim Pendaftaran</button>
+      </form>`;
+
+    let foto = '';
+    const fotoInput = document.getElementById('fotoInput');
+    fotoInput.addEventListener('change', async ()=>{
+      const f = fotoInput.files && fotoInput.files[0]; if(!f) return;
+      const prev = document.getElementById('fotoPrev'); prev.textContent = 'Memproses…';
+      try{ foto = await compressPhoto(f); prev.innerHTML = `<img src="${foto}" alt="Foto">`; }
+      catch(e){ foto = ''; prev.textContent = 'Foto gagal dibaca, coba foto lain'; }
+    });
+
+    const list = document.getElementById('pengalamanList');
+    function addRow(){
+      if(list.children.length>=5) return;
+      list.appendChild(el(`<div class="calon-exp">
+        <input type="text" class="expTempat" maxlength="80" placeholder="Tempat (mis. Bimbel X / privat / sekolah)">
+        <input type="text" class="expMapel" maxlength="80" placeholder="Mengajar apa (mis. Matematika SMP)">
+        <input type="text" class="expLama" maxlength="40" placeholder="Berapa lama (mis. 1 tahun)">
+      </div>`));
+    }
+    document.getElementById('addPengalaman').addEventListener('click', addRow);
+    body.querySelectorAll('input[name="cPernah"]').forEach(r=>r.addEventListener('change', ()=>{
+      const ya = body.querySelector('input[name="cPernah"]:checked')?.value==='ya';
+      document.getElementById('pengalamanBox').style.display = ya ? '' : 'none';
+      if(ya && !list.children.length) addRow();
+    }));
+
+    document.getElementById('daftarForm').addEventListener('submit', async (ev)=>{
+      ev.preventDefault();
+      const v = (id)=>document.getElementById(id).value.trim();
+      const radio = (n)=>body.querySelector(`input[name="${n}"]:checked`)?.value || '';
+      const rec = {
+        nama: v('cNama'), panggilan: v('cPanggilan'), jk: radio('cJk'), tglLahir: v('cTgl'),
+        wa: v('cWa'), alamat: v('cAlamat'), kampus: v('cKampus'), jurusan: v('cJurusan'), semester: v('cSemester'),
+        mapel: checkedValues(body,'cMapel'), mapelLain: v('cMapelLain'), jenjang: checkedValues(body,'cJenjang'),
+        wilayah: checkedValues(body,'cWilayah'), hari: checkedValues(body,'cHari'), jam: checkedValues(body,'cJam'),
+        kendaraan: radio('cKendaraan'), pernah: radio('cPernah'),
+        pengalaman: radio('cPernah')==='ya' ? [...list.children].map(r=>({
+          tempat: r.querySelector('.expTempat').value.trim(), mapel: r.querySelector('.expMapel').value.trim(), lama: r.querySelector('.expLama').value.trim()
+        })).filter(p=>p.tempat||p.mapel) : [],
+        alasan: v('cAlasan'), foto
+      };
+      const errs = [];
+      if(!rec.foto) errs.push('foto diri');
+      if(!rec.nama) errs.push('nama lengkap');
+      if(!rec.jk) errs.push('jenis kelamin');
+      if(waNumber(rec.wa).length<10) errs.push('nomor WhatsApp yang benar');
+      if(!rec.alamat) errs.push('alamat');
+      if(!rec.kampus || !rec.jurusan || !rec.semester) errs.push('kampus, jurusan & status');
+      if(!rec.mapel.length && !rec.mapelLain) errs.push('mata pelajaran');
+      if(!rec.jenjang.length) errs.push('jenjang');
+      if(!rec.wilayah.length) errs.push('wilayah');
+      if(!rec.hari.length || !rec.jam.length) errs.push('hari & jam mengajar');
+      if(!rec.pernah) errs.push('pengalaman mengajar (pernah/belum)');
+      const errBox = document.getElementById('daftarErr');
+      if(errs.length){ errBox.style.display=''; errBox.textContent = 'Mohon lengkapi: ' + errs.join(', ') + '.'; errBox.scrollIntoView({block:'center', behavior:'smooth'}); return; }
+      errBox.style.display='none';
+      const btn = document.getElementById('daftarSubmit'); btn.disabled = true; btn.textContent = 'Mengirim…';
+      rec.id = uid(); rec.status = 'baru'; rec.createdAt = new Date().toISOString();
+      try{
+        await calonCol().doc(rec.id).set(rec);
+        body.innerHTML = `<div class="empty" style="padding:30px 10px;"><div style="font-size:46px;">🎉</div><h3>Pendaftaran terkirim!</h3><p>Terima kasih, ${esc(rec.panggilan||rec.nama)}. Data Anda sudah kami terima. Kami akan menghubungi lewat WhatsApp <b>${esc(rec.wa)}</b> kalau ada murid yang cocok.</p></div>`;
+        window.scrollTo(0,0);
+      }catch(e){
+        btn.disabled = false; btn.textContent = 'Kirim Pendaftaran';
+        errBox.style.display=''; errBox.textContent = 'Gagal mengirim. Periksa koneksi internet lalu coba lagi.';
+      }
+    });
+  }
+
+  // ---------- Tab admin: Calon Tentor ----------
+  // Alur: pendaftar baru masuk "Seleksi" (status 'baru') → admin cek →
+  // "Lolos" masuk Bank Calon Tentor (status 'lolos') yang bisa dicari saat
+  // butuh → "Jadikan Tentor" (status 'aktif'). Yang tidak lolos: 'ditolak'.
+  let calonList = [];
+  let calonState = 'idle'; // idle | loading | ready | error
+  let calonView = 'bank';  // seleksi | bank | ditolak
+  let calonFilter = {q:'', mapel:'', jenjang:'', wilayah:'', hari:'', showAktif:false};
+  async function loadCalon(){
+    if(!calonCol()){ calonList = []; calonState = 'ready'; return; }
+    calonState = 'loading';
+    try{
+      const snap = await calonCol().get();
+      calonList = snap.docs.map(x=>x.data()).map(c=>{
+        // data lama (versi sebelumnya) → status baru
+        if(c.status==='dihubungi') c.status = 'baru';
+        if(c.status==='diterima') c.status = c.tentorId ? 'aktif' : 'lolos';
+        return c;
+      }).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+      calonState = 'ready';
+    }catch(e){ calonState = 'error'; }
+  }
+  function calonInView(c){
+    const s = c.status || 'baru';
+    if(calonView==='seleksi') return s==='baru';
+    if(calonView==='ditolak') return s==='ditolak';
+    return s==='lolos' || (calonFilter.showAktif && s==='aktif');
+  }
+  function calonMatches(c){
+    if(!calonInView(c)) return false;
+    const f = calonFilter;
+    if(calonView==='bank'){
+      if(f.mapel && !(c.mapel||[]).includes(f.mapel)) return false;
+      if(f.jenjang && !(c.jenjang||[]).includes(f.jenjang)) return false;
+      if(f.wilayah && !(c.wilayah||[]).includes(f.wilayah)) return false;
+      if(f.hari && !(c.hari||[]).includes(f.hari)) return false;
+    }
+    const q = f.q.trim().toLowerCase();
+    if(q){
+      const hay = [c.nama,c.panggilan,c.kampus,c.jurusan,c.alamat,c.mapelLain,(c.mapel||[]).join(' '),(c.pengalaman||[]).map(p=>p.tempat+' '+p.mapel).join(' ')].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  }
+  function calonWaLink(c){
+    const f = calonFilter;
+    const sapa = 'Kak ' + (c.panggilan || c.nama.split(' ')[0]);
+    let msg;
+    if(calonView==='seleksi'){
+      msg = `Assalamu'alaikum ${sapa}, saya dari Les Private Banda Aceh. Terima kasih sudah mendaftar sebagai calon tentor. Kami ingin mengajak Kakak untuk tahap seleksi/wawancara singkat. Kapan Kakak ada waktu?`;
+    } else if(f.mapel || f.jenjang){
+      const kebutuhan = [f.mapel, f.jenjang].filter(Boolean).join(' ');
+      msg = `Assalamu'alaikum ${sapa}, saya dari Les Private Banda Aceh. Kami sedang butuh tentor ${kebutuhan}${f.wilayah?` di daerah ${f.wilayah.replace(/ \(Aceh Besar\)$/,'')}`:''}. Apakah Kakak bersedia?`;
+    } else {
+      msg = `Assalamu'alaikum ${sapa}, saya dari Les Private Banda Aceh. Ada murid yang ingin kami tawarkan untuk Kakak ajar. Apakah Kakak bersedia?`;
+    }
+    return 'https://wa.me/' + waNumber(c.wa) + '?text=' + encodeURIComponent(msg);
+  }
+  function selectHtml(id, label, options, value, allLabel){
+    return `<div><label class="field-label">${label}</label><select id="${id}"><option value="">${allLabel||'Semua'}</option>${options.map(o=>{ const [val,txt] = Array.isArray(o)?o:[o,o]; return `<option value="${esc(val)}"${val===value?' selected':''}>${esc(txt)}</option>`; }).join('')}</select></div>`;
+  }
+  function tglPendek(iso){ return iso ? new Date(iso).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}) : '-'; }
+  function renderCalon(view){
+    if(calonState==='idle'){ loadCalon().then(()=>{ if(activeTab==='calon') render(); }); }
+    const daftarLink = location.origin + location.pathname + '?daftar=1';
+    const ready = calonState==='ready';
+    const cnt = (s)=>calonList.filter(c=>(c.status||'baru')===s).length;
+    const nSeleksi = cnt('baru'), nBank = cnt('lolos'), nTolak = cnt('ditolak');
+    const list = ready ? calonList.filter(calonMatches) : [];
+    const f = calonFilter;
+    const chip = (txt, on)=>`<span class="calon-chip${on?' on':''}">${esc(txt)}</span>`;
+    const statusLabel = {baru:'Menunggu seleksi', lolos:'Lolos seleksi', aktif:'Sudah jadi tentor', ditolak:'Tidak lolos'};
+    const intro = {
+      seleksi: 'Pendaftar baru dari link. Periksa datanya (bisa chat WA untuk wawancara), lalu pilih <b>Lolos</b> supaya masuk Bank Calon Tentor, atau <b>Tidak Lolos</b>.',
+      bank: 'Calon tentor yang <b>sudah lolos seleksi</b>. Saat butuh tentor, pilih mapel/jenjang/wilayah/hari — yang cocok langsung muncul, tinggal chat WA lalu <b>Jadikan Tentor</b>.',
+      ditolak: 'Pendaftar yang tidak lolos. Bisa dikembalikan ke Seleksi atau dihapus.'
+    }[calonView];
+
+    view.appendChild(el(`
+      <div>
+        <h2 style="margin-bottom:12px;">Calon Tentor</h2>
+        <div class="calon-tabs">
+          <button class="calon-tab${calonView==='seleksi'?' on':''}" data-view="seleksi">📝 Seleksi${ready&&nSeleksi?` <span class="calon-badge">${nSeleksi}</span>`:''}</button>
+          <button class="calon-tab${calonView==='bank'?' on':''}" data-view="bank">✅ Bank Tentor${ready?` <span class="calon-badge soft">${nBank}</span>`:''}</button>
+          <button class="calon-tab${calonView==='ditolak'?' on':''}" data-view="ditolak">Tidak Lolos${ready&&nTolak?` <span class="calon-badge soft">${nTolak}</span>`:''}</button>
+        </div>
+        <div class="banner" style="margin-bottom:14px;">${intro}</div>
+        ${calonView==='seleksi' ? `
+        <details class="calon-linkbox">
+          <summary>🔗 Link pendaftaran calon tentor</summary>
+          <div class="calon-link">${esc(daftarLink)}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+            <button class="btn small" id="copyDaftarLink">Salin Link</button>
+            <a class="btn small secondary" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Lowongan Tentor Les Private Banda Aceh 📚\nJadwal fleksibel, honor per pertemuan. Daftar di sini: '+daftarLink)}">Bagikan ke WA</a>
+          </div>
+        </details>` : ''}
+        <div class="calon-filters">
+          ${calonView==='bank' ? `
+            ${selectHtml('fMapel','Mapel',CALON_MAPEL,f.mapel)}
+            ${selectHtml('fJenjang','Jenjang',CALON_JENJANG,f.jenjang)}
+            ${selectHtml('fWilayah','Wilayah',CALON_WILAYAH,f.wilayah)}
+            ${selectHtml('fHari','Hari',CALON_HARI,f.hari)}` : ''}
+          <div><label class="field-label">Cari</label><input type="search" id="fCalonQ" placeholder="Nama, kampus, jurusan…" value="${esc(f.q)}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+          ${ready ? `<div class="calon-count" style="margin:0;">${list.length} ${calonView==='seleksi'?'pendaftar menunggu':calonView==='bank'?'calon tentor cocok':'pendaftar'}</div>` : '<div></div>'}
+          <div style="display:flex;gap:10px;align-items:center;">
+            ${calonView==='bank' ? `<label class="calon-sub" style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="fShowAktif"${f.showAktif?' checked':''}> tampilkan yang sudah jadi tentor</label>` : ''}
+            <button class="btn small secondary" id="refreshCalon">Muat Ulang</button>
+          </div>
+        </div>
+        ${!ready ? (calonState==='error'
+            ? `<div class="empty"><h3>Gagal memuat</h3><p>Periksa koneksi lalu ketuk "Muat Ulang". Kalau tetap gagal, Rules Firebase untuk calon tentor mungkin belum dipasang.</p></div>`
+            : `<div class="app-loading"><div class="spinner"></div><div>Memuat calon tentor…</div></div>`) :
+          list.length===0 ? `<div class="empty"><h3>${
+              calonView==='seleksi' ? 'Tidak ada pendaftar baru' : calonView==='bank' ? (nBank?'Tidak ada yang cocok':'Bank tentor masih kosong') : 'Kosong'
+            }</h3><p>${
+              calonView==='seleksi' ? 'Bagikan link pendaftaran di atas. Pendaftar baru akan muncul di sini untuk diseleksi.' :
+              calonView==='bank' ? (nBank?'Coba longgarkan filter di atas.':'Loloskan pendaftar di tab Seleksi supaya masuk ke sini.') : ''
+            }</p></div>` :
+          `<div class="calon-grid">${list.map(c=>{ const s = c.status||'baru'; return `
+            <div class="calon-card" data-id="${esc(c.id)}">
+              <div class="calon-top">
+                ${c.foto?`<img class="calon-foto" src="${esc(c.foto)}" alt="Foto ${esc(c.nama)}">`:`<div class="calon-foto calon-foto-empty">👤</div>`}
+                <div style="min-width:0;flex:1;">
+                  <div class="calon-nama">${esc(c.nama)}${c.panggilan?` <span class="calon-pg">(${esc(c.panggilan)})</span>`:''}</div>
+                  <div class="calon-sub">${esc([c.jk, umurDari(c.tglLahir)].filter(Boolean).join(' · '))}</div>
+                  <div class="calon-sub">🎓 ${esc([c.kampus, c.jurusan, c.semester].filter(Boolean).join(' · '))}</div>
+                  <span class="calon-status st-${esc(s)}">${esc(statusLabel[s]||s)}</span>
+                </div>
+              </div>
+              <div class="calon-row"><b>Mapel</b><div>${(c.mapel||[]).map(m=>chip(m, m===f.mapel)).join('')}${c.mapelLain?chip(c.mapelLain):''}</div></div>
+              <div class="calon-row"><b>Jenjang</b><div>${(c.jenjang||[]).map(m=>chip(m, m===f.jenjang)).join('')}</div></div>
+              <div class="calon-row"><b>Wilayah</b><div>${(c.wilayah||[]).map(m=>chip(m.replace(/ \(Aceh Besar\)$/,''), m===f.wilayah)).join('')}</div></div>
+              <div class="calon-row"><b>Jadwal</b><div>${(c.hari||[]).map(m=>chip(m, m===f.hari)).join('')}<div class="calon-sub" style="margin-top:3px;">${esc((c.jam||[]).join(', '))}</div></div></div>
+              <div class="calon-row"><b>Pengalaman</b><div>${c.pernah==='ya' && (c.pengalaman||[]).length ? (c.pengalaman||[]).map(p=>`<div>• ${esc(p.tempat||'-')}${p.mapel?` — ${esc(p.mapel)}`:''}${p.lama?` <span class="calon-sub">(${esc(p.lama)})</span>`:''}</div>`).join('') : '<span class="calon-sub">Belum pernah mengajar</span>'}</div></div>
+              <div class="calon-row"><b>Lainnya</b><div class="calon-sub">📍 ${esc(c.alamat||'-')}<br>🛵 ${c.kendaraan==='ya'?'Punya kendaraan':c.kendaraan==='tidak'?'Tidak punya kendaraan':'-'} · 📞 ${esc(c.wa||'-')}<br>Daftar ${tglPendek(c.createdAt)}${c.lolosAt?` · Lolos ${tglPendek(c.lolosAt)}`:''}${c.dihubungiAt?` · Terakhir di-chat ${tglPendek(c.dihubungiAt)}`:''}</div></div>
+              ${c.alasan?`<div class="calon-alasan">“${esc(c.alasan)}”</div>`:''}
+              ${c.catatanAdmin?`<div class="calon-note">📝 ${esc(c.catatanAdmin)}</div>`:''}
+              <div class="calon-actions">
+                <a class="btn small calon-wa" target="_blank" rel="noopener" href="${calonWaLink(c)}" data-id="${esc(c.id)}">💬 Chat WA</a>
+                ${s==='baru' ? `
+                  <button class="btn small calon-lolos" data-id="${esc(c.id)}">✅ Lolos</button>
+                  <button class="btn small secondary calon-tolak" data-id="${esc(c.id)}">❌ Tidak Lolos</button>` : ''}
+                ${s==='lolos' ? `<button class="btn small calon-jadikan" data-id="${esc(c.id)}">➕ Jadikan Tentor</button>` : ''}
+                ${s==='aktif' ? `<span class="calon-sub">✓ Sudah jadi tentor</span>` : ''}
+                <button class="icon-btn edit-btn calon-note-btn" data-id="${esc(c.id)}">Catatan</button>
+                ${s==='lolos' || s==='ditolak' ? `<button class="icon-btn edit-btn calon-reseleksi" data-id="${esc(c.id)}">Kembalikan ke Seleksi</button>` : ''}
+                <button class="icon-btn calon-del" data-id="${esc(c.id)}">Hapus</button>
+              </div>
+            </div>`; }).join('')}</div>`}
+      </div>`));
+
+    view.querySelectorAll('.calon-tab').forEach(b=>b.addEventListener('click', ()=>{ calonView = b.dataset.view; calonFilter.q=''; render(); window.scrollTo(0,0); }));
+    const copyBtn = document.getElementById('copyDaftarLink');
+    if(copyBtn) copyBtn.addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(daftarLink); flashSaved(); alert('Link pendaftaran sudah disalin.'); }
+      catch(e){ prompt('Salin link pendaftaran ini:', daftarLink); }
+    });
+    document.getElementById('refreshCalon').addEventListener('click', async ()=>{ calonState='loading'; render(); await loadCalon(); render(); });
+    [['fMapel','mapel'],['fJenjang','jenjang'],['fWilayah','wilayah'],['fHari','hari']].forEach(([id,key])=>{
+      const s = document.getElementById(id); if(s) s.addEventListener('change', (e)=>{ calonFilter[key] = e.target.value; render(); });
+    });
+    const sa = document.getElementById('fShowAktif');
+    if(sa) sa.addEventListener('change', ()=>{ calonFilter.showAktif = sa.checked; render(); });
+    const qi = document.getElementById('fCalonQ');
+    qi.addEventListener('input', ()=>{
+      calonFilter.q = qi.value; render();
+      const s = document.getElementById('fCalonQ'); if(s){ s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+    });
+
+    const byId = (id)=>calonList.find(c=>c.id===id);
+    async function patch(c, fields, rerender){
+      try{ await calonCol().doc(c.id).update(fields); Object.assign(c, fields); flashSaved(); }
+      catch(e){ flashError(); alert('Gagal menyimpan, periksa koneksi lalu coba lagi.'); }
+      if(rerender!==false) render();
+    }
+    view.querySelectorAll('.calon-wa').forEach(a=>a.addEventListener('click', ()=>{
+      const c = byId(a.dataset.id); if(c) patch(c, {dihubungiAt: new Date().toISOString()}, false);
+    }));
+    view.querySelectorAll('.calon-lolos').forEach(b=>b.addEventListener('click', ()=>{
+      const c = byId(b.dataset.id); if(!c) return;
+      if(!confirm(c.nama+' lolos seleksi dan masuk Bank Calon Tentor?')) return;
+      patch(c, {status:'lolos', lolosAt: new Date().toISOString()});
+    }));
+    view.querySelectorAll('.calon-tolak').forEach(b=>b.addEventListener('click', ()=>{
+      const c = byId(b.dataset.id); if(!c) return;
+      if(!confirm(c.nama+' tidak lolos seleksi?')) return;
+      patch(c, {status:'ditolak'});
+    }));
+    view.querySelectorAll('.calon-reseleksi').forEach(b=>b.addEventListener('click', ()=>{
+      const c = byId(b.dataset.id); if(c) patch(c, {status:'baru'});
+    }));
+    view.querySelectorAll('.calon-note-btn').forEach(b=>b.addEventListener('click', ()=>{
+      const c = byId(b.dataset.id); if(!c) return;
+      const t = prompt('Catatan admin untuk '+c.nama+' (mis. hasil wawancara):', c.catatanAdmin||'');
+      if(t===null) return; patch(c, {catatanAdmin: t.trim().slice(0,500)});
+    }));
+    view.querySelectorAll('.calon-del').forEach(b=>b.addEventListener('click', async ()=>{
+      const c = byId(b.dataset.id); if(!c) return;
+      if(!confirm('Hapus data calon tentor '+c.nama+'? Data dan fotonya akan hilang permanen.')) return;
+      try{ await calonCol().doc(c.id).delete(); calonList = calonList.filter(x=>x.id!==c.id); flashSaved(); }
+      catch(e){ flashError(); alert('Gagal menghapus, periksa koneksi lalu coba lagi.'); }
+      render();
+    }));
+    view.querySelectorAll('.calon-jadikan').forEach(b=>b.addEventListener('click', async ()=>{
+      const c = byId(b.dataset.id); if(!c) return;
+      if(!requireMonthUnlocked('menambah tentor baru')) return;
+      const nama = (prompt('Tambahkan sebagai tentor aktif dengan nama:', c.panggilan || c.nama) || '').trim();
+      if(!nama) return;
+      if(tentors.some(t=>t.nama.trim().toLowerCase()===nama.toLowerCase()) && !confirm('Sudah ada tentor bernama "'+nama+'". Tetap tambahkan?')) return;
+      const t = {id:uid(), kode:'', nama, status:'aktif', secretToken: uid()+uid(), wa: c.wa};
+      tentors.push(t); renumberTentors();
+      await saveMaster('tentors');
+      await patch(c, {status:'aktif', tentorId: t.id});
+      alert(nama+' sudah ditambahkan ke daftar tentor (kode '+t.kode+'). Atur kelasnya di tab "Siswa & Kelas".');
+    }));
+    view.querySelectorAll('img.calon-foto').forEach(img=>img.addEventListener('click', ()=>{
+      const ov = el(`<div class="calon-zoom"><img src="${img.src}" alt=""></div>`);
+      ov.addEventListener('click', ()=>ov.remove()); document.body.appendChild(ov);
+    }));
+  }
+
   // ---------- boot ----------
   let dataReadyPromise = null;
   function startDataLoad(){
@@ -3925,6 +4530,7 @@ service cloud.firestore {
     role = null;
     ownerUnlocked = false;
     clearWarmCache();
+    absenCacheClearAll();
     try{ localStorage.removeItem('loggedInRole'); }catch(e){}
     updateRoleBadge();
     showLogin();
@@ -4040,6 +4646,10 @@ service cloud.firestore {
       }
     }catch(e){}
     const absenToken = urlParams.get('k') || '';
+    if(urlParams.get('daftar')){
+      await startDaftarMode();
+      return;
+    }
     if(absenId==='all'){
       const apiParam = urlParams.get('api');
       if(apiParam){ try{ setApiUrl(decodeURIComponent(apiParam)); }catch(e){} }
@@ -4070,6 +4680,10 @@ service cloud.firestore {
             render();
           }
           await dataReadyPromise;
+          if(warmPreview && readFailure){
+            // data terbaru gagal dimuat: tampilkan data terakhir yang tersimpan (hanya-baca)
+            loadWarmCache();
+          }
           if(warmPreview){ warmPreview = false; document.body.classList.remove('warm-preview'); }
           await ensureSnapshotsOnce();
           render();
