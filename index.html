@@ -930,6 +930,7 @@
   let filters = {tentor:'', keluarga:'', kelas:'', honor:'', tagihan:'', absensi:'', catatanAtas:false};
   let role = null; // 'admin' | null
   let payments = {}; // {familyId: true/false} untuk bulan berjalan
+  let invoiceDl = {}; // {familyId: true} invoice yang sudah didownload (tersimpan di Firebase, sama di semua HP)
   let honorPayments = {}; // {tentorId: true/false} untuk bulan berjalan — status honor tentor sudah dibayar atau belum
   let honorVisible = {}; // {bulan: true/false} — dibuka manual oleh Owner per bulan, dilihat tentor lewat link absen
   let expandedTentors = new Set();
@@ -988,7 +989,7 @@
         syncBoundFromGlobals();
         localStorage.setItem(WARM_KEY, JSON.stringify({
           month: currentMonth, liveMaster, snapMasters, honorVisible, rekapLocked,
-          kehadiran, sessionsAdj, payments, honorPayments, availableMonths, at: Date.now()
+          kehadiran, sessionsAdj, payments, honorPayments, invoiceDl, availableMonths, at: Date.now()
         }));
       }catch(e){ try{ localStorage.removeItem(WARM_KEY); }catch(_){} }
     }, 1200);
@@ -1004,7 +1005,7 @@
       bindMasterForMonth(currentMonth);
       kehadiran = c.kehadiran || []; sessionsAdj = c.sessionsAdj || {};
       recomputeSessions();
-      payments = c.payments || {}; honorPayments = c.honorPayments || {};
+      payments = c.payments || {}; honorPayments = c.honorPayments || {}; invoiceDl = c.invoiceDl || {};
       availableMonths = c.availableMonths || [];
       return true;
     }catch(e){ return false; }
@@ -1432,13 +1433,14 @@
   }
   async function loadSessions(month){
     const absenP = absenListMonth(month).then(r=>({ok:true, r}), (e)=>({ok:false, e}));
-    const [ab, adj, pay, hpay] = await Promise.all([absenP, storeGet('sessionsAdj:'+month), storeGet('payments:'+month), storeGet('honorPayments:'+month)]);
+    const [ab, adj, pay, hpay, idl] = await Promise.all([absenP, storeGet('sessionsAdj:'+month), storeGet('payments:'+month), storeGet('honorPayments:'+month), storeGet('invoiceDl:'+month)]);
     if(ab.ok){ kehadiran = ab.r; absenLoadFailed = false; } else { kehadiran = []; absenLoadFailed = true; flashError(); noteReadFailure(ab.e); }
     sessionsAdj = adj || {};
     recomputeSessions();
     if(kehadiran.length) noteAbsenMonth(month);
     payments = pay || {};
     honorPayments = hpay || {};
+    invoiceDl = idl || {};
   }
   // Jumlah pertemuan = jumlah absen + koreksi manual; sesi bercatatan = absen yang punya catatan.
   function recomputeSessions(){
@@ -3307,9 +3309,18 @@
     downloadedInvoices = new Set(saved);
   }catch(e){}
   function downloadedKey(fid){ return `${fid}__${currentMonth}`; }
-  function markInvoiceDownloaded(fid){
+  // Tanda "Sudah Didownload" kini disimpan di Firebase (kv 'invoiceDl:BULAN')
+  // supaya sama di semua HP admin. Tanda lama yang hanya ada di HP ini tetap dihitung.
+  function isInvoiceDownloaded(fid){ return !!invoiceDl[fid] || downloadedInvoices.has(downloadedKey(fid)); }
+  async function markInvoiceDownloaded(fid){
     downloadedInvoices.add(downloadedKey(fid));
     try{ localStorage.setItem('downloadedInvoices', JSON.stringify([...downloadedInvoices])); }catch(e){}
+    if(invoiceDl[fid]) return;
+    const month = currentMonth;
+    invoiceDl[fid] = true;
+    const res = await storeTransactionUpdate('invoiceDl:'+month, (v)=>Object.assign({}, v||{}, {[fid]: true}));
+    if(res && month===currentMonth) invoiceDl = res;
+    saveWarmCacheSoon();
   }
 
   function renderTagihan(view){
@@ -3410,7 +3421,7 @@
                 <span>${paid?'Sudah Bayar':'Belum Bayar'}</span>
               </label>
               <span class="total">${rupiah(total)}</span>
-              <button class="btn secondary small print-family${downloadedInvoices.has(downloadedKey(fid))?' downloaded':''}" data-id="${fid}">${downloadedInvoices.has(downloadedKey(fid))?'✓ Sudah Didownload':'⬇ Download JPG'}</button>
+              <button class="btn secondary small print-family${isInvoiceDownloaded(fid)?' downloaded':''}" data-id="${fid}">${isInvoiceDownloaded(fid)?'✓ Sudah Didownload':'⬇ Download JPG'}</button>
             </div>
           </div>
           <div class="group-body" style="${isOpen?'':'display:none;'}">
@@ -3440,8 +3451,8 @@
         btn.disabled = true; btn.textContent = 'Menyiapkan…';
         try{
           await downloadInvoiceAsJpg(buildFamilyInvoice(fid), filename);
-          markInvoiceDownloaded(fid);
           btn.classList.add('downloaded');
+          markInvoiceDownloaded(fid);
           btn.textContent = '✓ Sudah Didownload';
         } catch(err){
           btn.textContent = oldText;
@@ -3474,7 +3485,7 @@
   // status honor, kunci bulan, salinan bulan terkunci). Kalau ada satu saja
   // yang gagal dibaca, cadangan dibatalkan — supaya tidak ada cadangan bolong.
   const BACKUP_SINGLE = ['tentors','families','assignments','counters','rekapLocked','honorVisible','absenMigrated','absenMonths'];
-  const BACKUP_PREFIXES = ['sessions:','sessionsNoHonor:','sessionsAdj:','kehadiran:','payments:','honorPayments:','rekapSnapshot:'];
+  const BACKUP_PREFIXES = ['sessions:','sessionsNoHonor:','sessionsAdj:','kehadiran:','payments:','honorPayments:','invoiceDl:','rekapSnapshot:'];
   async function buildBackupObject(){
     const data = {};
     for(const k of BACKUP_SINGLE) data[k] = await storeGetStrict(k);
