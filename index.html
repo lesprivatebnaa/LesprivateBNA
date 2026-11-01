@@ -3293,11 +3293,10 @@
   }
 
   // ---------- INVOICE ORANG TUA ----------
-  // Catatan: setiap kartu keluarga defaultnya TERBUKA (breakdown langsung
-  // kelihatan tanpa perlu diklik dulu). "collapsedFamilies" menyimpan
-  // familyId yang sengaja DITUTUP oleh admin — kebalikan dari sebelumnya
-  // (yang defaultnya tertutup dan harus diklik untuk membuka).
-  let collapsedFamilies = new Set();
+  // Catatan: setiap kartu keluarga defaultnya TERTUTUP (cukup nama, total,
+  // status bayar & tombol Download JPG) supaya tidak capek scroll. Klik nama
+  // alamat untuk melihat rinciannya. "openFamilies" menyimpan yang dibuka.
+  let openFamilies = new Set();
 
   // Menyimpan alamat mana saja yang invoice-nya sudah pernah didownload
   // (per bulan), supaya tombolnya tetap terlihat gelap walau halaman
@@ -3394,7 +3393,7 @@
         return mainRow + catatanRow;
       }).join('');
       const disp = familyGroupDisplay(fid);
-      const isOpen = !collapsedFamilies.has(fid);
+      const isOpen = openFamilies.has(fid);
       const paid = !!payments[fid];
       const childrenNames = [...new Set(list.map(a=>calcRow(a).childLabelText))].join(', ');
       return el(`
@@ -3454,8 +3453,8 @@
     view.querySelectorAll('.fam-toggle').forEach(elm=>{
       elm.addEventListener('click', ()=>{
         const id = elm.dataset.id;
-        const open = collapsedFamilies.has(id);
-        if(open) collapsedFamilies.delete(id); else collapsedFamilies.add(id);
+        const open = !openFamilies.has(id);
+        if(open) openFamilies.add(id); else openFamilies.delete(id);
         elm.closest('.group-card').querySelector('.group-body').style.display = open ? '' : 'none';
         elm.querySelector('.toggle-arrow').textContent = open ? '▼' : '▶';
       });
