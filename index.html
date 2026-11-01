@@ -3396,22 +3396,13 @@
     if(wa!==lama) await setFamilyWa(fid, wa);
     return wa;
   }
+  // Teks pesan WA invoice (format dari Boss). Total & bulan menyesuaikan
+  // bulan yang sedang dibuka di tab Invoice Orang Tua.
   function familyInvoiceText(fid){
-    const list = assignments.filter(a=>a.familyId===fid && isActiveInMonth(a, currentMonth));
-    let total = 0;
-    const lines = [];
-    list.forEach(a=>{
-      const c = calcRow(a);
-      const cd = catatanRowData(a);
-      total += c.totalBiaya;
-      const normal = c.totalBiaya-(cd?cd.totalBiaya:0);
-      lines.push(`• ${c.childLabelText}${c.tingkatan?` (${c.tingkatan})`:''}\n   ${c.jumlahNormal}x pertemuan × ${rupiah(c.biayaLes)} = ${rupiah(normal)}`);
-      if(cd){
-        lines.push(`   + Catatan: ${cd.count}x × ${cd.belum?'(belum diisi)':rupiah(cd.biayaRate)} = ${cd.belum?'(belum diisi)':rupiah(cd.totalBiaya)}`);
-      }
-    });
-    const anak = [...new Set(list.map(a=>calcRow(a).namaSiswa || calcRow(a).childLabelText))].filter(Boolean).join(', ');
-    return `Assalamu'alaikum Bapak/Ibu 🙏\n\nBerikut rincian biaya Les Private Banda Aceh bulan *${monthLabel(currentMonth)}*${anak?` untuk ananda *${anak}*`:''}:\n\n${lines.join('\n')}\n\n*Total: ${rupiah(total)}*\n\nTerima kasih atas kepercayaannya 🙏`;
+    const total = assignments.filter(a=>a.familyId===fid && isActiveInMonth(a, currentMonth))
+      .reduce((sum,a)=> sum + calcRow(a).totalBiaya, 0);
+    const bulan = monthLabel(currentMonth).split(' ')[0].toUpperCase();
+    return `Assalammualaikum Wr.Wb\n\nKami dari @lesprivate.bna ingin memberitahukan untuk uang les di bulan (${bulan}) sudah bisa di bayar ya pak/buk . Pembayaran paling telat dilakukan sampai tgl 3 awal bulan🙏\n\nBerikut saya kirimkan Invoice nya🙏\n\nTotal Biaya ${rupiah(total)}\n\nTf ke BSI a.n Raiyana Purma 1055274548\n\nMohon kirim bukti pembayaran, Terimakasih🙏😊`;
   }
   const waShareCache = {}; // {familyId: File} gambar invoice siap dibagikan
   function isInvoiceWaSent(fid){ return !!invoiceDl['wa_'+fid]; }
