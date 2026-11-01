@@ -2929,6 +2929,30 @@
   // Invoice dirender diam-diam di luar layar (posisinya digeser jauh ke kiri),
   // difoto pakai html2canvas, lalu langsung didownload sebagai file .jpg.
   // Elemen dengan class "no-print" (tombol Cetak/Tutup) otomatis tidak ikut terfoto.
+  // Membuat gambar JPG invoice (Blob) dari HTML invoice.
+  async function invoiceJpgBlob(sheetHtml){
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed; left:-9999px; top:0; z-index:-1;';
+    wrapper.innerHTML = `<div class="invoice-sheet" style="max-width:680px;width:680px;background:#fff;padding:32px;color:#000;">${sheetHtml}</div>`;
+    document.body.appendChild(wrapper);
+    try{
+      if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+      const canvas = await html2canvas(wrapper.firstElementChild, {
+        backgroundColor: '#ffffff', scale: 2, useCORS: true,
+        ignoreElements: (elm)=> elm.classList && elm.classList.contains('no-print')
+      });
+      return await new Promise((res, rej)=> canvas.toBlob(b=> b ? res(b) : rej(new Error('gagal membuat gambar')), 'image/jpeg', 0.95));
+    } finally {
+      wrapper.remove();
+    }
+  }
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 30000);
+  }
   async function downloadInvoiceAsJpg(sheetHtml, filename){
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'position:fixed; left:-9999px; top:0; z-index:-1;';
@@ -3389,6 +3413,7 @@
     const anak = [...new Set(list.map(a=>calcRow(a).namaSiswa || calcRow(a).childLabelText))].filter(Boolean).join(', ');
     return `Assalamu'alaikum Bapak/Ibu 🙏\n\nBerikut rincian biaya Les Private Banda Aceh bulan *${monthLabel(currentMonth)}*${anak?` untuk ananda *${anak}*`:''}:\n\n${lines.join('\n')}\n\n*Total: ${rupiah(total)}*\n\nTerima kasih atas kepercayaannya 🙏`;
   }
+  const waShareCache = {}; // {familyId: File} gambar invoice siap dibagikan
   function isInvoiceWaSent(fid){ return !!invoiceDl['wa_'+fid]; }
   async function markInvoiceWaSent(fid){
     const key = 'wa_'+fid;
@@ -3499,7 +3524,7 @@
               </label>
               <span class="total">${rupiah(total)}</span>
               <button class="btn secondary small print-family${isInvoiceDownloaded(fid)?' downloaded':''}" data-id="${fid}">${isInvoiceDownloaded(fid)?'✓ Sudah Didownload':'⬇ Download JPG'}</button>
-              <button class="btn small wa-btn send-wa${isInvoiceWaSent(fid)?' sent':''}" data-id="${fid}">${!familyWa(fid)?'💬 Isi No. WA':(isInvoiceWaSent(fid)?'✓ Terkirim WA':'💬 Kirim WA')}</button>
+              <button class="btn small wa-btn send-wa${isInvoiceWaSent(fid)?' sent':''}" data-id="${fid}">${isInvoiceWaSent(fid)?'✓ Terkirim WA':'💬 Kirim WA'}</button>
             </div>
           </div>
           <div class="group-body" style="${isOpen?'':'display:none;'}">
@@ -3543,18 +3568,60 @@
       btn.addEventListener('click', async (e)=>{
         e.stopPropagation();
         const fid = btn.dataset.id;
+        if(btn.disabled) return;
+        const f = familyById(fid);
+        const filename = `Invoice - ${safeFileName(f ? f.alamat : fid)} - ${safeFileName(monthLabel(currentMonth))}.jpg`;
+        const text = familyInvoiceText(fid);
+        const selesai = ()=>{ btn.classList.add('sent'); btn.textContent = '✓ Terkirim WA'; markInvoiceWaSent(fid); };
+
+        // Gambar yang sudah disiapkan pada ketukan sebelumnya (kalau HP minta ketuk ulang).
+        let file = waShareCache[fid] || null;
+        const bisaShareFile = !!(navigator.canShare && window.File);
+
+        if(bisaShareFile){
+          if(!file){
+            const old = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Menyiapkan gambar…';
+            try{ file = new File([await invoiceJpgBlob(buildFamilyInvoice(fid))], filename, {type:'image/jpeg'}); }
+            catch(err){ btn.disabled = false; btn.textContent = old; alert('Gagal membuat gambar invoice: '+(err&&err.message?err.message:err)); return; }
+            btn.disabled = false;
+          }
+          if(navigator.canShare({files:[file], text})){
+            try{
+              await navigator.share({files:[file], text});
+              delete waShareCache[fid];
+              selesai();
+              return;
+            }catch(err){
+              if(err && err.name==='AbortError'){ delete waShareCache[fid]; btn.textContent = isInvoiceWaSent(fid)?'✓ Terkirim WA':'💬 Kirim WA'; return; }
+              if(err && err.name==='NotAllowedError'){
+                // Pembuatan gambar terlalu lama, HP minta ketukan baru.
+                waShareCache[fid] = file;
+                btn.textContent = '📤 Ketuk lagi untuk bagikan';
+                return;
+              }
+              // Error lain: lanjut ke cara cadangan di bawah.
+            }
+          }
+        }
+
+        // Cara cadangan (mis. di APK): download gambar + buka chat WA orang tua.
         let wa = familyWa(fid);
         if(!wa){
           wa = await askFamilyWa(fid);
           if(!wa) return;
           render();
-          return; // nomor tersimpan; ketuk "Kirim WA" sekali lagi untuk membuka chat
+          alert('Nomor tersimpan. Ketuk "Kirim WA" sekali lagi.');
+          return;
         }
-        const url = 'https://wa.me/' + waNumber(wa) + '?text=' + encodeURIComponent(familyInvoiceText(fid));
-        window.open(url, '_blank', 'noopener');
-        btn.classList.add('sent');
-        btn.textContent = '✓ Terkirim WA';
-        markInvoiceWaSent(fid);
+        window.open('https://wa.me/' + waNumber(wa) + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+        try{
+          if(file) downloadBlob(file, filename);
+          else downloadBlob(await invoiceJpgBlob(buildFamilyInvoice(fid)), filename);
+          markInvoiceDownloaded(fid);
+        }catch(err){}
+        delete waShareCache[fid];
+        selesai();
       });
       // Tahan lama (atau klik kanan) tombolnya untuk mengubah nomor WA.
       btn.addEventListener('contextmenu', async (e)=>{
