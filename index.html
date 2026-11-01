@@ -108,6 +108,9 @@
   .btn.secondary:hover{background:var(--blue-50);}
   .btn.secondary.downloaded{background:var(--ink); border-color:var(--ink); color:#fff;}
   .btn.secondary.downloaded:hover{background:#0F1430; border-color:#0F1430;}
+  .btn.wa-btn{background:#25D366; border-color:#25D366; color:#fff;}
+  .btn.wa-btn:hover{background:#1EB257; border-color:#1EB257;}
+  .btn.wa-btn.sent{background:#E7F8EE; border-color:#25D366; color:#128C4A;}
   .btn.absen-done{background:var(--success); border-color:var(--success); color:#fff; box-shadow:none; cursor:default; opacity:0.95;}
   .btn.absen-done:hover{filter:none; box-shadow:none;}
   .btn.absen-done:disabled{opacity:0.95;}
@@ -2464,7 +2467,7 @@
   // ---------- ORANG TUA / KELUARGA ----------
   function renderKeluarga(view){
     const q = filters.keluarga.trim().toLowerCase();
-    const list = families.filter(f=>!q || (f.kode+' '+f.alamat).toLowerCase().includes(q));
+    const list = families.filter(f=>!q || (f.kode+' '+f.alamat+' '+familyWa(f.id)).toLowerCase().includes(q));
     view.appendChild(el(`
       <div>
         <h2 style="margin-bottom:16px;">Orang Tua / Alamat</h2>
@@ -2472,6 +2475,7 @@
         ${isMonthLocked(currentMonth) ? `<div class="banner" style="margin-bottom:14px;background:var(--danger-soft);border-color:var(--danger);">🔒 Rekap bulan ${monthLabel(currentMonth)} sedang terkunci — buka kunci dulu lewat tab "Rekap Bulanan" sebelum menambah alamat/orang tua baru.</div>` : ''}
         <div class="form-grid">
           <div><label class="field-label">Alamat Orang Tua</label><input type="text" id="newFamAddr" placeholder="mis. Lamprit"></div>
+          <div><label class="field-label">No. WA Orang Tua (opsional)</label><input type="tel" id="newFamWa" inputmode="tel" placeholder="mis. 0812xxxxxxx"></div>
         </div>
         <button class="btn" id="addFamBtn" style="margin-bottom:18px;">Tambah Alamat</button>
         <div class="row" style="margin-bottom:12px;">${searchInputHtml('searchFam','Cari kode atau alamat…', filters.keluarga)}</div>
@@ -2479,16 +2483,18 @@
         list.length===0 ? `<div class="empty"><h3>Tidak ditemukan</h3></div>` : `
         <div class="table-wrap scroll10">
         <table>
-          <thead><tr><th>Kode</th><th>Alamat</th><th>Jumlah Anak</th><th></th></tr></thead>
+          <thead><tr><th>Kode</th><th>Alamat</th><th>No. WA</th><th>Jumlah Anak</th><th></th></tr></thead>
           <tbody>
             ${list.map(f=>{
               const jml = assignments.filter(a=>a.familyId===f.id).length;
               return `<tr data-id="${f.id}">
                 <td><span class="kode-tag">${f.kode}</span></td>
                 <td>${esc(f.alamat)}</td>
+                <td>${familyWa(f.id) ? esc(familyWa(f.id)) : '<span style="color:var(--ink-soft);">—</span>'}</td>
                 <td class="num">${jml} anak</td>
                 <td>
                   <button class="icon-btn edit-btn edit-fam" data-id="${f.id}">Ubah</button>
+                  <button class="icon-btn edit-btn wa-fam" data-id="${f.id}">No. WA</button>
                   <button class="icon-btn del-fam" data-id="${f.id}">Hapus</button>
                 </td>
               </tr>`;
@@ -2503,7 +2509,8 @@
       if(!requireMonthUnlocked('menambah alamat/orang tua baru')) return;
       const alamat = document.getElementById('newFamAddr').value.trim();
       if(!alamat) return;
-      families.push({id:uid(), kode:'', alamat});
+      const wa = document.getElementById('newFamWa').value.trim();
+      families.push(wa ? {id:uid(), kode:'', alamat, wa} : {id:uid(), kode:'', alamat});
       renumberFamilies();
       render();
       saveMaster('families');
@@ -2521,6 +2528,9 @@
         render();
         saveMaster('families');
       });
+    });
+    view.querySelectorAll('.wa-fam').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{ await askFamilyWa(btn.dataset.id); render(); });
     });
     view.querySelectorAll('.del-fam').forEach(btn=>{
       btn.addEventListener('click', ()=>{
@@ -3323,6 +3333,73 @@
     saveWarmCacheSoon();
   }
 
+  // ---------- NO. WA ORANG TUA ----------
+  // Nomor WA disimpan di data alamat "live" (bukan salinan bulan terkunci),
+  // jadi cukup diisi sekali dan berlaku untuk semua bulan — termasuk bulan
+  // yang sudah dikunci. Nomor ini tidak masuk ke ringkasan publik absen.
+  function familyWa(fid){
+    const live = (liveMaster.families||[]).find(x=>x.id===fid);
+    if(live && live.wa) return live.wa;
+    const f = familyById(fid);
+    return (f && f.wa) || '';
+  }
+  async function setFamilyWa(fid, wa){
+    let done = false;
+    await withLiveMaster(async ()=>{
+      const f = families.find(x=>x.id===fid);
+      if(!f) return;
+      if(wa) f.wa = wa; else delete f.wa;
+      done = true;
+      await saveMaster('families');
+    });
+    if(!done){
+      const f = familyById(fid);
+      if(!f) return;
+      if(wa) f.wa = wa; else delete f.wa;
+      await saveMaster('families');
+    }
+    saveWarmCacheSoon();
+  }
+  // Tanya/ubah nomor WA. Mengembalikan nomor (atau '' kalau batal/kosong).
+  async function askFamilyWa(fid){
+    if(snapLoadFailed){ alert('Data belum termuat sempurna. Refresh halaman lalu coba lagi.'); return ''; }
+    const f = familyById(fid) || (liveMaster.families||[]).find(x=>x.id===fid);
+    const lama = familyWa(fid);
+    const input = prompt(`No. WA orang tua untuk alamat "${f?f.alamat:''}":\n(mis. 0812xxxxxxx — kosongkan untuk menghapus)`, lama);
+    if(input===null) return '';
+    const wa = input.trim();
+    if(wa && waNumber(wa).length < 10){ alert('Nomor WA sepertinya kurang lengkap. Coba cek lagi.'); return ''; }
+    if(wa!==lama) await setFamilyWa(fid, wa);
+    return wa;
+  }
+  function familyInvoiceText(fid){
+    const list = assignments.filter(a=>a.familyId===fid && isActiveInMonth(a, currentMonth));
+    let total = 0;
+    const lines = [];
+    list.forEach(a=>{
+      const c = calcRow(a);
+      const cd = catatanRowData(a);
+      total += c.totalBiaya;
+      const normal = c.totalBiaya-(cd?cd.totalBiaya:0);
+      lines.push(`• ${c.childLabelText}${c.tingkatan?` (${c.tingkatan})`:''}\n   ${c.jumlahNormal}x pertemuan × ${rupiah(c.biayaLes)} = ${rupiah(normal)}`);
+      if(cd){
+        lines.push(`   + Catatan: ${cd.count}x × ${cd.belum?'(belum diisi)':rupiah(cd.biayaRate)} = ${cd.belum?'(belum diisi)':rupiah(cd.totalBiaya)}`);
+      }
+    });
+    const anak = [...new Set(list.map(a=>calcRow(a).namaSiswa || calcRow(a).childLabelText))].filter(Boolean).join(', ');
+    return `Assalamu'alaikum Bapak/Ibu 🙏\n\nBerikut rincian biaya Les Private Banda Aceh bulan *${monthLabel(currentMonth)}*${anak?` untuk ananda *${anak}*`:''}:\n\n${lines.join('\n')}\n\n*Total: ${rupiah(total)}*\n\nTerima kasih atas kepercayaannya 🙏`;
+  }
+  function isInvoiceWaSent(fid){ return !!invoiceDl['wa_'+fid]; }
+  async function markInvoiceWaSent(fid){
+    const key = 'wa_'+fid;
+    if(invoiceDl[key]) return;
+    const month = currentMonth;
+    invoiceDl[key] = true;
+    const res = await storeTransactionUpdate('invoiceDl:'+month, (v)=>Object.assign({}, v||{}, {[key]: true}));
+    if(res && month===currentMonth) invoiceDl = res;
+    saveWarmCacheSoon();
+  }
+
   function renderTagihan(view){
     const q = filters.tagihan.trim().toLowerCase();
     const groups = {};
@@ -3422,6 +3499,7 @@
               </label>
               <span class="total">${rupiah(total)}</span>
               <button class="btn secondary small print-family${isInvoiceDownloaded(fid)?' downloaded':''}" data-id="${fid}">${isInvoiceDownloaded(fid)?'✓ Sudah Didownload':'⬇ Download JPG'}</button>
+              <button class="btn small wa-btn send-wa${isInvoiceWaSent(fid)?' sent':''}" data-id="${fid}">${!familyWa(fid)?'💬 Isi No. WA':(isInvoiceWaSent(fid)?'✓ Terkirim WA':'💬 Kirim WA')}</button>
             </div>
           </div>
           <div class="group-body" style="${isOpen?'':'display:none;'}">
@@ -3459,6 +3537,29 @@
         } finally {
           btn.disabled = false;
         }
+      });
+    });
+    view.querySelectorAll('.send-wa').forEach(btn=>{
+      btn.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        const fid = btn.dataset.id;
+        let wa = familyWa(fid);
+        if(!wa){
+          wa = await askFamilyWa(fid);
+          if(!wa) return;
+          render();
+          return; // nomor tersimpan; ketuk "Kirim WA" sekali lagi untuk membuka chat
+        }
+        const url = 'https://wa.me/' + waNumber(wa) + '?text=' + encodeURIComponent(familyInvoiceText(fid));
+        window.open(url, '_blank', 'noopener');
+        btn.classList.add('sent');
+        btn.textContent = '✓ Terkirim WA';
+        markInvoiceWaSent(fid);
+      });
+      // Tahan lama (atau klik kanan) tombolnya untuk mengubah nomor WA.
+      btn.addEventListener('contextmenu', async (e)=>{
+        e.preventDefault(); e.stopPropagation();
+        await askFamilyWa(btn.dataset.id); render();
       });
     });
     view.querySelectorAll('.fam-toggle').forEach(elm=>{
