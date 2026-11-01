@@ -2151,17 +2151,40 @@
     const todayRecs = kehadiran.filter(r=>r.tanggal===todayStr());
     const todayTentorCount = new Set(todayRecs.map(r=>r.tentorId)).size;
     const sorted = kehadiran.slice().sort((x,y)=> (y.tanggal||'').localeCompare(x.tanggal||'') || (y.waktu||'').localeCompare(x.waktu||''));
+    // Absen di kelas yang sudah dihapus/tidak aktif: cari nama tentor & murid
+    // lamanya dari data bulan lain (salinan bulan terkunci / data live),
+    // supaya baris merah tetap jelas siapa tentor dan muridnya.
+    function oldClassInfo(r){
+      const pools = [liveMaster].concat(Object.values(snapMasters||{}));
+      let a = null, M = null;
+      for(const P of pools){ const x = (P && P.assignments||[]).find(y=>y.id===r.assignmentId); if(x){ a = x; M = P; break; } }
+      const tid = r.tentorId || (a && a.tentorId);
+      let t = tentors.find(x=>x.id===tid);
+      if(!t) for(const P of pools){ t = (P && P.tentors||[]).find(x=>x.id===tid); if(t) break; }
+      const f = a && M ? (M.families||[]).find(x=>x.id===a.familyId) : null;
+      return {
+        tentor: t ? t.nama : '(tentor tidak ditemukan)',
+        siswa: a ? (childLabel(a) + ' (kelas lama)') : '(kelas terhapus)',
+        alamat: f ? f.alamat : '-'
+      };
+    }
+    const isYatim = r=>{ const a = assignments.find(x=>x.id===r.assignmentId); return !a || !isActiveInMonth(a, currentMonth); };
     const filtered = sorted.filter(r=>{
       if(!q) return true;
       const a = assignments.find(x=>x.id===r.assignmentId);
-      const hay = (a ? (tentorName(a.tentorId)+' '+a.namaSiswa+' '+(a.keterangan||'')+' '+familyName(a.familyId)) : '').toLowerCase();
-      return hay.includes(q);
+      let hay;
+      if(a && isActiveInMonth(a, currentMonth)) hay = tentorName(a.tentorId)+' '+a.namaSiswa+' '+(a.keterangan||'')+' '+familyName(a.familyId);
+      else { const o = oldClassInfo(r); hay = o.tentor+' '+o.siswa+' '+o.alamat; }
+      return hay.toLowerCase().includes(q);
     });
+    // Baris merah (absen di kelas tidak aktif) selalu di paling atas.
+    { const idx0 = new Map(filtered.map((r,i)=>[r,i]));
+      filtered.sort((x,y)=> ((isYatim(y)?1:0)-(isYatim(x)?1:0)) || (idx0.get(x)-idx0.get(y))); }
     // Centang "Catatan di atas": semua sesi bercatatan dinaikkan ke paling atas
     // (urutan tanggal tetap terbaru dulu di dalam tiap kelompok).
     if(filters.catatanAtas){
       const idx = new Map(filtered.map((r,i)=>[r,i]));
-      filtered.sort((x,y)=> ((y.catatan?1:0)-(x.catatan?1:0)) || (idx.get(x)-idx.get(y)));
+      filtered.sort((x,y)=> ((isYatim(y)?1:0)-(isYatim(x)?1:0)) || ((y.catatan?1:0)-(x.catatan?1:0)) || (idx.get(x)-idx.get(y)));
     }
     const tentorOptions = tentors.filter(t=>t.status!=='nonaktif');
     const belumDiisi = kehadiran.filter(r=>r.catatan && (r.honorManual==null || r.biayaManual==null));
@@ -2173,7 +2196,7 @@
         </div>
         ${monthPickerHtml()}
         <div class="banner">Catatan ini terisi otomatis saat tentor mengisi absen lewat link masing-masing (lihat tombol "Link Absen" di tab Tentor). Anda tetap bisa menambah catatan yang terlewat atau menghapus catatan yang salah di sini — jumlah pertemuan di tab "Rekap Bulanan", Slip Honor, dan Invoice ikut menyesuaikan otomatis.</div>
-        ${orphanRecs.length>0 ? `<div class="banner" style="background:var(--danger-soft);border-color:var(--danger);color:var(--danger);font-weight:600;">⚠ Ada ${orphanRecs.length} absen bulan ${monthLabel(currentMonth)} yang tercatat di kelas yang tidak aktif bulan ini, jadi TIDAK masuk rekap & honor (baris merah di bawah). Catat ulang lewat "Tambah Catatan" di kelas yang benar, lalu hapus baris merahnya.</div>` : ''}
+        ${orphanRecs.length>0 ? `<div class="banner" style="background:var(--danger-soft);border-color:var(--danger);color:var(--danger);font-weight:600;">⚠ Ada ${orphanRecs.length} absen bulan ${monthLabel(currentMonth)} yang tercatat di kelas yang tidak aktif bulan ini, jadi TIDAK masuk rekap & honor (baris merah, ada di paling atas tabel). Catat ulang lewat "Tambah Catatan" di kelas yang benar, lalu hapus baris merahnya.</div>` : ''}
         ${belumDiisi.length>0 ? `<div class="banner" style="background:#FFF4E5;border-color:#F5D9A8;color:#8A5A00;">⚠ Ada ${belumDiisi.length} sesi bercatatan bulan ${monthLabel(currentMonth)} yang biaya/honornya belum diisi manual — cek tabel bawah (baris dengan ikon 📝).</div>` : ''}
         <div class="stat-grid">
           <div class="stat"><div class="label">Tercatat Hari Ini</div><div class="value">${todayRecs.length}x</div></div>
@@ -2228,9 +2251,8 @@
               const yatim = !a || !isActiveInMonth(a, currentMonth);
               return `<tr data-id="${r.id}"${yatim?' style="background:var(--danger-soft);"':''}>
                 <td>${esc(r.tanggal)}${yatim?'<br><span style="color:var(--danger);font-size:11px;font-weight:700;">⚠ kelas tidak aktif — tidak masuk rekap</span>':''}</td>
-                <td>${esc(a?tentorName(a.tentorId):'(kelas dihapus)')}</td>
-                <td>${esc(a?childLabel(a):'-')}</td>
-                <td>${esc(a?familyName(a.familyId):'-')}</td>
+                ${yatim ? (()=>{ const o = oldClassInfo(r); return `<td>${esc(o.tentor)}</td><td>${esc(o.siswa)}</td><td>${esc(o.alamat)}</td>`; })()
+                  : `<td>${esc(tentorName(a.tentorId))}</td><td>${esc(childLabel(a))}</td><td>${esc(familyName(a.familyId))}</td>`}
                 <td>${r.catatan ? `<span style="color:var(--ink-soft);font-size:12px;">📝 ${esc(r.catatan)}</span>` : '—'}</td>
                 <td>${r.catatan
                   ? `<input type="number" min="0" class="biaya-manual-input" data-id="${r.id}" value="${r.biayaManual!=null?r.biayaManual:''}" placeholder="0" title="Isi lalu klik Simpan di kolom Honor" style="width:90px;padding:4px 6px;font-size:12px;">`
