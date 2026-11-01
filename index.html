@@ -294,6 +294,7 @@
   .calon-sec{font-family:'Poppins',sans-serif; font-size:15px; margin:20px 0 8px; color:var(--ink);}
   #daftarForm .field-label{margin-top:10px;}
   #daftarForm input[type=text], #daftarForm input[type=tel], #daftarForm input[type=date], #daftarForm select, #daftarForm textarea{width:100%; font-size:16px;}
+  #daftarForm textarea, #daftarForm input[type=tel], #daftarForm input[type=date]{font-family:'Inter',sans-serif; padding:10px 12px; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--ink); line-height:1.45;}
   .calon-checks{display:flex; flex-wrap:wrap; gap:7px; margin:4px 0 6px;}
   .calon-check{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:7px 12px; font-size:13.5px; cursor:pointer; background:#fff; user-select:none;}
   .calon-check input{margin:0; accent-color:var(--blue-600);}
@@ -3559,7 +3560,7 @@ service cloud.firestore {
     // MENGIRIM data baru. Membaca, mengubah status, dan menghapus hanya admin.
     function calonBaruValid(id) {
       let d = request.resource.data;
-      return d.keys().hasOnly(['id','nama','panggilan','jk','tglLahir','wa','alamat','kampus','jurusan','semester','mapel','mapelLain','jenjang','wilayah','hari','jam','kendaraan','pernah','pengalaman','alasan','foto','status','createdAt'])
+      return d.keys().hasOnly(['id','nama','panggilan','jk','tglLahir','wa','alamat','kampus','jurusan','semester','mapel','mapelLain','jenjang','wilayah','fleksibel','hari','jam','kendaraan','pernah','pengalaman','pengalamanNote','berkas','alasan','foto','status','createdAt'])
         && d.id == id && d.status == 'baru'
         && d.nama is string && d.nama.size() > 0 && d.nama.size() &lt;= 80
         && d.wa is string && d.wa.size() &lt;= 20
@@ -3567,13 +3568,34 @@ service cloud.firestore {
         && d.mapel is list && d.mapel.size() &lt;= 30
         && d.jenjang is list && d.jenjang.size() &lt;= 30
         && d.wilayah is list && d.wilayah.size() &lt;= 30
-        && d.hari is list && d.hari.size() &lt;= 30
-        && d.jam is list && d.jam.size() &lt;= 30
-        && d.pengalaman is list && d.pengalaman.size() &lt;= 5
+        && (!('fleksibel' in d) || d.fleksibel is bool)
+        && (!('hari' in d) || (d.hari is list && d.hari.size() &lt;= 30))
+        && (!('jam' in d) || (d.jam is list && d.jam.size() &lt;= 30))
+        && (!('pengalaman' in d) || (d.pengalaman is list && d.pengalaman.size() &lt;= 5))
+        && (!('pengalamanNote' in d) || (d.pengalamanNote is string && d.pengalamanNote.size() &lt;= 1500))
+        && (!('berkas' in d) || (d.berkas is list && d.berkas.size() &lt;= 6))
         && (!('alasan' in d) || (d.alasan is string && d.alasan.size() &lt;= 600));
     }
     match /calonTentor/{id} {
       allow create: if isAdmin() || calonBaruValid(id);
+      allow read, update, delete: if isAdmin();
+    }
+    // CV & sertifikat calon tentor (dipotong per bagian, maks. 1 MB/dokumen).
+    function berkasBaruValid(id) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id','calonId','file','part','parts','nama','tipe','data'])
+        && d.id == id
+        && d.calonId is string && d.calonId.size() > 0 && d.calonId.size() &lt;= 60
+        && d.file is int && d.file >= 0 && d.file &lt; 6
+        && d.parts is int && d.parts > 0 && d.parts &lt;= 8
+        && d.part is int && d.part >= 0 && d.part &lt; d.parts
+        && id == d.calonId + '_' + string(d.file) + '_' + string(d.part)
+        && d.nama is string && d.nama.size() &lt;= 120
+        && d.tipe is string && d.tipe.size() &lt;= 60
+        && d.data is string && d.data.size() &lt;= 900000;
+    }
+    match /calonBerkas/{id} {
+      allow create: if isAdmin() || berkasBaruValid(id);
       allow read, update, delete: if isAdmin();
     }
 
@@ -4124,6 +4146,53 @@ service cloud.firestore {
     });
   }
 
+  // CV & sertifikat disimpan di koleksi 'calonBerkas', dipotong per ±650 KB
+  // (batas 1 dokumen Firestore 1 MB). Dibaca hanya saat admin menekan tombolnya.
+  const BERKAS_MAX = 5*1024*1024;
+  const BERKAS_CHUNK = 890000;
+  function berkasCol(){ const d = initFirebase(); return d ? d.collection('calonBerkas') : null; }
+  function fileToDataUrl(file){
+    return new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = ()=>rej(new Error('baca')); r.readAsDataURL(file); });
+  }
+  function compressImage(file, max, limit){
+    return new Promise((resolve, reject)=>{
+      const url = URL.createObjectURL(file); const img = new Image();
+      img.onload = ()=>{
+        let w = img.naturalWidth, h = img.naturalHeight;
+        const k = Math.min(1, max/Math.max(w,h)); w = Math.round(w*k); h = Math.round(h*k);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,w,h); x.drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        let q = 0.85, out = c.toDataURL('image/jpeg', q);
+        while(out.length > limit && q > 0.35){ q -= 0.1; out = c.toDataURL('image/jpeg', q); }
+        resolve(out);
+      };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('tipe')); };
+      img.src = url;
+    });
+  }
+  const berkasCache = {};
+  async function bukaBerkas(c, b){
+    const key = c.id + '_' + b.file;
+    if(!berkasCache[key]){
+      const parts = await Promise.all(Array.from({length: b.parts}, (_,p)=>berkasCol().doc(key + '_' + p).get()));
+      if(parts.some(d=>!d.exists)) throw new Error('hilang');
+      berkasCache[key] = parts.map(d=>d.data().data).join('');
+    }
+    const dataUrl = berkasCache[key];
+    if(/^data:image\//.test(dataUrl)){
+      const ov = el(`<div class="calon-zoom"><img src="${dataUrl}" alt=""></div>`);
+      ov.addEventListener('click', ()=>ov.remove()); document.body.appendChild(ov); return;
+    }
+    const blob = await (await fetch(dataUrl)).blob();
+    const url = URL.createObjectURL(blob);
+    // HP: langsung diunduh lalu dibuka aplikasi PDF. Laptop: dibuka di tab baru.
+    const hp = window.matchMedia && matchMedia('(pointer:coarse)').matches;
+    const w = hp ? null : window.open(url, '_blank');
+    if(!w){ const a = document.createElement('a'); a.href = url; a.download = b.nama || 'berkas.pdf'; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(()=>URL.revokeObjectURL(url), 120000);
+  }
+
   // ---------- Halaman pendaftaran (publik) ----------
   async function startDaftarMode(){
     absenModeActive = true;
@@ -4174,19 +4243,24 @@ service cloud.firestore {
         <label class="field-label">Mapel lainnya (opsional)</label><input type="text" id="cMapelLain" maxlength="120" placeholder="mis. Pemrograman, Akuntansi">
         <label class="field-label">Jenjang * (boleh lebih dari satu)</label>${checkGroupHtml('cJenjang', CALON_JENJANG)}
 
-        <h3 class="calon-sec">📍 Wilayah & Waktu</h3>
-        <label class="field-label">Wilayah yang bisa dijangkau *</label>${checkGroupHtml('cWilayah', CALON_WILAYAH)}
-        <label class="field-label">Hari bisa mengajar *</label>${checkGroupHtml('cHari', CALON_HARI)}
-        <label class="field-label">Jam bisa mengajar *</label>${checkGroupHtml('cJam', CALON_JAM)}
+        <h3 class="calon-sec">📍 Wilayah Mengajar</h3>
+        <label class="field-label">Kecamatan yang bisa dijangkau *</label>
+        <select id="cWilayah"><option value="">Pilih kecamatan…</option>${CALON_WILAYAH.map(w=>`<option value="${esc(w)}">${esc(w)}</option>`).join('')}</select>
+        <label class="calon-check" style="margin-top:8px;border-radius:12px;"><input type="checkbox" id="cFleksibel"><span>Fleksibel — bersedia mengajar di luar kecamatan ini juga</span></label>
         <label class="field-label">Punya kendaraan sendiri?</label>
         <div class="calon-checks"><label class="calon-check"><input type="radio" name="cKendaraan" value="ya"><span>Ya</span></label><label class="calon-check"><input type="radio" name="cKendaraan" value="tidak"><span>Tidak</span></label></div>
 
         <h3 class="calon-sec">🧑‍🏫 Pengalaman Mengajar</h3>
-        <div class="calon-checks"><label class="calon-check"><input type="radio" name="cPernah" value="ya"><span>Pernah mengajar</span></label><label class="calon-check"><input type="radio" name="cPernah" value="tidak"><span>Belum pernah</span></label></div>
-        <div id="pengalamanBox" style="display:none;">
-          <div id="pengalamanList"></div>
-          <button type="button" class="btn secondary small" id="addPengalaman">+ Tambah pengalaman</button>
-        </div>
+        <label class="field-label">Pernah mengajar di mana saja? (kosongkan kalau belum pernah)</label>
+        <textarea id="cPengalaman" maxlength="1500" rows="4" style="width:100%;" placeholder="mis. Bimbel Primagama 2023–2024 (Matematika SMP), les privat 3 murid SD, PPL di SMAN 1 Banda Aceh"></textarea>
+
+        <h3 class="calon-sec">📎 CV & Sertifikat</h3>
+        <label class="field-label">CV * (PDF atau foto, maks. 5 MB)</label>
+        <label class="btn secondary small" style="display:inline-block;cursor:pointer;">Pilih file CV<input type="file" id="cvInput" accept="application/pdf,image/*" style="display:none;"></label>
+        <div class="calon-hint" id="cvInfo">Belum ada file.</div>
+        <label class="field-label" style="margin-top:12px;">Sertifikat pendukung (opsional, maks. 4 file)</label>
+        <label class="btn secondary small" style="display:inline-block;cursor:pointer;">+ Tambah sertifikat<input type="file" id="sertInput" accept="application/pdf,image/*" multiple style="display:none;"></label>
+        <div class="calon-hint" id="sertInfo">Belum ada file.</div>
 
         <h3 class="calon-sec">💬 Lainnya</h3>
         <label class="field-label">Kenapa ingin jadi tentor? (opsional)</label>
@@ -4205,21 +4279,38 @@ service cloud.firestore {
       catch(e){ foto = ''; prev.textContent = 'Foto gagal dibaca, coba foto lain'; }
     });
 
-    const list = document.getElementById('pengalamanList');
-    function addRow(){
-      if(list.children.length>=5) return;
-      list.appendChild(el(`<div class="calon-exp">
-        <input type="text" class="expTempat" maxlength="80" placeholder="Tempat (mis. Bimbel X / privat / sekolah)">
-        <input type="text" class="expMapel" maxlength="80" placeholder="Mengajar apa (mis. Matematika SMP)">
-        <input type="text" class="expLama" maxlength="40" placeholder="Berapa lama (mis. 1 tahun)">
-      </div>`));
+    // CV & sertifikat: disiapkan di HP pendaftar (foto diperkecil), dikirim saat "Kirim".
+    let cvFile = null; let sertFiles = [];
+    const ukuranTxt = (n)=> n>=1048576 ? (n/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
+    async function siapkanBerkas(f){
+      if(f.size > BERKAS_MAX) throw new Error('besar');
+      if(/^image\//.test(f.type)) return {nama:f.name, tipe:'image/jpeg', data: await compressImage(f, 1600, 800000)};
+      if(f.type==='application/pdf' || /\.pdf$/i.test(f.name)) return {nama:f.name, tipe:'application/pdf', data: await fileToDataUrl(f)};
+      throw new Error('tipe');
     }
-    document.getElementById('addPengalaman').addEventListener('click', addRow);
-    body.querySelectorAll('input[name="cPernah"]').forEach(r=>r.addEventListener('change', ()=>{
-      const ya = body.querySelector('input[name="cPernah"]:checked')?.value==='ya';
-      document.getElementById('pengalamanBox').style.display = ya ? '' : 'none';
-      if(ya && !list.children.length) addRow();
-    }));
+    function berkasErr(e){ return e && e.message==='besar' ? 'File terlalu besar (maks. 5 MB).' : 'File harus PDF atau foto.'; }
+    const sertInfo = ()=>{
+      const box = document.getElementById('sertInfo');
+      if(!sertFiles.length){ box.textContent = 'Belum ada file.'; return; }
+      box.innerHTML = sertFiles.map((b,i)=>`✓ ${esc(b.nama)} <a href="#" data-i="${i}" class="sertDel" style="color:var(--danger);">hapus</a>`).join('<br>');
+      box.querySelectorAll('.sertDel').forEach(a=>a.addEventListener('click', (e)=>{ e.preventDefault(); sertFiles.splice(+a.dataset.i,1); sertInfo(); }));
+    };
+    document.getElementById('cvInput').addEventListener('change', async (e)=>{
+      const f = e.target.files && e.target.files[0]; if(!f) return;
+      const info = document.getElementById('cvInfo'); info.textContent = 'Memproses…';
+      try{ cvFile = await siapkanBerkas(f); info.textContent = '✓ ' + f.name + ' (' + ukuranTxt(f.size) + ')'; }
+      catch(err){ cvFile = null; info.textContent = berkasErr(err); }
+      e.target.value = '';
+    });
+    document.getElementById('sertInput').addEventListener('change', async (e)=>{
+      const fs = [...(e.target.files||[])]; e.target.value = '';
+      for(const f of fs){
+        if(sertFiles.length>=4){ alert('Maksimal 4 sertifikat.'); break; }
+        try{ sertFiles.push(await siapkanBerkas(f)); }
+        catch(err){ alert(f.name + ': ' + berkasErr(err)); }
+      }
+      sertInfo();
+    });
 
     document.getElementById('daftarForm').addEventListener('submit', async (ev)=>{
       ev.preventDefault();
@@ -4229,11 +4320,8 @@ service cloud.firestore {
         nama: v('cNama'), panggilan: v('cPanggilan'), jk: radio('cJk'), tglLahir: v('cTgl'),
         wa: v('cWa'), alamat: v('cAlamat'), kampus: v('cKampus'), jurusan: v('cJurusan'), semester: v('cSemester'),
         mapel: checkedValues(body,'cMapel'), mapelLain: v('cMapelLain'), jenjang: checkedValues(body,'cJenjang'),
-        wilayah: checkedValues(body,'cWilayah'), hari: checkedValues(body,'cHari'), jam: checkedValues(body,'cJam'),
-        kendaraan: radio('cKendaraan'), pernah: radio('cPernah'),
-        pengalaman: radio('cPernah')==='ya' ? [...list.children].map(r=>({
-          tempat: r.querySelector('.expTempat').value.trim(), mapel: r.querySelector('.expMapel').value.trim(), lama: r.querySelector('.expLama').value.trim()
-        })).filter(p=>p.tempat||p.mapel) : [],
+        wilayah: v('cWilayah') ? [v('cWilayah')] : [], fleksibel: document.getElementById('cFleksibel').checked,
+        kendaraan: radio('cKendaraan'), pengalamanNote: v('cPengalaman'), pernah: v('cPengalaman') ? 'ya' : 'tidak',
         alasan: v('cAlasan'), foto
       };
       const errs = [];
@@ -4245,15 +4333,26 @@ service cloud.firestore {
       if(!rec.kampus || !rec.jurusan || !rec.semester) errs.push('kampus, jurusan & status');
       if(!rec.mapel.length && !rec.mapelLain) errs.push('mata pelajaran');
       if(!rec.jenjang.length) errs.push('jenjang');
-      if(!rec.wilayah.length) errs.push('wilayah');
-      if(!rec.hari.length || !rec.jam.length) errs.push('hari & jam mengajar');
-      if(!rec.pernah) errs.push('pengalaman mengajar (pernah/belum)');
+      if(!rec.wilayah.length) errs.push('kecamatan');
+      if(!cvFile) errs.push('file CV');
       const errBox = document.getElementById('daftarErr');
       if(errs.length){ errBox.style.display=''; errBox.textContent = 'Mohon lengkapi: ' + errs.join(', ') + '.'; errBox.scrollIntoView({block:'center', behavior:'smooth'}); return; }
       errBox.style.display='none';
       const btn = document.getElementById('daftarSubmit'); btn.disabled = true; btn.textContent = 'Mengirim…';
       rec.id = uid(); rec.status = 'baru'; rec.createdAt = new Date().toISOString();
       try{
+        const semua = [Object.assign({jenis:'cv'}, cvFile)].concat(sertFiles.map(b=>Object.assign({jenis:'sertifikat'}, b)));
+        rec.berkas = [];
+        for(let i=0;i<semua.length;i++){
+          btn.textContent = 'Mengunggah berkas ' + (i+1) + '/' + semua.length + '…';
+          const b = semua[i]; const parts = Math.ceil(b.data.length / BERKAS_CHUNK);
+          for(let p=0;p<parts;p++){
+            const id = rec.id + '_' + i + '_' + p;
+            await berkasCol().doc(id).set({id, calonId: rec.id, file: i, part: p, parts, nama: b.nama.slice(0,120), tipe: b.tipe, data: b.data.slice(p*BERKAS_CHUNK, (p+1)*BERKAS_CHUNK)});
+          }
+          rec.berkas.push({file: i, jenis: b.jenis, nama: b.nama.slice(0,120), tipe: b.tipe, parts});
+        }
+        btn.textContent = 'Mengirim…';
         await calonCol().doc(rec.id).set(rec);
         body.innerHTML = `<div class="empty" style="padding:30px 10px;"><div style="font-size:46px;">🎉</div><h3>Pendaftaran terkirim!</h3><p>Terima kasih, ${esc(rec.panggilan||rec.nama)}. Data Anda sudah kami terima. Kami akan menghubungi lewat WhatsApp <b>${esc(rec.wa)}</b> kalau ada murid yang cocok.</p></div>`;
         window.scrollTo(0,0);
@@ -4271,7 +4370,7 @@ service cloud.firestore {
   let calonList = [];
   let calonState = 'idle'; // idle | loading | ready | error
   let calonView = 'bank';  // seleksi | bank | ditolak
-  let calonFilter = {q:'', mapel:'', jenjang:'', wilayah:'', hari:'', showAktif:false};
+  let calonFilter = {q:'', mapel:'', jenjang:'', wilayah:'', showAktif:false};
   async function loadCalon(){
     if(!calonCol()){ calonList = []; calonState = 'ready'; return; }
     calonState = 'loading';
@@ -4298,12 +4397,11 @@ service cloud.firestore {
     if(calonView==='bank'){
       if(f.mapel && !(c.mapel||[]).includes(f.mapel)) return false;
       if(f.jenjang && !(c.jenjang||[]).includes(f.jenjang)) return false;
-      if(f.wilayah && !(c.wilayah||[]).includes(f.wilayah)) return false;
-      if(f.hari && !(c.hari||[]).includes(f.hari)) return false;
+      if(f.wilayah && !(c.wilayah||[]).includes(f.wilayah) && !c.fleksibel) return false;
     }
     const q = f.q.trim().toLowerCase();
     if(q){
-      const hay = [c.nama,c.panggilan,c.kampus,c.jurusan,c.alamat,c.mapelLain,(c.mapel||[]).join(' '),(c.pengalaman||[]).map(p=>p.tempat+' '+p.mapel).join(' ')].join(' ').toLowerCase();
+      const hay = [c.nama,c.panggilan,c.kampus,c.jurusan,c.alamat,c.mapelLain,c.pengalamanNote,(c.mapel||[]).join(' '),(c.pengalaman||[]).map(p=>p.tempat+' '+p.mapel).join(' ')].join(' ').toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
@@ -4333,12 +4431,13 @@ service cloud.firestore {
     const cnt = (s)=>calonList.filter(c=>(c.status||'baru')===s).length;
     const nSeleksi = cnt('baru'), nBank = cnt('lolos'), nTolak = cnt('ditolak');
     const list = ready ? calonList.filter(calonMatches) : [];
+    if(calonView==='bank' && calonFilter.wilayah){ const ex = (c)=>(c.wilayah||[]).includes(calonFilter.wilayah) ? 0 : 1; list.sort((a,b)=>ex(a)-ex(b)); }
     const f = calonFilter;
     const chip = (txt, on)=>`<span class="calon-chip${on?' on':''}">${esc(txt)}</span>`;
     const statusLabel = {baru:'Menunggu seleksi', lolos:'Lolos seleksi', aktif:'Sudah jadi tentor', ditolak:'Tidak lolos'};
     const intro = {
       seleksi: 'Pendaftar baru dari link. Periksa datanya (bisa chat WA untuk wawancara), lalu pilih <b>Lolos</b> supaya masuk Bank Calon Tentor, atau <b>Tidak Lolos</b>.',
-      bank: 'Calon tentor yang <b>sudah lolos seleksi</b>. Saat butuh tentor, pilih mapel/jenjang/wilayah/hari — yang cocok langsung muncul, tinggal chat WA lalu <b>Jadikan Tentor</b>.',
+      bank: 'Calon tentor yang <b>sudah lolos seleksi</b>. Saat butuh tentor, pilih mapel/jenjang/wilayah — yang cocok langsung muncul (yang <b>fleksibel</b> ikut muncul di bawahnya), tinggal chat WA lalu <b>Jadikan Tentor</b>.',
       ditolak: 'Pendaftar yang tidak lolos. Bisa dikembalikan ke Seleksi atau dihapus.'
     }[calonView];
 
@@ -4364,8 +4463,7 @@ service cloud.firestore {
           ${calonView==='bank' ? `
             ${selectHtml('fMapel','Mapel',CALON_MAPEL,f.mapel)}
             ${selectHtml('fJenjang','Jenjang',CALON_JENJANG,f.jenjang)}
-            ${selectHtml('fWilayah','Wilayah',CALON_WILAYAH,f.wilayah)}
-            ${selectHtml('fHari','Hari',CALON_HARI,f.hari)}` : ''}
+            ${selectHtml('fWilayah','Wilayah',CALON_WILAYAH,f.wilayah)}` : ''}
           <div><label class="field-label">Cari</label><input type="search" id="fCalonQ" placeholder="Nama, kampus, jurusan…" value="${esc(f.q)}"></div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
@@ -4397,9 +4495,10 @@ service cloud.firestore {
               </div>
               <div class="calon-row"><b>Mapel</b><div>${(c.mapel||[]).map(m=>chip(m, m===f.mapel)).join('')}${c.mapelLain?chip(c.mapelLain):''}</div></div>
               <div class="calon-row"><b>Jenjang</b><div>${(c.jenjang||[]).map(m=>chip(m, m===f.jenjang)).join('')}</div></div>
-              <div class="calon-row"><b>Wilayah</b><div>${(c.wilayah||[]).map(m=>chip(m.replace(/ \(Aceh Besar\)$/,''), m===f.wilayah)).join('')}</div></div>
-              <div class="calon-row"><b>Jadwal</b><div>${(c.hari||[]).map(m=>chip(m, m===f.hari)).join('')}<div class="calon-sub" style="margin-top:3px;">${esc((c.jam||[]).join(', '))}</div></div></div>
-              <div class="calon-row"><b>Pengalaman</b><div>${c.pernah==='ya' && (c.pengalaman||[]).length ? (c.pengalaman||[]).map(p=>`<div>• ${esc(p.tempat||'-')}${p.mapel?` — ${esc(p.mapel)}`:''}${p.lama?` <span class="calon-sub">(${esc(p.lama)})</span>`:''}</div>`).join('') : '<span class="calon-sub">Belum pernah mengajar</span>'}</div></div>
+              <div class="calon-row"><b>Wilayah</b><div>${(c.wilayah||[]).map(m=>chip(m.replace(/ \(Aceh Besar\)$/,''), m===f.wilayah)).join('')}${c.fleksibel?chip('🔄 Fleksibel, bisa di luar kecamatan', !!f.wilayah && !(c.wilayah||[]).includes(f.wilayah)):''}</div></div>
+              ${(c.hari||[]).length ? `<div class="calon-row"><b>Jadwal</b><div>${(c.hari||[]).map(m=>chip(m)).join('')}<div class="calon-sub" style="margin-top:3px;">${esc((c.jam||[]).join(', '))}</div></div></div>` : ''}
+              <div class="calon-row"><b>Pengalaman</b><div>${c.pengalamanNote ? `<div style="white-space:pre-line;">${esc(c.pengalamanNote)}</div>` : c.pernah==='ya' && (c.pengalaman||[]).length ? (c.pengalaman||[]).map(p=>`<div>• ${esc(p.tempat||'-')}${p.mapel?` — ${esc(p.mapel)}`:''}${p.lama?` <span class="calon-sub">(${esc(p.lama)})</span>`:''}</div>`).join('') : '<span class="calon-sub">Belum pernah mengajar</span>'}</div></div>
+              ${(c.berkas||[]).length ? `<div class="calon-row"><b>Berkas</b><div>${(()=>{ let n=0; return c.berkas.map(b=>`<button class="btn small secondary calon-berkas" data-id="${esc(c.id)}" data-file="${b.file}" style="margin:0 4px 4px 0;">${b.jenis==='cv'?'📄 CV':'🏅 Sertifikat '+(++n)}</button>`).join(''); })()}</div></div>` : ''}
               <div class="calon-row"><b>Lainnya</b><div class="calon-sub">📍 ${esc(c.alamat||'-')}<br>🛵 ${c.kendaraan==='ya'?'Punya kendaraan':c.kendaraan==='tidak'?'Tidak punya kendaraan':'-'} · 📞 ${esc(c.wa||'-')}<br>Daftar ${tglPendek(c.createdAt)}${c.lolosAt?` · Lolos ${tglPendek(c.lolosAt)}`:''}${c.dihubungiAt?` · Terakhir di-chat ${tglPendek(c.dihubungiAt)}`:''}</div></div>
               ${c.alasan?`<div class="calon-alasan">“${esc(c.alasan)}”</div>`:''}
               ${c.catatanAdmin?`<div class="calon-note">📝 ${esc(c.catatanAdmin)}</div>`:''}
@@ -4424,7 +4523,7 @@ service cloud.firestore {
       catch(e){ prompt('Salin link pendaftaran ini:', daftarLink); }
     });
     document.getElementById('refreshCalon').addEventListener('click', async ()=>{ calonState='loading'; render(); await loadCalon(); render(); });
-    [['fMapel','mapel'],['fJenjang','jenjang'],['fWilayah','wilayah'],['fHari','hari']].forEach(([id,key])=>{
+    [['fMapel','mapel'],['fJenjang','jenjang'],['fWilayah','wilayah']].forEach(([id,key])=>{
       const s = document.getElementById(id); if(s) s.addEventListener('change', (e)=>{ calonFilter[key] = e.target.value; render(); });
     });
     const sa = document.getElementById('fShowAktif');
@@ -4464,8 +4563,10 @@ service cloud.firestore {
     }));
     view.querySelectorAll('.calon-del').forEach(b=>b.addEventListener('click', async ()=>{
       const c = byId(b.dataset.id); if(!c) return;
-      if(!confirm('Hapus data calon tentor '+c.nama+'? Data dan fotonya akan hilang permanen.')) return;
-      try{ await calonCol().doc(c.id).delete(); calonList = calonList.filter(x=>x.id!==c.id); flashSaved(); }
+      if(!confirm('Hapus data calon tentor '+c.nama+'? Data, foto, CV dan sertifikatnya akan hilang permanen.')) return;
+      try{
+        for(const b of (c.berkas||[])) for(let p=0;p<b.parts;p++){ await berkasCol().doc(c.id+'_'+b.file+'_'+p).delete(); }
+        await calonCol().doc(c.id).delete(); calonList = calonList.filter(x=>x.id!==c.id); flashSaved(); }
       catch(e){ flashError(); alert('Gagal menghapus, periksa koneksi lalu coba lagi.'); }
       render();
     }));
@@ -4480,6 +4581,14 @@ service cloud.firestore {
       await saveMaster('tentors');
       await patch(c, {status:'aktif', tentorId: t.id});
       alert(nama+' sudah ditambahkan ke daftar tentor (kode '+t.kode+'). Atur kelasnya di tab "Siswa & Kelas".');
+    }));
+    view.querySelectorAll('.calon-berkas').forEach(b=>b.addEventListener('click', async ()=>{
+      const c = byId(b.dataset.id); if(!c) return;
+      const meta = (c.berkas||[]).find(x=>String(x.file)===b.dataset.file); if(!meta) return;
+      const txt = b.textContent; b.disabled = true; b.textContent = 'Membuka…';
+      try{ await bukaBerkas(c, meta); }
+      catch(e){ alert(e && e.message==='hilang' ? 'Berkas tidak ditemukan.' : (e && e.code==='resource-exhausted' ? 'Kuota baca harian Firebase sudah habis. Coba lagi setelah pukul 14.00–15.00 WIB.' : 'Gagal membuka berkas, periksa koneksi lalu coba lagi.')); }
+      b.disabled = false; b.textContent = txt;
     }));
     view.querySelectorAll('img.calon-foto').forEach(img=>img.addEventListener('click', ()=>{
       const ov = el(`<div class="calon-zoom"><img src="${img.src}" alt=""></div>`);
