@@ -2900,7 +2900,7 @@
     view.querySelectorAll('.del-assign').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         if(!requireMonthUnlocked('menghapus kelas')) return;
-        if(!confirm('Hapus kelas ini secara permanen? Riwayat pertemuan bulan-bulan sebelumnya untuk kelas ini tidak akan tampil lagi. Jika hanya berhenti sementara, gunakan tombol "Nonaktifkan" saja agar datanya tidak hilang.')) return;
+        if(!confirm('Hapus kelas ini mulai bulan ini? Bulan yang sudah dikunci TIDAK ikut berubah (rekap, honor, dan invoice-nya tetap aman). Kelas ini akan hilang dari bulan ini, bulan-bulan berikutnya, dan daftar absen tentor. Jika murid hanya berhenti sementara, lebih baik pakai tombol "Nonaktifkan".')) return;
         assignments = assignments.filter(a=>a.id!==btn.dataset.id);
         if(editingAssignmentId===btn.dataset.id) editingAssignmentId=null;
         render();
