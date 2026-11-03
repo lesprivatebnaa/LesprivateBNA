@@ -80,7 +80,6 @@
     background:var(--grad-primary); -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   .brand .tagline{color:var(--ink-soft); font-size:12.5px;}
-  .muted{color:var(--ink-soft); font-size:12.5px;}
   .brand .stamp{
     margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--blue-700);
     border:1px solid var(--blue-100); background:var(--blue-50); padding:5px 12px; border-radius:20px; white-space:nowrap;
@@ -2005,20 +2004,6 @@
     const inactiveChildCount = new Set(inactiveAssignments.map(childKey)).size;
     const anakBaruInfo = hitungAnakBaru(currentMonth, assignments);
     const newChildCount = anakBaruInfo.baru.length;
-    const barisAnak = (it, tombol)=>`<tr><td>${esc(it.a.namaSiswa)}${it.a.keterangan?` <span class="muted">(${esc(it.a.keterangan)})</span>`:''}</td><td>${esc(familyName(it.a.familyId))}</td><td>${esc(it.all.map(x=>tentorName(x.tentorId)).join(', '))}</td>${tombol(it)}</tr>`;
-    const anakBaruHtml = `
-      <details class="card" id="anakBaruBox" ${filters.anakBaruOpen?"open":""} style="margin-bottom:14px;padding:14px 18px;">
-        <summary style="cursor:pointer;font-weight:600;">👶 Daftar Anak Baru — ${monthLabel(currentMonth)} (${newChildCount})</summary>
-        <p class="muted" style="margin:8px 0;">Hanya anak yang <b>belum pernah les</b> di bulan-bulan sebelumnya. Ganti nama, ganti tentor/tarif, aktif lagi, atau tambah mapel untuk anak lama tidak dihitung.</p>
-        ${newChildCount ? `<div class="table-wrap"><table><thead><tr><th>Nama</th><th>Alamat</th><th>Tentor</th><th></th></tr></thead><tbody>
-          ${anakBaruInfo.baru.map(it=>barisAnak(it, it=>`<td><button class="btn secondary small anak-baru-flag" data-ids="${it.all.map(x=>x.id).join(',')}" data-val="1">Bukan anak baru</button></td>`)).join('')}
-        </tbody></table></div>` : `<p>Belum ada anak baru bulan ini.</p>`}
-        ${anakBaruInfo.bukan.some(it=>it.a.mulaiBulan===currentMonth || it.all.some(x=>x.bukanAnakBaru)) ? `
-          <p class="muted" style="margin:12px 0 6px;">Mulai bulan ini tapi <b>tidak dihitung</b> anak baru:</p>
-          <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Alamat</th><th>Tentor</th><th>Alasan</th></tr></thead><tbody>
-          ${anakBaruInfo.bukan.filter(it=>it.a.mulaiBulan===currentMonth || it.all.some(x=>x.bukanAnakBaru)).map(it=>barisAnak(it, it=>`<td>${esc(it.alasan)}${it.all.some(x=>x.bukanAnakBaru)?` <button class="btn secondary small anak-baru-flag" data-ids="${it.all.map(x=>x.id).join(',')}" data-val="0">Ini anak baru</button>`:''}</td>`)).join('')}
-          </tbody></table></div>` : ''}
-      </details>`;
 
     const jam = new Date().getHours();
     const sapaan = jam<11 ? 'Selamat pagi' : jam<15 ? 'Selamat siang' : jam<19 ? 'Selamat sore' : 'Selamat malam';
@@ -2078,9 +2063,8 @@
           <div class="stat"><div class="label">Tentor Aktif</div><div class="value">${activeTentorCount}</div></div>
           <div class="stat"><div class="label">Anak Aktif</div><div class="value">${activeChildCount}</div></div>
           <div class="stat"><div class="label">Anak Nonaktif</div><div class="value">${inactiveChildCount}</div></div>
-          <div class="stat" id="statAnakBaru" style="cursor:pointer;" title="Lihat daftar anak baru"><div class="label">Anak Baru — ${monthLabel(currentMonth)}</div><div class="value">${newChildCount}</div></div>
+          <div class="stat"><div class="label">Anak Baru — ${monthLabel(currentMonth)}</div><div class="value">${newChildCount}</div></div>
         </div>
-        ${anakBaruHtml}
         <div class="row" style="margin-bottom:12px;">${searchInputHtml('searchKelas','Cari tentor / alamat / siswa…', filters.kelas)}</div>
         ${activeAssignments.length===0 ? `<div class="empty"><h3>Belum ada kelas aktif</h3><p>Tambahkan tentor dan alamat, lalu buat kelas siswa di tab "Siswa &amp; Kelas".</p></div>` :
         filtered.length===0 ? `<div class="empty"><h3>Tidak ditemukan</h3></div>` : `
@@ -2178,19 +2162,6 @@
       await storeSet('honorVisible', honorVisible);
       scheduleAbsenViewSync();
       render();
-    });
-    const abBox = document.getElementById('anakBaruBox');
-    if(abBox) abBox.addEventListener('toggle', ()=>{ filters.anakBaruOpen = abBox.open; });
-    const abStat = document.getElementById('statAnakBaru');
-    if(abStat && abBox) abStat.addEventListener('click', ()=>{ abBox.open = true; filters.anakBaruOpen = true; abBox.scrollIntoView({behavior:'smooth', block:'start'}); });
-    view.querySelectorAll('.anak-baru-flag').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        if(!requireMonthUnlocked('menandai anak baru')) return;
-        const ids = btn.dataset.ids.split(','); const val = btn.dataset.val==='1';
-        assignments.forEach(x=>{ if(ids.includes(x.id)){ if(val) x.bukanAnakBaru = true; else delete x.bukanAnakBaru; } });
-        filters.anakBaruOpen = true;
-        render(); saveMaster('assignments');
-      });
     });
     const toggleLockBtn = document.getElementById('toggleRekapLockBtn');
     if(toggleLockBtn) toggleLockBtn.addEventListener('click', async ()=>{

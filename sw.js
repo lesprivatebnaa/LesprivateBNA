@@ -4,7 +4,7 @@
 //   berubah, aplikasi menampilkan tombol "Versi baru tersedia".
 // - Pustaka (Firebase, font, html2canvas) & ikon: disimpan di HP.
 // - Data (Firestore) TIDAK pernah disimpan di sini — selalu dari Firebase.
-const CACHE = 'bna-app-v4';
+const CACHE = 'bna-app-v5';
 const CORE = ['./', './index.html', './manifest.json', './manifest-absen.json', './icon-192.png', './icon-512.png', './icon-absen-192.png', './icon-absen-512.png'];
 
 self.addEventListener('install', (e) => {
