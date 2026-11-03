@@ -4289,7 +4289,9 @@ service cloud.firestore {
   // pendaftar). Publik hanya boleh MENGIRIM pendaftaran; membaca, mengubah
   // status, dan menghapus hanya admin (lihat Rules Firestore).
   // =====================================================================
-  const CALON_MAPEL = ['Matematika','Bahasa Inggris','IPA','Fisika','Kimia','Biologi','Bahasa Indonesia','IPS','Bahasa Arab','Calistung (Baca Tulis Hitung)','Mengaji / Iqra','Semua Mapel SD (Tematik)'];
+  const CALON_MAPEL = ['Matematika','Bahasa Inggris','IPA','Fisika','Kimia','Biologi','Bahasa Indonesia','IPS','Bahasa Arab','Calistung (Baca Tulis Hitung)','Mengaji','Semua Mapel SD','TOEFL','IELTS','Ekonomi'];
+  const MAPEL_LAMA = {'Mengaji / Iqra':'Mengaji','Semua Mapel SD (Tematik)':'Semua Mapel SD'};
+  const normMapel = m => MAPEL_LAMA[m] || m;
   const CALON_JENJANG = ['TK / PAUD','SD','SMP','SMA / SMK','Persiapan UTBK / Masuk PTN'];
   const CALON_WILAYAH = ['Baiturrahman','Banda Raya','Jaya Baru','Kuta Alam','Kuta Raja','Lueng Bata','Meuraxa','Syiah Kuala','Ulee Kareng','Darussalam (Aceh Besar)','Ingin Jaya (Aceh Besar)','Krueng Barona Jaya (Aceh Besar)','Baitussalam (Aceh Besar)','Darul Imarah (Aceh Besar)','Peukan Bada (Aceh Besar)'];
   const CALON_HARI = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
@@ -4586,7 +4588,7 @@ service cloud.firestore {
     if(!calonInView(c)) return false;
     const f = calonFilter;
     if(calonView==='bank'){
-      if(f.mapel && !(c.mapel||[]).includes(f.mapel)) return false;
+      if(f.mapel && !(c.mapel||[]).map(normMapel).includes(f.mapel)) return false;
       if(f.jenjang && !(c.jenjang||[]).includes(f.jenjang)) return false;
       if(f.wilayah && !(c.wilayah||[]).includes(f.wilayah) && !c.fleksibel) return false;
     }
@@ -4684,7 +4686,7 @@ service cloud.firestore {
                   <span class="calon-status st-${esc(s)}">${esc(statusLabel[s]||s)}</span>
                 </div>
               </div>
-              <div class="calon-row"><b>Mapel</b><div>${(c.mapel||[]).map(m=>chip(m, m===f.mapel)).join('')}${c.mapelLain?chip(c.mapelLain):''}</div></div>
+              <div class="calon-row"><b>Mapel</b><div>${(c.mapel||[]).map(normMapel).map(m=>chip(m, m===f.mapel)).join('')}${c.mapelLain?chip(c.mapelLain):''}</div></div>
               <div class="calon-row"><b>Jenjang</b><div>${(c.jenjang||[]).map(m=>chip(m, m===f.jenjang)).join('')}</div></div>
               <div class="calon-row"><b>Wilayah</b><div>${(c.wilayah||[]).map(m=>chip(m.replace(/ \(Aceh Besar\)$/,''), m===f.wilayah)).join('')}${c.fleksibel?chip('🔄 Fleksibel, bisa di luar kecamatan', !!f.wilayah && !(c.wilayah||[]).includes(f.wilayah)):''}</div></div>
               ${(c.hari||[]).length ? `<div class="calon-row"><b>Jadwal</b><div>${(c.hari||[]).map(m=>chip(m)).join('')}<div class="calon-sub" style="margin-top:3px;">${esc((c.jam||[]).join(', '))}</div></div></div>` : ''}
