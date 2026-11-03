@@ -80,6 +80,7 @@
     background:var(--grad-primary); -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   .brand .tagline{color:var(--ink-soft); font-size:12.5px;}
+  .muted{color:var(--ink-soft); font-size:12.5px;}
   .brand .stamp{
     margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--blue-700);
     border:1px solid var(--blue-100); background:var(--blue-50); padding:5px 12px; border-radius:20px; white-space:nowrap;
@@ -1547,6 +1548,54 @@
   function tentorName(id){ const t=tentorById(id); return t? t.nama : '(tentor dihapus)'; }
   function familyName(id){ const f=familyById(id); return f? (f.alamat||'(tanpa alamat)') : '(alamat dihapus)'; }
   function childKey(a){ return (a.familyId||'')+'|'+(a.namaSiswa||'').trim().toLowerCase(); }
+  // Identitas ANAK yang tetap walau nama/tentor/tarif kelasnya diubah.
+  // Kelas lama (tanpa anakId) memakai alamat+nama sebagai identitas.
+  function anakOf(a){ return a.anakId || ('k:'+childKey(a)); }
+  // Apakah kelas ini pernah aktif di bulan SEBELUM bulan m (menurut riwayatnya sendiri)?
+  function wasActiveBefore(a, m){
+    const start = a.mulaiBulan || '';
+    if(start && start >= m) return false;
+    if(statusAtMonth(a, start) !== 'nonaktif') return true;
+    return (a.statusHistory||[]).some(h=>h.status==='aktif' && h.bulan>=start && h.bulan<m);
+  }
+  // ANAK BARU yang sebenarnya di bulan m: anak aktif bulan m yang BELUM PERNAH
+  // aktif di bulan mana pun sebelumnya. Ganti nama, ganti tentor/tarif (kelas
+  // dipecah), aktif lagi setelah nonaktif, atau tambah mapel untuk anak lama
+  // TIDAK dihitung anak baru.
+  function hitungAnakBaru(m, list){
+    const ids = new Set(), anak = new Set(), keys = new Set();
+    const tandai = x=>{ ids.add(x.id); anak.add(anakOf(x)); keys.add(childKey(x)); };
+    list.forEach(x=>{ if(wasActiveBefore(x, m)) tandai(x); });
+    Object.keys(snapMasters).filter(k=>k<m).forEach(k=>{
+      (snapMasters[k].assignments||[]).forEach(x=>{ if(isActiveInMonth(x, k)) tandai(x); });
+    });
+    if(boundMonth && liveMaster && liveMaster.assignments){
+      // bulan sebelumnya yang memakai data umum (tanpa salinan)
+      const p = prevMonthStr(m);
+      if(p && !snapMasters[p]) liveMaster.assignments.forEach(x=>{ if(wasActiveBefore(x, m) || isActiveInMonth(x, p)) tandai(x); });
+    }
+    // Kelas lama yang berhenti tepat bulan ini (dipecah karena diubah sebelum perbaikan ini)
+    const berhentiBulanIni = list.filter(x=>wasActiveBefore(x, m) && statusAtMonth(x, m)==='nonaktif'
+      && (x.statusHistory||[]).some(h=>h.bulan===m && h.status==='nonaktif'));
+    const groups = {};
+    list.filter(x=>isActiveInMonth(x, m)).forEach(x=>{ (groups[anakOf(x)] = groups[anakOf(x)] || []).push(x); });
+    const baru = [], bukan = [];
+    Object.values(groups).forEach(g=>{
+      let alasan = '';
+      for(const x of g){
+        if(x.bukanAnakBaru){ alasan = 'ditandai admin: bukan anak baru'; break; }
+        if(ids.has(x.id) || anak.has(anakOf(x))){ alasan = 'sudah les sebelumnya (data kelas diubah / aktif lagi)'; break; }
+        if(keys.has(childKey(x))){ alasan = 'sudah les sebelumnya (nama & alamat sama)'; break; }
+        if(!x.anakId && x.mulaiBulan===m){
+          const pas = berhentiBulanIni.find(o=>o.familyId===x.familyId &&
+            (o.tentorId===x.tentorId || (o.namaSiswa||'').trim().toLowerCase()===(x.namaSiswa||'').trim().toLowerCase()));
+          if(pas){ alasan = 'pengganti kelas lama "'+(pas.namaSiswa||'')+'" (data diubah)'; break; }
+        }
+      }
+      (alasan ? bukan : baru).push({a:g[0], all:g, alasan});
+    });
+    return {baru, bukan};
+  }
   // Status aktif/nonaktif sebuah kelas dicatat sebagai RIWAYAT per-bulan
   // (a.statusHistory = [{bulan:'YYYY-MM', status:'aktif'|'nonaktif'}, ...]),
   // bukan cuma satu nilai global — supaya kelas yang naik-turun aktif/nonaktif
@@ -1954,7 +2003,22 @@
     const activeTentorCount = new Set(activeAssignments.map(a=>a.tentorId)).size;
     const activeChildCount = new Set(activeAssignments.map(childKey)).size;
     const inactiveChildCount = new Set(inactiveAssignments.map(childKey)).size;
-    const newChildCount = new Set(activeAssignments.filter(a=>a.mulaiBulan===currentMonth).map(childKey)).size;
+    const anakBaruInfo = hitungAnakBaru(currentMonth, assignments);
+    const newChildCount = anakBaruInfo.baru.length;
+    const barisAnak = (it, tombol)=>`<tr><td>${esc(it.a.namaSiswa)}${it.a.keterangan?` <span class="muted">(${esc(it.a.keterangan)})</span>`:''}</td><td>${esc(familyName(it.a.familyId))}</td><td>${esc(it.all.map(x=>tentorName(x.tentorId)).join(', '))}</td>${tombol(it)}</tr>`;
+    const anakBaruHtml = `
+      <details class="card" id="anakBaruBox" ${filters.anakBaruOpen?"open":""} style="margin-bottom:14px;padding:14px 18px;">
+        <summary style="cursor:pointer;font-weight:600;">👶 Daftar Anak Baru — ${monthLabel(currentMonth)} (${newChildCount})</summary>
+        <p class="muted" style="margin:8px 0;">Hanya anak yang <b>belum pernah les</b> di bulan-bulan sebelumnya. Ganti nama, ganti tentor/tarif, aktif lagi, atau tambah mapel untuk anak lama tidak dihitung.</p>
+        ${newChildCount ? `<div class="table-wrap"><table><thead><tr><th>Nama</th><th>Alamat</th><th>Tentor</th><th></th></tr></thead><tbody>
+          ${anakBaruInfo.baru.map(it=>barisAnak(it, it=>`<td><button class="btn secondary small anak-baru-flag" data-ids="${it.all.map(x=>x.id).join(',')}" data-val="1">Bukan anak baru</button></td>`)).join('')}
+        </tbody></table></div>` : `<p>Belum ada anak baru bulan ini.</p>`}
+        ${anakBaruInfo.bukan.some(it=>it.a.mulaiBulan===currentMonth || it.all.some(x=>x.bukanAnakBaru)) ? `
+          <p class="muted" style="margin:12px 0 6px;">Mulai bulan ini tapi <b>tidak dihitung</b> anak baru:</p>
+          <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Alamat</th><th>Tentor</th><th>Alasan</th></tr></thead><tbody>
+          ${anakBaruInfo.bukan.filter(it=>it.a.mulaiBulan===currentMonth || it.all.some(x=>x.bukanAnakBaru)).map(it=>barisAnak(it, it=>`<td>${esc(it.alasan)}${it.all.some(x=>x.bukanAnakBaru)?` <button class="btn secondary small anak-baru-flag" data-ids="${it.all.map(x=>x.id).join(',')}" data-val="0">Ini anak baru</button>`:''}</td>`)).join('')}
+          </tbody></table></div>` : ''}
+      </details>`;
 
     const jam = new Date().getHours();
     const sapaan = jam<11 ? 'Selamat pagi' : jam<15 ? 'Selamat siang' : jam<19 ? 'Selamat sore' : 'Selamat malam';
@@ -2014,8 +2078,9 @@
           <div class="stat"><div class="label">Tentor Aktif</div><div class="value">${activeTentorCount}</div></div>
           <div class="stat"><div class="label">Anak Aktif</div><div class="value">${activeChildCount}</div></div>
           <div class="stat"><div class="label">Anak Nonaktif</div><div class="value">${inactiveChildCount}</div></div>
-          <div class="stat"><div class="label">Anak Baru — ${monthLabel(currentMonth)}</div><div class="value">${newChildCount}</div></div>
+          <div class="stat" id="statAnakBaru" style="cursor:pointer;" title="Lihat daftar anak baru"><div class="label">Anak Baru — ${monthLabel(currentMonth)}</div><div class="value">${newChildCount}</div></div>
         </div>
+        ${anakBaruHtml}
         <div class="row" style="margin-bottom:12px;">${searchInputHtml('searchKelas','Cari tentor / alamat / siswa…', filters.kelas)}</div>
         ${activeAssignments.length===0 ? `<div class="empty"><h3>Belum ada kelas aktif</h3><p>Tambahkan tentor dan alamat, lalu buat kelas siswa di tab "Siswa &amp; Kelas".</p></div>` :
         filtered.length===0 ? `<div class="empty"><h3>Tidak ditemukan</h3></div>` : `
@@ -2113,6 +2178,19 @@
       await storeSet('honorVisible', honorVisible);
       scheduleAbsenViewSync();
       render();
+    });
+    const abBox = document.getElementById('anakBaruBox');
+    if(abBox) abBox.addEventListener('toggle', ()=>{ filters.anakBaruOpen = abBox.open; });
+    const abStat = document.getElementById('statAnakBaru');
+    if(abStat && abBox) abStat.addEventListener('click', ()=>{ abBox.open = true; filters.anakBaruOpen = true; abBox.scrollIntoView({behavior:'smooth', block:'start'}); });
+    view.querySelectorAll('.anak-baru-flag').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        if(!requireMonthUnlocked('menandai anak baru')) return;
+        const ids = btn.dataset.ids.split(','); const val = btn.dataset.val==='1';
+        assignments.forEach(x=>{ if(ids.includes(x.id)){ if(val) x.bukanAnakBaru = true; else delete x.bukanAnakBaru; } });
+        filters.anakBaruOpen = true;
+        render(); saveMaster('assignments');
+      });
     });
     const toggleLockBtn = document.getElementById('toggleRekapLockBtn');
     if(toggleLockBtn) toggleLockBtn.addEventListener('click', async ()=>{
@@ -2786,16 +2864,22 @@
         const perluPecah = berubah && mulaiBulan===mulaiLama && mulaiLama && mulaiLama < bulanIni;
         if(perluPecah){
           if(!confirm(`Perubahan ini akan berlaku MULAI ${monthLabel(bulanIni)}.\n\nBulan sebelum ${monthLabel(bulanIni)} (mis. yang sudah terkunci) TIDAK berubah — tetap memakai tentor, tarif, dan data lama.\n\nSesi yang sudah tercatat di ${monthLabel(bulanIni)} (dan bulan sesudahnya, kalau ada) akan ikut dipindah ke data baru ini. Lanjutkan?`)) return;
-          const baru = {id:uid(), tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan:bulanIni, status:'aktif'};
+          const baru = {id:uid(), anakId:anakOf(a), tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan:bulanIni, status:'aktif'};
           setStatusAtMonth(a, bulanIni, 'nonaktif');
           assignments.push(baru);
           await migrateAssignmentData(a.id, baru.id, tentorId, bulanIni);
         } else {
+          if(!a.anakId) a.anakId = anakOf(a); // identitas anak tetap walau nama diubah
           Object.assign(a, {tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan});
         }
         editingAssignmentId = null;
       } else {
-        assignments.push({id:uid(), tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan, status:'aktif'});
+        // Anak yang sudah punya kelas (mis. tambah mapel) memakai identitas anak yang sama
+        const kunci = (familyId||'')+'|'+namaSiswa.trim().toLowerCase();
+        const lama = assignments.find(x=>childKey(x)===kunci);
+        const baruKelas = {id:uid(), tentorId, familyId, namaSiswa, keterangan, tingkatan, biayaLes, honorTentor, mulaiBulan, status:'aktif'};
+        if(lama) baruKelas.anakId = anakOf(lama);
+        assignments.push(baruKelas);
       }
       render();
       saveMaster('assignments');
