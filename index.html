@@ -295,6 +295,29 @@
   }
   /* ---------- Calon Tentor ---------- */
   .calon-sec{font-family:'Poppins',sans-serif; font-size:15px; margin:20px 0 8px; color:var(--ink);}
+
+  /* ---------- Form pendaftaran: tampilan lebih lega & ramah ---------- */
+  #daftarForm{display:flex; flex-direction:column; gap:16px;}
+  .dm-sec{background:#fff; border:1px solid var(--line); border-radius:18px; padding:18px 16px 20px; box-shadow:0 2px 12px rgba(26,33,72,0.04);}
+  .dm-head{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  .dm-no{width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,var(--blue-600),#8B6CF0); color:#fff; font:700 13px 'Poppins',sans-serif; display:flex; align-items:center; justify-content:center; flex:none;}
+  .dm-head h3{font-family:'Poppins',sans-serif; font-size:16px; margin:0; color:var(--ink);}
+  .dm-sub{font-size:12.5px; color:var(--ink-soft); margin:-8px 0 14px 38px;}
+  .dm-field{margin-bottom:14px;}
+  .dm-field:last-child{margin-bottom:0;}
+  .dm-row2{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;}
+  .dm-row2 .dm-field{margin-bottom:0;}
+  @media (max-width:480px){ .dm-row2{grid-template-columns:1fr;} }
+  #daftarForm .field-label{margin:0 0 6px; font-size:12px; letter-spacing:.02em; text-transform:none; font-weight:600; color:var(--ink);}
+  #daftarForm input[type=text], #daftarForm input[type=tel], #daftarForm input[type=date], #daftarForm select, #daftarForm textarea{
+    background:#F4F7FF !important; border:1.5px solid #D6E0FA !important; border-radius:12px !important; padding:12px 14px !important; min-height:46px; color:var(--ink);
+    transition:border-color .15s, box-shadow .15s, background .15s;}
+  #daftarForm input::placeholder, #daftarForm textarea::placeholder{color:#9AA5C7;}
+  #daftarForm input:focus, #daftarForm select:focus, #daftarForm textarea:focus{outline:none; background:#fff !important; border-color:var(--blue-600) !important; box-shadow:0 0 0 4px rgba(79,110,247,0.15);}
+  #daftarForm .calon-check{padding:9px 14px; background:#F4F7FF; border-color:#D6E0FA;}
+  #daftarForm .calon-check:has(input:checked){background:var(--blue-50); border-color:var(--blue-600);}
+  .dm-file{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px; border:1.5px dashed #BFD0F8; border-radius:12px; background:#F9FBFF;}
+  .dm-file .calon-hint{margin:0;}
   #daftarForm .field-label{margin-top:10px;}
   #daftarForm input[type=text], #daftarForm input[type=tel], #daftarForm input[type=date], #daftarForm select, #daftarForm textarea{width:100%; font-size:16px;}
   #daftarForm textarea, #daftarForm input[type=tel], #daftarForm input[type=date]{font-family:'Inter',sans-serif; padding:10px 12px; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--ink); line-height:1.45;}
@@ -3806,7 +3829,7 @@ service cloud.firestore {
     // MENGIRIM data baru. Membaca, mengubah status, dan menghapus hanya admin.
     function calonBaruValid(id) {
       let d = request.resource.data;
-      return d.keys().hasOnly(['id','nama','panggilan','jk','tglLahir','wa','alamat','kampus','jurusan','semester','mapel','mapelLain','jenjang','wilayah','fleksibel','hari','jam','kendaraan','pernah','pengalaman','pengalamanNote','berkas','alasan','foto','status','createdAt'])
+      return d.keys().hasOnly(['id','nama','panggilan','jk','tglLahir','wa','alamat','kampus','jurusan','semester','mapel','mapelLain','kurikulum','jenjang','wilayah','fleksibel','hari','jam','kendaraan','pernah','pengalaman','pengalamanNote','berkas','alasan','foto','status','createdAt'])
         && d.id == id && d.status == 'baru'
         && d.nama is string && d.nama.size() > 0 && d.nama.size() &lt;= 80
         && d.wa is string && d.wa.size() &lt;= 20
@@ -4345,10 +4368,24 @@ service cloud.firestore {
   // status, dan menghapus hanya admin (lihat Rules Firestore).
   // =====================================================================
   const CALON_MAPEL = ['Matematika','Bahasa Inggris','IPA','Fisika','Kimia','Biologi','Bahasa Indonesia','IPS','Bahasa Arab','Calistung (Baca Tulis Hitung)','Mengaji','Semua Mapel SD','TOEFL','IELTS','Ekonomi'];
+  const CALON_KURIKULUM = ['Nasional (Merdeka / K13)','Cambridge','IB (International Baccalaureate)'];
+  const KUR_PREFIX = 'Kurikulum ';
+  const hasKur = (c,k)=> (c.kurikulum||[]).includes(k) || (c.mapel||[]).includes(KUR_PREFIX+k);
   const MAPEL_LAMA = {'Mengaji / Iqra':'Mengaji','Semua Mapel SD (Tematik)':'Semua Mapel SD'};
   const normMapel = m => MAPEL_LAMA[m] || m;
   const CALON_JENJANG = ['TK / PAUD','SD','SMP','SMA / SMK','Persiapan UTBK / Masuk PTN'];
-  const CALON_WILAYAH = ['Baiturrahman','Banda Raya','Jaya Baru','Kuta Alam','Kuta Raja','Lueng Bata','Meuraxa','Syiah Kuala','Ulee Kareng','Darussalam (Aceh Besar)','Ingin Jaya (Aceh Besar)','Krueng Barona Jaya (Aceh Besar)','Baitussalam (Aceh Besar)','Darul Imarah (Aceh Besar)','Peukan Bada (Aceh Besar)'];
+  const CALON_WILAYAH = ['Baiturrahman','Banda Raya','Jaya Baru','Kuta Alam','Kuta Raja','Lueng Bata','Meuraxa','Syiah Kuala','Ulee Kareng','Darussalam (Aceh Besar)','Ingin Jaya (Aceh Besar)','Krueng Barona Jaya (Aceh Besar)','Baitussalam (Aceh Besar)','Darul Imarah (Aceh Besar)','Peukan Bada (Aceh Besar)','Banda Sakti (Lhokseumawe)','Blang Mangat (Lhokseumawe)','Muara Dua (Lhokseumawe)','Muara Satu (Lhokseumawe)','Gandapura (Bireun)','Jangka (Bireun)','Jeumpa (Bireun)','Jeunieb (Bireun)','Juli (Bireun)','Kota Juang (Bireun)','Kuala (Bireun)','Kutablang (Bireun)','Makmur (Bireun)','Pandrah (Bireun)','Peudada (Bireun)','Peulimbang (Bireun)','Peusangan (Bireun)','Peusangan Selatan (Bireun)','Peusangan Siblah Krueng (Bireun)','Samalanga (Bireun)','Simpang Mamplam (Bireun)'];
+  const WIL_BNA = ['Baiturrahman','Banda Raya','Jaya Baru','Kuta Alam','Kuta Raja','Lueng Bata','Meuraxa','Syiah Kuala','Ulee Kareng'];
+  const WIL_ABS = CALON_WILAYAH.filter(w=>/\(Aceh Besar\)$/.test(w));
+  const WIL_LSM = CALON_WILAYAH.filter(w=>/\(Lhokseumawe\)$/.test(w));
+  const WIL_BIR = CALON_WILAYAH.filter(w=>/\(Bireun\)$/.test(w));
+  const kotaOf = w => (WIL_KOTA.find(k=>k[1].includes(w))||[])[0] || '';
+  const wilNama = w => String(w).replace(/ \((Aceh Besar|Lhokseumawe|Bireun)\)$/,'');
+  const WIL_KOTA = [['Kota Banda Aceh',WIL_BNA],['Aceh Besar',WIL_ABS],['Kota Lhokseumawe',WIL_LSM],['Kabupaten Bireun',WIL_BIR]];
+  function kecamatanOptionsHtml(idx){
+    const grp = WIL_KOTA[idx]; if(!grp) return '<option value="">Pilih kota / kabupaten dulu…</option>';
+    return '<option value="">Pilih kecamatan…</option>' + grp[1].map(w=>`<option value="${esc(w)}">${esc(wilNama(w))}</option>`).join('');
+  }
   const CALON_HARI = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
   const CALON_JAM = ['Pagi (08–11)','Siang (11–14)','Sore (14–18)','Malam (18–21)'];
   const CALON_STATUS = {baru:'Baru', dihubungi:'Sudah Dihubungi', diterima:'Diterima', ditolak:'Tidak Lanjut'};
@@ -4452,7 +4489,7 @@ service cloud.firestore {
           <h1 style="font-family:'Poppins',sans-serif;font-size:20px;margin:8px 0 2px;color:var(--ink);">Daftar Calon Tentor</h1>
           <div style="color:var(--ink-soft);font-size:13px;">Les Private Banda Aceh</div>
         </div>
-        <div id="daftarBody" class="card"></div>
+        <div id="daftarBody"></div>
       </div>`;
     const body = document.getElementById('daftarBody');
     if(!calonCol()){
@@ -4460,64 +4497,91 @@ service cloud.firestore {
       return;
     }
     body.innerHTML = `
-      <div class="banner" style="margin-bottom:16px;">Terima kasih sudah tertarik bergabung! Isi data di bawah dengan benar. Kami akan menghubungi lewat WhatsApp kalau ada murid yang cocok dengan Anda.</div>
+      <div class="banner" style="margin-bottom:16px;border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;">Terima kasih sudah tertarik bergabung! Isi data di bawah dengan benar. Kami akan menghubungi lewat WhatsApp kalau ada murid yang cocok dengan Anda.</div>
       <form id="daftarForm" novalidate>
-        <h3 class="calon-sec">📸 Foto Diri</h3>
-        <div class="calon-photo-row">
-          <div class="calon-photo-prev" id="fotoPrev">Belum ada foto</div>
-          <div>
-            <label class="btn secondary small" style="display:inline-block;cursor:pointer;">Pilih / Ambil Foto<input type="file" id="fotoInput" accept="image/*" style="display:none;"></label>
-            <div class="calon-hint">Foto wajah yang jelas dan sopan.</div>
+        <div class="dm-sec">
+          <div class="dm-head"><span class="dm-no">1</span><h3>Foto Diri</h3></div>
+          <div class="calon-photo-row">
+            <div class="calon-photo-prev" id="fotoPrev">Belum ada foto</div>
+            <div>
+              <label class="btn secondary small" style="display:inline-block;cursor:pointer;">Pilih / Ambil Foto<input type="file" id="fotoInput" accept="image/*" style="display:none;"></label>
+              <div class="calon-hint">Foto wajah yang jelas dan sopan.</div>
+            </div>
           </div>
         </div>
 
-        <h3 class="calon-sec">👤 Data Diri</h3>
-        <label class="field-label">Nama lengkap *</label><input type="text" id="cNama" maxlength="80" autocomplete="name">
-        <label class="field-label">Nama panggilan</label><input type="text" id="cPanggilan" maxlength="40">
-        <label class="field-label">Jenis kelamin *</label>
-        <div class="calon-checks"><label class="calon-check"><input type="radio" name="cJk" value="Laki-laki"><span>Laki-laki</span></label><label class="calon-check"><input type="radio" name="cJk" value="Perempuan"><span>Perempuan</span></label></div>
-        <label class="field-label">Tanggal lahir</label><input type="date" id="cTgl">
-        <label class="field-label">No. WhatsApp aktif *</label><input type="tel" id="cWa" maxlength="20" placeholder="mis. 0812xxxxxxx" inputmode="tel">
-        <label class="field-label">Alamat tinggal sekarang *</label><input type="text" id="cAlamat" maxlength="160" placeholder="mis. Jl. ..., Lamnyong">
+        <div class="dm-sec">
+          <div class="dm-head"><span class="dm-no">2</span><h3>Data Diri</h3></div>
+          <div class="dm-row2">
+            <div class="dm-field"><label class="field-label">Nama lengkap *</label><input type="text" id="cNama" maxlength="80" autocomplete="name"></div>
+            <div class="dm-field"><label class="field-label">Nama panggilan</label><input type="text" id="cPanggilan" maxlength="40"></div>
+          </div>
+          <div class="dm-field"><label class="field-label">Jenis kelamin *</label>
+            <div class="calon-checks"><label class="calon-check"><input type="radio" name="cJk" value="Laki-laki"><span>Laki-laki</span></label><label class="calon-check"><input type="radio" name="cJk" value="Perempuan"><span>Perempuan</span></label></div></div>
+          <div class="dm-row2">
+            <div class="dm-field"><label class="field-label">Tanggal lahir</label><input type="date" id="cTgl"></div>
+            <div class="dm-field"><label class="field-label">No. WhatsApp aktif *</label><input type="tel" id="cWa" maxlength="20" placeholder="mis. 0812xxxxxxx" inputmode="tel"></div>
+          </div>
+          <div class="dm-field"><label class="field-label">Alamat tinggal sekarang *</label><input type="text" id="cAlamat" maxlength="160" placeholder="mis. Jl. ..., Lamnyong"></div>
+        </div>
 
-        <h3 class="calon-sec">🎓 Pendidikan</h3>
-        <label class="field-label">Kampus *</label><input type="text" id="cKampus" maxlength="80" placeholder="mis. USK, UIN Ar-Raniry">
-        <label class="field-label">Jurusan / Prodi *</label><input type="text" id="cJurusan" maxlength="80" placeholder="mis. Pendidikan Matematika">
-        <label class="field-label">Status *</label>
-        <select id="cSemester"><option value="">Pilih…</option>${[1,2,3,4,5,6,7,8].map(s=>`<option value="Semester ${s}">Semester ${s}</option>`).join('')}<option value="Semester 9+">Semester 9+</option><option value="Sudah lulus">Sudah lulus</option></select>
+        <div class="dm-sec">
+          <div class="dm-head"><span class="dm-no">3</span><h3>Pendidikan</h3></div>
+          <div class="dm-field"><label class="field-label">Kampus *</label><input type="text" id="cKampus" maxlength="80" placeholder="mis. USK, UIN Ar-Raniry"></div>
+          <div class="dm-field"><label class="field-label">Jurusan / Prodi *</label><input type="text" id="cJurusan" maxlength="80" placeholder="mis. Pendidikan Matematika"></div>
+          <div class="dm-field"><label class="field-label">Status *</label>
+            <select id="cSemester"><option value="">Pilih…</option>${[1,2,3,4,5,6,7,8].map(s=>`<option value="Semester ${s}">Semester ${s}</option>`).join('')}<option value="Semester 9+">Semester 9+</option><option value="Sudah lulus">Sudah lulus</option></select></div>
+        </div>
 
-        <h3 class="calon-sec">📚 Yang Bisa Diajar</h3>
-        <label class="field-label">Mata pelajaran * (boleh lebih dari satu)</label>${checkGroupHtml('cMapel', CALON_MAPEL)}
-        <label class="field-label">Mapel lainnya (opsional)</label><input type="text" id="cMapelLain" maxlength="120" placeholder="mis. Pemrograman, Akuntansi">
-        <label class="field-label">Jenjang * (boleh lebih dari satu)</label>${checkGroupHtml('cJenjang', CALON_JENJANG)}
+        <div class="dm-sec">
+          <div class="dm-head"><span class="dm-no">4</span><h3>Yang Bisa Diajar</h3></div>
+          <div class="dm-field"><label class="field-label">Mata pelajaran * (boleh lebih dari satu)</label>${checkGroupHtml('cMapel', CALON_MAPEL)}</div>
+          <div class="dm-field"><label class="field-label">Mapel lainnya (opsional)</label><input type="text" id="cMapelLain" maxlength="120" placeholder="mis. Pemrograman, Akuntansi"></div>
+          <div class="dm-field"><label class="field-label">Jenjang * (boleh lebih dari satu)</label>${checkGroupHtml('cJenjang', CALON_JENJANG)}</div>
+          <div class="dm-field"><label class="field-label">Kurikulum yang bisa diajarkan (boleh lebih dari satu)</label>${checkGroupHtml('cKurikulum', CALON_KURIKULUM)}<div class="calon-hint">Cambridge: Primary, Lower Secondary, IGCSE, A-Level. Kosongkan kalau hanya kurikulum nasional.</div></div>
+        </div>
 
-        <h3 class="calon-sec">📍 Wilayah Mengajar</h3>
-        <label class="field-label">Kecamatan yang bisa dijangkau *</label>
-        <select id="cWilayah"><option value="">Pilih kecamatan…</option>${CALON_WILAYAH.map(w=>`<option value="${esc(w)}">${esc(w)}</option>`).join('')}</select>
-        <label class="calon-check" style="margin-top:8px;border-radius:12px;"><input type="checkbox" id="cFleksibel"><span>Fleksibel — bersedia mengajar di luar kecamatan ini juga</span></label>
-        <label class="field-label">Punya kendaraan sendiri?</label>
-        <div class="calon-checks"><label class="calon-check"><input type="radio" name="cKendaraan" value="ya"><span>Ya</span></label><label class="calon-check"><input type="radio" name="cKendaraan" value="tidak"><span>Tidak</span></label></div>
+        <div class="dm-sec">
+          <div class="dm-head"><span class="dm-no">5</span><h3>Wilayah Mengajar</h3></div>
+          <div class="dm-field"><label class="field-label">Kota / Kabupaten yang bisa dijangkau *</label>
+            <select id="cKota"><option value="">Pilih kota / kabupaten…</option>${WIL_KOTA.map((k,i)=>`<option value="${i}">${esc(k[0])}</option>`).join('')}</select></div>
+          <div class="dm-field"><label class="field-label">Kecamatan *</label>
+            <select id="cWilayah" disabled>${kecamatanOptionsHtml(-1)}</select></div>
+          <div class="dm-field"><label class="calon-check" style="border-radius:12px;"><input type="checkbox" id="cFleksibel"><span>Fleksibel — bersedia mengajar di luar kecamatan yang saya pilih</span></label></div>
+          <div class="dm-field"><label class="field-label">Punya kendaraan sendiri?</label>
+            <div class="calon-checks"><label class="calon-check"><input type="radio" name="cKendaraan" value="ya"><span>Ya</span></label><label class="calon-check"><input type="radio" name="cKendaraan" value="tidak"><span>Tidak</span></label></div></div>
+        </div>
 
-        <h3 class="calon-sec">🧑‍🏫 Pengalaman Mengajar</h3>
-        <label class="field-label">Pernah mengajar di mana saja? (kosongkan kalau belum pernah)</label>
-        <textarea id="cPengalaman" maxlength="1500" rows="4" style="width:100%;" placeholder="mis. Bimbel Primagama 2023–2024 (Matematika SMP), les privat 3 murid SD, PPL di SMAN 1 Banda Aceh"></textarea>
+        <div class="dm-sec">
+          <div class="dm-head"><span class="dm-no">6</span><h3>Pengalaman Mengajar</h3></div>
+          <div class="dm-field"><label class="field-label">Pernah mengajar di mana saja? (kosongkan kalau belum pernah)</label>
+            <textarea id="cPengalaman" maxlength="1500" rows="4" style="width:100%;" placeholder="mis. Bimbel Primagama 2023–2024 (Matematika SMP), les privat 3 murid SD, PPL di SMAN 1 Banda Aceh"></textarea></div>
+        </div>
 
-        <h3 class="calon-sec">📎 CV & Sertifikat</h3>
-        <label class="field-label">CV * (PDF atau foto, maks. 5 MB)</label>
-        <label class="btn secondary small" style="display:inline-block;cursor:pointer;">Pilih file CV<input type="file" id="cvInput" accept="application/pdf,image/*" style="display:none;"></label>
-        <div class="calon-hint" id="cvInfo">Belum ada file.</div>
-        <label class="field-label" style="margin-top:12px;">Sertifikat pendukung (opsional, maks. 4 file)</label>
-        <label class="btn secondary small" style="display:inline-block;cursor:pointer;">+ Tambah sertifikat<input type="file" id="sertInput" accept="application/pdf,image/*" multiple style="display:none;"></label>
-        <div class="calon-hint" id="sertInfo">Belum ada file.</div>
+        <div class="dm-sec">
+          <div class="dm-head"><span class="dm-no">7</span><h3>CV & Sertifikat</h3></div>
+          <div class="dm-field"><label class="field-label">CV * (PDF atau foto, maks. 5 MB)</label>
+            <div class="dm-file"><label class="btn secondary small" style="display:inline-block;cursor:pointer;">Pilih file CV<input type="file" id="cvInput" accept="application/pdf,image/*" style="display:none;"></label>
+            <div class="calon-hint" id="cvInfo">Belum ada file.</div></div></div>
+          <div class="dm-field"><label class="field-label">Sertifikat pendukung (opsional, maks. 4 file)</label>
+            <div class="dm-file"><label class="btn secondary small" style="display:inline-block;cursor:pointer;">+ Tambah sertifikat<input type="file" id="sertInput" accept="application/pdf,image/*" multiple style="display:none;"></label>
+            <div class="calon-hint" id="sertInfo">Belum ada file.</div></div></div>
+        </div>
 
-        <h3 class="calon-sec">💬 Lainnya</h3>
-        <label class="field-label">Kenapa ingin jadi tentor? (opsional)</label>
-        <textarea id="cAlasan" maxlength="600" rows="3" style="width:100%;"></textarea>
+        <div class="dm-sec">
+          <div class="dm-head"><span class="dm-no">8</span><h3>Lainnya</h3></div>
+          <div class="dm-field"><label class="field-label">Kenapa ingin jadi tentor? (opsional)</label>
+            <textarea id="cAlasan" maxlength="600" rows="3" style="width:100%;"></textarea></div>
+        </div>
 
         <div id="daftarErr" class="calon-err" style="display:none;"></div>
-        <button type="submit" class="btn" id="daftarSubmit" style="width:100%;margin-top:16px;font-size:15px;padding:14px;">Kirim Pendaftaran</button>
+        <button type="submit" class="btn" id="daftarSubmit" style="width:100%;font-size:16px;padding:15px;border-radius:14px;">Kirim Pendaftaran</button>
       </form>`;
 
+    document.getElementById('cKota').addEventListener('change', (e)=>{
+      const sel = document.getElementById('cWilayah'); const v = e.target.value;
+      sel.innerHTML = kecamatanOptionsHtml(v===''?-1:+v); sel.disabled = (v===''); sel.value = '';
+    });
     let foto = '';
     const fotoInput = document.getElementById('fotoInput');
     fotoInput.addEventListener('change', async ()=>{
@@ -4567,7 +4631,7 @@ service cloud.firestore {
       const rec = {
         nama: v('cNama'), panggilan: v('cPanggilan'), jk: radio('cJk'), tglLahir: v('cTgl'),
         wa: v('cWa'), alamat: v('cAlamat'), kampus: v('cKampus'), jurusan: v('cJurusan'), semester: v('cSemester'),
-        mapel: checkedValues(body,'cMapel'), mapelLain: v('cMapelLain'), jenjang: checkedValues(body,'cJenjang'),
+        mapel: checkedValues(body,'cMapel'), kurikulum: checkedValues(body,'cKurikulum'), mapelLain: v('cMapelLain'), jenjang: checkedValues(body,'cJenjang'),
         wilayah: v('cWilayah') ? [v('cWilayah')] : [], fleksibel: document.getElementById('cFleksibel').checked,
         kendaraan: radio('cKendaraan'), pengalamanNote: v('cPengalaman'), pernah: v('cPengalaman') ? 'ya' : 'tidak',
         alasan: v('cAlasan'), foto
@@ -4581,7 +4645,7 @@ service cloud.firestore {
       if(!rec.kampus || !rec.jurusan || !rec.semester) errs.push('kampus, jurusan & status');
       if(!rec.mapel.length && !rec.mapelLain) errs.push('mata pelajaran');
       if(!rec.jenjang.length) errs.push('jenjang');
-      if(!rec.wilayah.length) errs.push('kecamatan');
+      if(!rec.wilayah.length) errs.push('kota & kecamatan');
       if(!cvFile) errs.push('file CV');
       const errBox = document.getElementById('daftarErr');
       if(errs.length){ errBox.style.display=''; errBox.textContent = 'Mohon lengkapi: ' + errs.join(', ') + '.'; errBox.scrollIntoView({block:'center', behavior:'smooth'}); return; }
@@ -4601,7 +4665,13 @@ service cloud.firestore {
           rec.berkas.push({file: i, jenis: b.jenis, nama: b.nama.slice(0,120), tipe: b.tipe, parts});
         }
         btn.textContent = 'Mengirim…';
-        await calonCol().doc(rec.id).set(rec);
+        try{ await calonCol().doc(rec.id).set(rec); }
+        catch(e1){
+          // Kalau aturan Firestore belum mengenal kolom 'kurikulum', simpan lewat daftar mapel.
+          if(!rec.kurikulum || !rec.kurikulum.length || !/permission/i.test(String(e1&&(e1.code||e1.message)))) throw e1;
+          rec.mapel = (rec.mapel||[]).concat(rec.kurikulum.map(k=>KUR_PREFIX+k)); delete rec.kurikulum;
+          await calonCol().doc(rec.id).set(rec);
+        }
         body.innerHTML = `<div class="empty" style="padding:30px 10px;"><div style="font-size:46px;">🎉</div><h3>Pendaftaran terkirim!</h3><p>Terima kasih, ${esc(rec.panggilan||rec.nama)}. Data Anda sudah kami terima. Kami akan menghubungi lewat WhatsApp <b>${esc(rec.wa)}</b> kalau ada murid yang cocok.</p></div>`;
         window.scrollTo(0,0);
       }catch(e){
@@ -4618,7 +4688,7 @@ service cloud.firestore {
   let calonList = [];
   let calonState = 'idle'; // idle | loading | ready | error
   let calonView = 'bank';  // seleksi | bank | ditolak
-  let calonFilter = {q:'', mapel:'', jenjang:'', wilayah:'', showAktif:false};
+  let calonFilter = {q:'', mapel:'', kurikulum:'', kota:'', jenjang:'', wilayah:'', showAktif:false};
   async function loadCalon(){
     if(!calonCol()){ calonList = []; calonState = 'ready'; return; }
     calonState = 'loading';
@@ -4645,7 +4715,9 @@ service cloud.firestore {
     if(calonView==='bank'){
       if(f.mapel && !(c.mapel||[]).map(normMapel).includes(f.mapel)) return false;
       if(f.jenjang && !(c.jenjang||[]).includes(f.jenjang)) return false;
-      if(f.wilayah && !(c.wilayah||[]).includes(f.wilayah) && !c.fleksibel) return false;
+      if(f.kurikulum && !hasKur(c,f.kurikulum)) return false;
+      if(f.wilayah){ if(!(c.wilayah||[]).includes(f.wilayah) && !(c.fleksibel && (c.wilayah||[]).some(w=>kotaOf(w)===kotaOf(f.wilayah)))) return false; }
+      else if(f.kota && !(c.wilayah||[]).some(w=>kotaOf(w)===f.kota)) return false;
     }
     const q = f.q.trim().toLowerCase();
     if(q){
@@ -4662,7 +4734,7 @@ service cloud.firestore {
       msg = `Assalamu'alaikum ${sapa}, saya dari Les Private Banda Aceh. Terima kasih sudah mendaftar sebagai calon tentor. Kami ingin mengajak Kakak untuk tahap seleksi/wawancara singkat. Kapan Kakak ada waktu?`;
     } else if(f.mapel || f.jenjang){
       const kebutuhan = [f.mapel, f.jenjang].filter(Boolean).join(' ');
-      msg = `Assalamu'alaikum ${sapa}, saya dari Les Private Banda Aceh. Kami sedang butuh tentor ${kebutuhan}${f.wilayah?` di daerah ${f.wilayah.replace(/ \(Aceh Besar\)$/,'')}`:''}. Apakah Kakak bersedia?`;
+      msg = `Assalamu'alaikum ${sapa}, saya dari Les Private Banda Aceh. Kami sedang butuh tentor ${kebutuhan}${f.wilayah?` di daerah ${wilNama(f.wilayah)}`:(f.kota?` di ${f.kota}`:'')}. Apakah Kakak bersedia?`;
     } else {
       msg = `Assalamu'alaikum ${sapa}, saya dari Les Private Banda Aceh. Ada murid yang ingin kami tawarkan untuk Kakak ajar. Apakah Kakak bersedia?`;
     }
@@ -4707,11 +4779,18 @@ service cloud.firestore {
             <a class="btn small secondary" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Lowongan Tentor Les Private Banda Aceh 📚\nJadwal fleksibel, honor per pertemuan. Daftar di sini: '+daftarLink)}">Bagikan ke WA</a>
           </div>
         </details>` : ''}
+        ${calonView==='bank' ? `<div class="calon-tabs" id="kotaTabs">
+          <button class="calon-tab${!f.kota?' on':''}" data-kota="">Semua${ready?` <span class="calon-badge soft">${calonList.filter(calonInView).length}</span>`:''}</button>
+          ${WIL_KOTA.map(k=>`<button class="calon-tab${f.kota===k[0]?' on':''}" data-kota="${esc(k[0])}">${esc(k[0])}${ready?` <span class="calon-badge soft">${calonList.filter(c=>calonInView(c)&&(c.wilayah||[]).some(w=>kotaOf(w)===k[0])).length}</span>`:''}</button>`).join('')}
+        </div>` : ''}
         <div class="calon-filters">
           ${calonView==='bank' ? `
             ${selectHtml('fMapel','Mapel',CALON_MAPEL,f.mapel)}
             ${selectHtml('fJenjang','Jenjang',CALON_JENJANG,f.jenjang)}
-            ${selectHtml('fWilayah','Wilayah',CALON_WILAYAH,f.wilayah)}` : ''}
+            ${selectHtml('fKurikulum','Kurikulum',CALON_KURIKULUM,f.kurikulum)}
+            ${(()=>{ const grp = f.kota ? WIL_KOTA.filter(k=>k[0]===f.kota) : WIL_KOTA;
+              const opt = w=>`<option value="${esc(w)}"${w===f.wilayah?' selected':''}>${esc(wilNama(w))}</option>`;
+              return `<div><label class="field-label">Kecamatan</label><select id="fWilayah"><option value="">Semua kecamatan</option>${f.kota ? grp[0][1].map(opt).join('') : grp.map(k=>`<optgroup label="${esc(k[0])}">${k[1].map(opt).join('')}</optgroup>`).join('')}</select></div>`; })()}` : ''}
           <div><label class="field-label">Cari</label><input type="search" id="fCalonQ" placeholder="Nama, kampus, jurusan…" value="${esc(f.q)}"></div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
@@ -4741,9 +4820,10 @@ service cloud.firestore {
                   <span class="calon-status st-${esc(s)}">${esc(statusLabel[s]||s)}</span>
                 </div>
               </div>
-              <div class="calon-row"><b>Mapel</b><div>${(c.mapel||[]).map(normMapel).map(m=>chip(m, m===f.mapel)).join('')}${c.mapelLain?chip(c.mapelLain):''}</div></div>
+              ${CALON_KURIKULUM.some(k=>hasKur(c,k))?`<div class="calon-row"><b>Kurikulum</b><div>${CALON_KURIKULUM.filter(k=>hasKur(c,k)).map(k=>chip(k, k===f.kurikulum)).join('')}</div></div>`:''}
+              <div class="calon-row"><b>Mapel</b><div>${(c.mapel||[]).filter(m=>!m.startsWith(KUR_PREFIX)).map(normMapel).map(m=>chip(m, m===f.mapel)).join('')}${c.mapelLain?chip(c.mapelLain):''}</div></div>
               <div class="calon-row"><b>Jenjang</b><div>${(c.jenjang||[]).map(m=>chip(m, m===f.jenjang)).join('')}</div></div>
-              <div class="calon-row"><b>Wilayah</b><div>${(c.wilayah||[]).map(m=>chip(m.replace(/ \(Aceh Besar\)$/,''), m===f.wilayah)).join('')}${c.fleksibel?chip('🔄 Fleksibel, bisa di luar kecamatan', !!f.wilayah && !(c.wilayah||[]).includes(f.wilayah)):''}</div></div>
+              <div class="calon-row"><b>Wilayah</b><div>${(c.wilayah||[]).map(m=>chip(m.replace(/ \(Aceh Besar\)$/,''), m===f.wilayah)).join('')}${c.fleksibel?chip('🔄 Fleksibel, bisa di luar kecamatan pilihannya', !!f.wilayah && !(c.wilayah||[]).includes(f.wilayah)):''}</div></div>
               ${(c.hari||[]).length ? `<div class="calon-row"><b>Jadwal</b><div>${(c.hari||[]).map(m=>chip(m)).join('')}<div class="calon-sub" style="margin-top:3px;">${esc((c.jam||[]).join(', '))}</div></div></div>` : ''}
               <div class="calon-row"><b>Pengalaman</b><div>${c.pengalamanNote ? `<div style="white-space:pre-line;">${esc(c.pengalamanNote)}</div>` : c.pernah==='ya' && (c.pengalaman||[]).length ? (c.pengalaman||[]).map(p=>`<div>• ${esc(p.tempat||'-')}${p.mapel?` — ${esc(p.mapel)}`:''}${p.lama?` <span class="calon-sub">(${esc(p.lama)})</span>`:''}</div>`).join('') : '<span class="calon-sub">Belum pernah mengajar</span>'}</div></div>
               ${(c.berkas||[]).length ? `<div class="calon-row"><b>Berkas</b><div>${(()=>{ let n=0; return c.berkas.map(b=>`<button class="btn small secondary calon-berkas" data-id="${esc(c.id)}" data-file="${b.file}" style="margin:0 4px 4px 0;">${b.jenis==='cv'?'📄 CV':'🏅 Sertifikat '+(++n)}</button>`).join(''); })()}</div></div>` : ''}
@@ -4764,15 +4844,16 @@ service cloud.firestore {
             </div>`; }).join('')}</div>`}
       </div>`));
 
-    view.querySelectorAll('.calon-tab').forEach(b=>b.addEventListener('click', ()=>{ calonView = b.dataset.view; calonFilter.q=''; render(); window.scrollTo(0,0); }));
+    view.querySelectorAll('.calon-tab[data-view]').forEach(b=>b.addEventListener('click', ()=>{ calonView = b.dataset.view; calonFilter.q=''; render(); window.scrollTo(0,0); }));
     const copyBtn = document.getElementById('copyDaftarLink');
     if(copyBtn) copyBtn.addEventListener('click', async ()=>{
       try{ await navigator.clipboard.writeText(daftarLink); flashSaved(); alert('Link pendaftaran sudah disalin.'); }
       catch(e){ prompt('Salin link pendaftaran ini:', daftarLink); }
     });
     document.getElementById('refreshCalon').addEventListener('click', async ()=>{ calonState='loading'; render(); await loadCalon(); render(); });
-    [['fMapel','mapel'],['fJenjang','jenjang'],['fWilayah','wilayah']].forEach(([id,key])=>{
-      const s = document.getElementById(id); if(s) s.addEventListener('change', (e)=>{ calonFilter[key] = e.target.value; render(); });
+    document.querySelectorAll('#kotaTabs [data-kota]').forEach(b=>b.addEventListener('click', ()=>{ calonFilter.kota = b.dataset.kota; calonFilter.wilayah = ''; render(); }));
+    [['fMapel','mapel'],['fJenjang','jenjang'],['fKurikulum','kurikulum'],['fWilayah','wilayah']].forEach(([id,key])=>{
+      const s = document.getElementById(id); if(s) s.addEventListener('change', (e)=>{ calonFilter[key] = e.target.value; if(key==='kota') calonFilter.wilayah = ''; render(); });
     });
     const sa = document.getElementById('fShowAktif');
     if(sa) sa.addEventListener('change', ()=>{ calonFilter.showAktif = sa.checked; render(); });
