@@ -4497,7 +4497,7 @@ service cloud.firestore {
       return;
     }
     body.innerHTML = `
-      <div class="banner" style="margin-bottom:16px;border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;">Terima kasih sudah tertarik bergabung! Isi data di bawah dengan benar. Kami akan menghubungi lewat WhatsApp kalau ada murid yang cocok dengan Anda.</div>
+      <div class="banner" style="margin-bottom:16px;border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;">Terima kasih telah bergabung bersama Les Private BNA, Kak! 🙏 Berkas Kakak akan kami seleksi terlebih dahulu. Jika Kakak lulus seleksi, admin kami akan menghubungi Kakak melalui WhatsApp. Semoga kita bisa segera bekerja sama!<br><span style="opacity:.8">Silakan isi data di bawah dengan benar ya, Kak.</span></div>
       <form id="daftarForm" novalidate>
         <div class="dm-sec">
           <div class="dm-head"><span class="dm-no">1</span><h3>Foto Diri</h3></div>
@@ -4672,7 +4672,7 @@ service cloud.firestore {
           rec.mapel = (rec.mapel||[]).concat(rec.kurikulum.map(k=>KUR_PREFIX+k)); delete rec.kurikulum;
           await calonCol().doc(rec.id).set(rec);
         }
-        body.innerHTML = `<div class="empty" style="padding:30px 10px;"><div style="font-size:46px;">🎉</div><h3>Pendaftaran terkirim!</h3><p>Terima kasih, ${esc(rec.panggilan||rec.nama)}. Data Anda sudah kami terima. Kami akan menghubungi lewat WhatsApp <b>${esc(rec.wa)}</b> kalau ada murid yang cocok.</p></div>`;
+        body.innerHTML = `<div class="empty" style="padding:30px 10px;"><div style="font-size:46px;">🎉</div><h3>Pendaftaran terkirim!</h3><p>Terima kasih telah bergabung bersama Les Private BNA, Kak ${esc(rec.panggilan||rec.nama)}! 🙏 Berkas Kakak akan kami seleksi terlebih dahulu. Jika Kakak lulus seleksi, admin kami akan menghubungi Kakak melalui WhatsApp <b>${esc(rec.wa)}</b>. Semoga kita bisa segera bekerja sama!</p></div>`;
         window.scrollTo(0,0);
       }catch(e){
         btn.disabled = false; btn.textContent = 'Kirim Pendaftaran';
