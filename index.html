@@ -4574,7 +4574,7 @@ service cloud.firestore {
             <textarea id="cAlasan" maxlength="600" rows="3" style="width:100%;"></textarea></div>
         </div>
 
-        <div class="banner" style="margin:0 0 14px;border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;">Terima kasih telah bergabung bersama Les Private BNA, Kak! 🙏 Berkas Kakak akan kami seleksi terlebih dahulu. Jika Kakak lulus seleksi, admin kami akan menghubungi Kakak melalui WhatsApp. Semoga kita bisa segera bekerja sama!</div>
+        <div class="banner" style="margin:0 0 14px;border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;">Terima kasih telah bergabung bersama Les Private BNA, Kak! 🙏 Berkas Kakak akan kami seleksi terlebih dahulu. Jika Kakak lulus seleksi, admin kami akan menghubungi Kakak melalui WhatsApp. Semoga kita bisa segera bekerja sama!<br><br><span style="opacity:.85">Jika dalam 3–4 hari Kakak belum kami hubungi, mohon maaf, berarti untuk saat ini kita belum bisa bekerja sama. Terima kasih banyak atas waktu dan minat Kakak, semoga sukses selalu dan semoga kita bisa bertemu di kesempatan berikutnya 🙏</span></div>
         <div id="daftarErr" class="calon-err" style="display:none;"></div>
         <button type="submit" class="btn" id="daftarSubmit" style="width:100%;font-size:16px;padding:15px;border-radius:14px;">Kirim Pendaftaran</button>
       </form>`;
@@ -4673,7 +4673,7 @@ service cloud.firestore {
           rec.mapel = (rec.mapel||[]).concat(rec.kurikulum.map(k=>KUR_PREFIX+k)); delete rec.kurikulum;
           await calonCol().doc(rec.id).set(rec);
         }
-        body.innerHTML = `<div class="empty" style="padding:30px 10px;"><div style="font-size:46px;">🎉</div><h3>Pendaftaran terkirim!</h3><p>Terima kasih telah bergabung bersama Les Private BNA, Kak ${esc(rec.panggilan||rec.nama)}! 🙏 Berkas Kakak akan kami seleksi terlebih dahulu. Jika Kakak lulus seleksi, admin kami akan menghubungi Kakak melalui WhatsApp <b>${esc(rec.wa)}</b>. Semoga kita bisa segera bekerja sama!</p></div>`;
+        body.innerHTML = `<div class="empty" style="padding:30px 10px;"><div style="font-size:46px;">🎉</div><h3>Pendaftaran terkirim!</h3><p>Terima kasih telah bergabung bersama Les Private BNA, Kak ${esc(rec.panggilan||rec.nama)}! 🙏 Berkas Kakak akan kami seleksi terlebih dahulu. Jika Kakak lulus seleksi, admin kami akan menghubungi Kakak melalui WhatsApp <b>${esc(rec.wa)}</b>. Semoga kita bisa segera bekerja sama!</p><p style="opacity:.85;margin-top:10px;">Jika dalam 3–4 hari Kakak belum kami hubungi, mohon maaf, berarti untuk saat ini kita belum bisa bekerja sama. Terima kasih banyak atas waktu dan minat Kakak, semoga sukses selalu 🙏</p></div>`;
         window.scrollTo(0,0);
       }catch(e){
         btn.disabled = false; btn.textContent = 'Kirim Pendaftaran';
